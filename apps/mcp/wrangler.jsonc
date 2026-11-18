@@ -1,0 +1,74 @@
+// Copyright (c) 2024-2026 Ronan LE MEILLAT
+// License: AGPL-3.0-or-later
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * NOTE: This is the BASE configuration committed to git.
+ * The CI pipeline patches it (routes, KV IDs, secrets) via scripts/generate-wrangler-jsonc.py.
+ * Do not add secrets here.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fufuni-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-12-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_OBJECT",
+        "class_name": "FufuniMCP"
+      }
+    ]
+  },
+  "vectorize": [
+    {
+      "binding": "VECTORIZE", // available in your Worker on env.VECTORIZE
+      "index_name": "fufuni-mcp" // created via Wrangler CLI: `npx wrangler vectorize create fufuni-mcp  --dimensions=256 --metric=cosine`
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "FufuniMCP"
+      ]
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "MCP_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "kv_namespaces": [
+    {
+      "binding": "KV_CACHE",
+      "id": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    }
+  ],
+  "dev": {
+    "port": 8788
+  },
+  // Tell Wrangler/esbuild to treat .enc files as plain-text modules so that
+  // `import x from "…" with { type: "text" }` works at bundle time.
+  "rules": [
+    {
+      "type": "Text",
+      "globs": [
+        "**/*.enc"
+      ],
+      "fallthrough": true
+    }
+  ]
+}

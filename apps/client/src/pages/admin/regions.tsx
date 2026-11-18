@@ -1,0 +1,485 @@
+/**
+ * Copyright (c) 2024-2026 Ronan LE MEILLAT
+ * License: AGPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { Button, Pagination } from "@heroui/react";
+import { Input, TextField, Label } from "@heroui/react";
+import { Table } from "@heroui/react";
+import { Checkbox } from "@heroui/react";
+import { Modal } from "@heroui/react";
+import { Card } from "@heroui/react";
+
+import DefaultLayout from "@/layouts/default";
+import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
+import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
+import { RowActions } from "@/shared/ui/admin/row-actions";
+import { StatusBadge } from "@/shared/ui/admin/status-badge";
+import { useAdminCrud } from "@/hooks/use-admin-crud";
+
+/**
+ * A geographical or market region used by the platform.
+ */
+interface Region {
+  id: string;
+  display_name: string;
+  currency_id: string;
+  currency_code?: string;
+  is_default: boolean;
+  tax_inclusive: boolean;
+  status: "active" | "inactive";
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Currency metadata used when selecting a region's primary currency.
+ */
+interface Currency {
+  id: string;
+  code: string;
+  display_name: string;
+}
+
+/**
+ * Possible status values for a region.
+ */
+const STATUS_OPTIONS = ["active", "inactive"];
+
+export default function RegionsPage() {
+  const { t } = useTranslation();
+  const { getJson, postJson, deleteJson, patchJson } = useSecuredApi();
+
+  const apiBase = getApiBase();
+
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const currentPage = cursorHistory.length + 1;
+
+  const {
+    items: regions,
+    setItems: setRegions,
+    displayedItems: displayed,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem: editingRegion,
+    openCreate,
+    openEdit,
+  } = useAdminCrud<Region>({
+    filterFn: (r, term) =>
+      r.display_name.toLowerCase().includes(term) ||
+      (r.currency_code?.toLowerCase() ?? "").includes(term),
+  });
+
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [formData, setFormData] = useState({
+    display_name: "",
+    currency_id: "",
+    is_default: false,
+    tax_inclusive: false,
+    status: "active" as "active" | "inactive",
+  });
+
+  // Load regions and currencies
+  /**
+   * Retrieve the list of regions and available currencies from the backend
+   * and update component state. Used on mount and after data-changing actions.
+   */
+  const loadData = async (cursorParam: string | null = null) => {
+    try {
+      const [regionsResp, currenciesResp] = await Promise.all([
+        getJson(
+          `${apiBase}/v1/regions?limit=10${cursorParam ? `&cursor=${encodeURIComponent(cursorParam)}` : ""}`,
+        ),
+        getJson(`${apiBase}/v1/regions/currencies?limit=100`),
+      ]);
+
+      setRegions(regionsResp.items || []);
+
+      const pagination = regionsResp.pagination || {};
+
+      setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
+      setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
+
+      setCurrencies(currenciesResp.items || []);
+    } catch (err) {
+      console.error("Failed to load data", err);
+    }
+  };
+
+  useEffect(() => {
+    loadData(cursor);
+  }, [cursor, globalFilter, statusFilter]);
+
+  useEffect(() => {
+    setCursor(null);
+    setCursorHistory([]);
+  }, [globalFilter, statusFilter]);
+
+  const goToNextPage = () => {
+    if (!hasMore || !nextCursor) return;
+
+    setCursorHistory((prev) => [...prev, cursor]);
+    setCursor(nextCursor);
+  };
+
+  const goToPreviousPage = () => {
+    if (cursorHistory.length === 0) return;
+
+    const previousCursor = cursorHistory[cursorHistory.length - 1];
+
+    setCursorHistory((prev) => prev.slice(0, -1));
+    setCursor(previousCursor);
+  };
+
+  /**
+   * Prepare and open the modal for creating a new region.
+   */
+  const handleOpenCreate = () => {
+    setFormData({
+      display_name: "",
+      currency_id: "",
+      is_default: false,
+      tax_inclusive: false,
+      status: "active",
+    });
+    openCreate();
+  };
+
+  /**
+   * Populate the modal with an existing region's data and open for editing.
+   *
+   * @param region - region object to modify
+   */
+  const handleOpenEdit = (region: Region) => {
+    setFormData({
+      display_name: region.display_name,
+      currency_id: region.currency_id,
+      is_default: region.is_default,
+      tax_inclusive: region.tax_inclusive,
+      status: region.status,
+    });
+    openEdit(region);
+  };
+
+  /**
+   * Send the form data to the backend to create or update a region. Updates
+   * local state optimistically with the returned object, or reloads on
+   * failure, then closes the modal.
+   */
+  const handleSave = async () => {
+    try {
+      if (isEditMode && editingRegion) {
+        const response = await patchJson(
+          `${apiBase}/v1/regions/${editingRegion.id}`,
+          formData,
+        );
+
+        // Mettre à jour le state local avec les données retournées
+        if (response) {
+          setRegions(
+            regions.map((r) => (r.id === editingRegion.id ? response : r)),
+          );
+        } else {
+          await loadData();
+        }
+      } else {
+        const response = await postJson(`${apiBase}/v1/regions`, formData);
+
+        // Ajouter la nouvelle région au tableau
+        if (response) {
+          setRegions([...regions, response]);
+        } else {
+          await loadData();
+        }
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error("Failed to save region", err);
+    }
+  };
+
+  /**
+   * Remove a region after user confirmation and reload data.
+   *
+   * @param id - identifier of the region to delete
+   */
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this region?")) {
+      try {
+        await deleteJson(`${apiBase}/v1/regions/${id}`);
+        await loadData();
+      } catch (err) {
+        console.error("Failed to delete region", err);
+      }
+    }
+  };
+
+  /**
+   * Mark the given region as the default, then refresh the list.
+   *
+   * @param id - region to promote as default
+   */
+  const handleSetDefault = async (id: string) => {
+    try {
+      await postJson(`${apiBase}/v1/regions/${id}/default`, {});
+      await loadData();
+    } catch (err) {
+      console.error("Failed to set default region", err);
+    }
+  };
+
+  return (
+    <DefaultLayout>
+      <AdminCrudLayout
+        addLabel={t("admin-regions-add")}
+        filterPlaceholder={t("admin-regions-filter-placeholder")}
+        globalFilter={globalFilter}
+        statusFilter={statusFilter}
+        title={t("admin-regions-title")}
+        onAdd={handleOpenCreate}
+        onGlobalFilterChange={setGlobalFilter}
+        onStatusFilterChange={setStatusFilter}
+      >
+        <Card>
+          <Card.Content>
+            <Table>
+              <Table.Content>
+                <Table.Header>
+                  <Table.Column key="display_name" isRowHeader>
+                    {t("admin-common-name")}
+                  </Table.Column>
+                  <Table.Column key="currency">
+                    {t("admin-common-currency")}
+                  </Table.Column>
+                  <Table.Column key="is_default">
+                    {t("admin-common-default")}
+                  </Table.Column>
+                  <Table.Column key="tax_inclusive">
+                    {t("admin-regions-tax-inclusive")}
+                  </Table.Column>
+                  <Table.Column key="status">
+                    {t("admin-common-status")}
+                  </Table.Column>
+                  <Table.Column key="actions">
+                    {t("admin-common-actions")}
+                  </Table.Column>
+                </Table.Header>
+                <Table.Body
+                  renderEmptyState={() => <div>{t("admin-common-empty")}</div>}
+                >
+                  {displayed.map((region: Region) => (
+                    <Table.Row key={region.id} className="odd:bg-default-50">
+                      <Table.Cell>{region.display_name}</Table.Cell>
+                      <Table.Cell>
+                        {region.currency_code || region.currency_id}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {region.is_default ? (
+                          <span className="text-green-600">✓ Default</span>
+                        ) : (
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="tertiary"
+                            onPress={() => handleSetDefault(region.id)}
+                          >
+                            Set Default
+                          </Button>
+                        )}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {region.tax_inclusive ? (
+                          <span className="text-blue-600">TTC</span>
+                        ) : (
+                          <span className="text-gray-500">HT</span>
+                        )}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <StatusBadge status={region.status} />
+                      </Table.Cell>
+                      <Table.Cell>
+                        <RowActions
+                          onDelete={() => handleDelete(region.id)}
+                          onEdit={() => handleOpenEdit(region)}
+                        />
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+              <Table.Footer>
+                <div className="w-full p-2">
+                  <Pagination className="justify-between">
+                    <Pagination.Summary>
+                      {regions.length === 0
+                        ? t("admin-regions-empty")
+                        : `${(currentPage - 1) * 10 + 1} - ${
+                            (currentPage - 1) * 10 + regions.length
+                          } / page ${currentPage}`}
+                    </Pagination.Summary>
+                    <Pagination.Content>
+                      <Pagination.Item>
+                        <Pagination.Previous
+                          isDisabled={cursorHistory.length === 0}
+                          onPress={goToPreviousPage}
+                        >
+                          <Pagination.PreviousIcon />
+                          <span>{t("previous") || "Previous"}</span>
+                        </Pagination.Previous>
+                      </Pagination.Item>
+                      <Pagination.Item>
+                        <Pagination.Next
+                          isDisabled={!hasMore}
+                          onPress={goToNextPage}
+                        >
+                          <span>{t("next") || "Next"}</span>
+                          <Pagination.NextIcon />
+                        </Pagination.Next>
+                      </Pagination.Item>
+                    </Pagination.Content>
+                  </Pagination>
+                </div>
+              </Table.Footer>
+            </Table>
+          </Card.Content>
+        </Card>
+
+        <Modal isOpen={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Modal.Backdrop>
+            <Modal.Container size="lg">
+              <Modal.Dialog>
+                {({ close }) => (
+                  <>
+                    <Modal.CloseTrigger onPress={close} />
+                    <Modal.Header>
+                      {isEditMode
+                        ? t("admin-regions-edit")
+                        : t("admin-regions-create")}
+                    </Modal.Header>
+                    <Modal.Body>
+                      <div className="space-y-4">
+                        <TextField>
+                          <Label>{t("admin-common-name")}</Label>
+                          <Input
+                            placeholder="Enter region name"
+                            value={formData.display_name}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                display_name: e.target.value,
+                              })
+                            }
+                          />
+                        </TextField>
+
+                        <div className="flex flex-col gap-1">
+                          <Label>{t("admin-common-currency")}</Label>
+                          <select
+                            className="px-3 py-2 rounded-lg bg-default-100 border border-default-300 text-sm focus:outline-none focus:ring-2"
+                            value={formData.currency_id || ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                currency_id: e.target.value || "",
+                              })
+                            }
+                          >
+                            <option value="">Select a currency</option>
+                            {currencies.map((curr) => (
+                              <option key={curr.id} value={curr.id}>
+                                {curr.code} - {curr.display_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                          <Label>{t("admin-common-status")}</Label>
+                          <select
+                            className="px-3 py-2 rounded-lg bg-default-100 border border-default-300 text-sm focus:outline-none focus:ring-2"
+                            value={formData.status}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                status: e.target.value as "active" | "inactive",
+                              })
+                            }
+                          >
+                            {STATUS_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Checkbox
+                            id="region-tax-inclusive"
+                            isSelected={formData.tax_inclusive}
+                            onChange={(value) =>
+                              setFormData({ ...formData, tax_inclusive: value })
+                            }
+                          >
+                            {t(
+                              "admin-regions-tax-inclusive-label",
+                              "Prices include taxes (TTC)",
+                            )}
+                          </Checkbox>
+                          <p className="text-sm text-default-500 ml-6">
+                            {t(
+                              "admin-regions-tax-inclusive-help",
+                              "If checked, product prices in this region are considered tax-inclusive.",
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <Button variant="tertiary" onPress={close}>
+                        {t("admin-common-cancel")}
+                      </Button>
+                      <Button
+                        isDisabled={
+                          !formData.display_name || !formData.currency_id
+                        }
+                        variant="primary"
+                        onPress={handleSave}
+                      >
+                        {t("admin-common-save")}
+                      </Button>
+                    </Modal.Footer>
+                  </>
+                )}
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+      </AdminCrudLayout>
+    </DefaultLayout>
+  );
+}

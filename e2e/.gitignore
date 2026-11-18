@@ -1,0 +1,8 @@
+# Fichiers de session Auth0 — JAMAIS committer
+fixtures/storage-state.json
+fixtures/storage-state-*.json
+fixtures/*.zip
+
+# Artifacts Playwright
+playwright-report/
+test-results/

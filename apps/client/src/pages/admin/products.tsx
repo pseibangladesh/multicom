@@ -1,0 +1,1812 @@
+/**
+ * Copyright (c) 2024-2026 Ronan LE MEILLAT
+ * License: AGPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import React, { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@heroui/react";
+import { Input } from "@heroui/react";
+import { Select, Label, ListBox } from "@heroui/react";
+import { Table } from "@heroui/react";
+import { Pagination } from "@heroui/react";
+import { Modal } from "@heroui/react";
+import { Card } from "@heroui/react";
+import { Checkbox } from "@heroui/react";
+import { Wand2, Image as ImageIcon, Trash2 } from "lucide-react";
+
+import DefaultLayout from "@/layouts/default";
+import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
+import { SearchIcon } from "@/shared/ui/icons";
+import { ImageUploadInput } from "@/components/image-upload-input";
+import { formatMoney } from "@/utils/currency";
+import { VariantPrices } from "@/components/variant-prices";
+import { RichDescriptionEditor } from "@/components/rich-description-editor";
+import { LocalizedTitleInput } from "@/components/localized-title-input";
+import {
+  resolveTitle,
+  titleMatchesTerm,
+  resolveDescription,
+  getVendorForLocale,
+  mergeVendorLocale,
+  getTagsForLocale,
+  mergeTagsLocale,
+  getHandleForLocale,
+  mergeHandleLocale,
+  getTaxNameForLocale,
+} from "@/utils/description";
+import { availableLanguages } from "@/i18n";
+
+// --- Data types ----------------------------------------------------------
+/**
+ * A product variant with SKU, pricing and optional image.
+ */
+interface Variant {
+  id: string;
+  sku: string;
+  title: string;
+  price_cents: number;
+  currency?: string; // ISO 4217 code (e.g., "USD", "EUR")
+  image_url?: string;
+  thumbnail_url?: string | null;
+  weight_g?: number;
+  dims_cm?: { l: number; w: number; h: number } | null;
+  requires_shipping?: boolean;
+  barcode?: string | null;
+  compare_at_price_cents?: number | null;
+  tax_code?: string | null;
+  variant_type?: 'physical' | 'digital' | 'ai_tokens';
+  ai_token_units?: number | null;
+}
+
+/**
+ * Category with multilingual support.
+ */
+interface Category {
+  id: string;
+  handle: string;
+  name: string;
+  description?: string | null;
+  image_url?: string | null;
+  status: "active" | "inactive";
+  created_at: string;
+}
+
+/**
+ * Represents a product with metadata and its variants.
+ */
+interface Product {
+  id: string;
+  title: string;
+  description: string;
+  status: "active" | "draft";
+  variants: Variant[];
+  created_at: string;
+  vendor?: string | null;
+  tags?: string[] | null;
+  handle?: string | null;
+  categories?: Category[] | null;
+}
+
+/**
+ * Shipping class for products that require specific shipping options.
+ */
+interface ShippingClass {
+  id: string;
+  code: string;
+  display_name: string;
+  description?: string;
+  resolution: "exclusive" | "additive";
+  status: "active" | "inactive";
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Tax rate for products.
+ */
+interface TaxRate {
+  id: string;
+  display_name: string;
+  tax_code: string | null;
+}
+
+/**
+ * Options for filtering products by status, including an empty value for all.
+ */
+const STATUS_OPTIONS = ["", "active", "draft"];
+
+// -------------------------------------------------------------------------
+/**
+ * Administrative product management page: list, search, filter and
+ * create/edit basic product records.
+ */
+export default function ProductsPage() {
+  const { t, i18n } = useTranslation();
+  const { getJson, postJson, patchJson, deleteJson } = useSecuredApi();
+
+  const defaultLocale =
+    availableLanguages.find((l) => l.isDefault)?.code ?? "en-US";
+  const [selectedLocale, setSelectedLocale] = useState<string>(() => {
+    const current = i18n.language;
+
+    return availableLanguages.some((l) => l.code === current)
+      ? current
+      : defaultLocale;
+  });
+
+  const apiBase = getApiBase();
+
+  // list state
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [globalFilter, setGlobalFilter] = useState<string>("");
+  const [shippingClasses, setShippingClasses] = useState<ShippingClass[]>([]);
+  const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [variantCurrencies, setVariantCurrencies] = useState<
+    { id: string; code: string; display_name: string; symbol: string }[]
+  >([]);
+
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const currentPage = cursorHistory.length + 1;
+
+  // categories modal
+  const [categoriesModal, setCategoriesModal] = useState(false);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // create / edit modal
+  const [createModal, setCreateModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formTitle, setFormTitle] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formStatus, setFormStatus] = useState<"active" | "draft">("active");
+  const [formShippingClassId, setFormShippingClassId] = useState<string>("");
+  // enrichment fields - stored as JSON (multilingual)
+  const [formVendor, setFormVendor] = useState("");
+  const [formVendorValue, setFormVendorValue] = useState(""); // display value for current locale
+  const [formTags, setFormTags] = useState("");
+  const [formTagsValue, setFormTagsValue] = useState(""); // display value for current locale
+  const [formHandle, setFormHandle] = useState("");
+  const [formHandleValue, setFormHandleValue] = useState(""); // display value for current locale
+
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
+  const handleDeleteProduct = async () => {
+    if (!editingProduct) return;
+    if (!deleteConfirm) {
+      setDeleteConfirm(true);
+      return;
+    }
+    try {
+      await deleteJson(`${apiBase}/v1/products/${editingProduct.id}`);
+      setProducts((prev) => prev.filter((p) => p.id !== editingProduct.id));
+      setCreateModal(false);
+      setEditingProduct(null);
+      setDeleteConfirm(false);
+    } catch (err: any) {
+      setDeleteConfirm(false);
+      alert(err?.message ?? t("admin-products-delete-error"));
+    }
+  };
+
+  // variants modal state
+  const [variantModal, setVariantModal] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
+  const [variantSku, setVariantSku] = useState("");
+  const [variantTitle, setVariantTitle] = useState("");
+  const [variantPrice, setVariantPrice] = useState("");
+  const [variantImage, setVariantImage] = useState<string | null>(null);
+  const [variantThumbnail, setVariantThumbnail] = useState<string | null>(null);
+  const [submittingVariant, setSubmittingVariant] = useState(false);
+  // enrichment fields
+  const [variantWeightG, setVariantWeightG] = useState("");
+  const [variantDimsL, setVariantDimsL] = useState("");
+  const [variantDimsW, setVariantDimsW] = useState("");
+  const [variantDimsH, setVariantDimsH] = useState("");
+  const [variantRequiresShipping, setVariantRequiresShipping] = useState(true);
+  const [variantCurrency, setVariantCurrency] = useState("USD");
+  const [variantBarcode, setVariantBarcode] = useState("");
+  const [variantCompareAtPrice, setVariantCompareAtPrice] = useState("");
+  const [variantTaxCode, setVariantTaxCode] = useState("");
+  const [variantType, setVariantType] = useState<'physical' | 'digital' | 'ai_tokens'>('physical');
+  const [variantAiTokenUnits, setVariantAiTokenUnits] = useState("");
+
+  // fetch products from backend
+  /**
+   * Load product list from the API, applying current status filter.
+   * Supports cursor-based pagination with `pagination.has_more` and `pagination.next_cursor`.
+   */
+  const loadProducts = async (
+    nextCursor: string | null = null,
+    pushHistory = false,
+  ) => {
+    setLoading(true);
+
+    if (pushHistory) {
+      setCursorHistory((prev) => [...prev, cursor]);
+    } else if (!nextCursor) {
+      setCursorHistory([]);
+    }
+
+    try {
+      let url = `${apiBase}/v1/products?limit=10`;
+
+      if (statusFilter) url += `&status=${statusFilter}`;
+      if (nextCursor) url += `&cursor=${encodeURIComponent(nextCursor)}`;
+
+      const resp = await getJson(url);
+
+      setProducts(resp.items || []);
+
+      const pagination = resp.pagination || {};
+      const has_more = pagination.has_more ?? pagination.hasMore ?? false;
+      const next_cursor =
+        pagination.next_cursor ?? pagination.nextCursor ?? null;
+
+      setHasMore(has_more);
+      setCursor(next_cursor);
+    } catch (err) {
+      console.error("Failed to load products", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProducts(null, false);
+  }, [statusFilter, apiBase]);
+
+  const goToPreviousPage = async () => {
+    if (cursorHistory.length === 0) {
+      return;
+    }
+
+    const previousCursor = cursorHistory[cursorHistory.length - 1];
+
+    setCursorHistory((prev) => prev.slice(0, -1));
+
+    await loadProducts(previousCursor, false);
+  };
+
+  const goToNextPage = async () => {
+    if (!hasMore || !cursor) {
+      return;
+    }
+
+    await loadProducts(cursor, true);
+  };
+
+  // load shipping classes for selector
+  useEffect(() => {
+    const loadShippingClasses = async () => {
+      try {
+        const resp = await getJson(
+          `${apiBase}/v1/regions/shipping-classes?limit=100`,
+        );
+
+        setShippingClasses(resp.items || []);
+      } catch (err) {
+        console.error("Failed to load shipping classes", err);
+      }
+    };
+
+    loadShippingClasses();
+  }, []);
+
+  // load tax rates for selector
+  useEffect(() => {
+    const loadTaxRates = async () => {
+      try {
+        const resp = await getJson(`${apiBase}/v1/tax-rates?limit=100`);
+
+        setTaxRates(resp.items || []);
+      } catch (err) {
+        console.error("Failed to load tax rates", err);
+      }
+    };
+
+    loadTaxRates();
+  }, []);
+
+  // load currencies for variant base-price selector
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      try {
+        const resp = await getJson(
+          `${apiBase}/v1/regions/currencies?limit=100&status=active`,
+        );
+
+        setVariantCurrencies(resp.items || []);
+      } catch (err) {
+        console.error("Failed to load currencies", err);
+      }
+    };
+
+    loadCurrencies();
+  }, []);
+
+  // load categories
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const resp = await getJson(`${apiBase}/v1/categories?limit=1000`);
+
+        setAllCategories(resp.items || []);
+      } catch (err) {
+        console.error("Failed to load categories", err);
+      }
+    };
+
+    loadCategories();
+  }, []);
+
+  // sync display values when locale changes
+  useEffect(() => {
+    setFormVendorValue(getVendorForLocale(formVendor, selectedLocale));
+    setFormTagsValue(getTagsForLocale(formTags, selectedLocale));
+    setFormHandleValue(getHandleForLocale(formHandle, selectedLocale));
+  }, [selectedLocale, formVendor, formTags, formHandle]);
+
+  // filtered list according to global search
+  const displayed = useMemo(() => {
+    const term = globalFilter.trim().toLowerCase();
+
+    if (!term) return products;
+
+    return products.filter(
+      (p) =>
+        titleMatchesTerm(p.title, term) ||
+        p.description.toLowerCase().includes(term) ||
+        p.variants.some((v) => v.sku.toLowerCase().includes(term)),
+    );
+  }, [products, globalFilter]);
+
+  /**
+   * Prepare and open the modal for creating a new product.
+   */
+  const openCreate = () => {
+    setEditingProduct(null);
+    setFormTitle("");
+    setFormDescription("");
+    setFormStatus("active");
+    setFormShippingClassId("");
+    setFormVendor("");
+    setFormVendorValue("");
+    setFormTags("");
+    setFormTagsValue("");
+    setFormHandle("");
+    setFormHandleValue("");
+    setSelectedCategoryIds(new Set());
+    setCreateModal(true);
+  };
+
+  /**
+   * Resolve category name for the given locale.
+   */
+  const getCategoryNameForLocale = (
+    category: Category,
+    locale: string,
+  ): string => {
+    try {
+      const parsed = JSON.parse(category.name);
+
+      return (
+        parsed[locale] ||
+        parsed[defaultLocale] ||
+        category.handle ||
+        category.id
+      );
+    } catch {
+      return category.name || category.handle || category.id;
+    }
+  };
+
+  /**
+   * Open categories selection modal for current product.
+   */
+  const openCategoriesModal = () => {
+    if (editingProduct && editingProduct.categories) {
+      const ids = new Set(editingProduct.categories.map((c) => c.id));
+
+      setSelectedCategoryIds(ids);
+    } else {
+      setSelectedCategoryIds(new Set());
+    }
+    setCategoriesModal(true);
+  };
+
+  /**
+   * Save selected categories for the current product.
+   * Uses API endpoints: POST /v1/categories/:id/products and DELETE /v1/categories/:id/products/:productId
+   */
+  const saveCategoriesForProduct = async () => {
+    if (!editingProduct) return;
+
+    try {
+      const currentCategoryIds = new Set(
+        (editingProduct.categories || []).map((c) => c.id),
+      );
+      const newCategoryIds = selectedCategoryIds;
+
+      // Find categories to remove and add
+      const categoriesToRemove = Array.from(currentCategoryIds).filter(
+        (id) => !newCategoryIds.has(id),
+      );
+      const categoriesToAdd = Array.from(newCategoryIds).filter(
+        (id) => !currentCategoryIds.has(id),
+      );
+
+      // Remove product from categories
+      for (const categoryId of categoriesToRemove) {
+        await deleteJson(
+          `${apiBase}/v1/categories/${categoryId}/products/${editingProduct.id}`,
+        );
+      }
+
+      // Add product to categories
+      for (const categoryId of categoriesToAdd) {
+        await postJson(`${apiBase}/v1/categories/${categoryId}/products`, {
+          product_ids: [editingProduct.id],
+        });
+      }
+
+      // Update local state
+      const updatedCategories = Array.from(newCategoryIds)
+        .map((id) => allCategories.find((c) => c.id === id))
+        .filter((c) => c !== undefined) as Category[];
+
+      setEditingProduct({
+        ...editingProduct,
+        categories: updatedCategories,
+      });
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === editingProduct.id
+            ? { ...p, categories: updatedCategories }
+            : p,
+        ),
+      );
+
+      setCategoriesModal(false);
+    } catch (err) {
+      console.error("Error saving categories", err);
+      alert(t("admin-products-categories-save-error"));
+    }
+  };
+
+  /**
+   * Populate modal fields with existing product data and open for editing.
+   *
+   * @param p - product to edit
+   */
+  const openEdit = async (p: Product) => {
+    setEditingProduct(null);
+
+    // Phase 1: immediate pre-fill from local data (may be stale)
+    setFormTitle(p.title);
+    setFormDescription(p.description);
+    setFormStatus(p.status);
+    setFormShippingClassId("");
+    setFormVendor(p.vendor || "");
+    setFormTags(
+      p.tags
+        ? typeof p.tags === "string"
+          ? p.tags
+          : (p.tags as string[]).join(", ")
+        : "",
+    );
+    setFormHandle(p.handle || "");
+    if (p.categories) {
+      setSelectedCategoryIds(new Set(p.categories.map((c) => c.id)));
+    } else {
+      setSelectedCategoryIds(new Set());
+    }
+
+    // Open the modal before the network load completes
+    setCreateModal(true);
+
+    // Phase 2: fetch authoritative product data from the API
+    try {
+      const full = await getJson(`${apiBase}/v1/products/${p.id}`);
+
+      setEditingProduct(full);
+      setFormTitle(full.title);
+      setFormDescription(full.description || "");
+      setFormStatus((full as any).status || "active");
+      setFormShippingClassId((full as any).shipping_class_id || "");
+      setFormVendor((full as any).vendor || "");
+      setFormTags(
+        (full as any).tags ? ((full as any).tags as string[]).join(", ") : "",
+      );
+      setFormHandle((full as any).handle || "");
+      if (full.categories) {
+        setSelectedCategoryIds(
+          new Set((full.categories as Category[]).map((c) => c.id)),
+        );
+      }
+    } catch (err) {
+      console.error("Error loading product", err);
+      setEditingProduct(p);
+    }
+  };
+
+  /**
+   * Handle form submission for creating or updating a product. Performs the
+   * appropriate API call, closes the modal, and reloads the product list.
+   *
+   * @param e - form submission event
+   */
+  const submitForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Merge enrichment fields with current locale
+      const mergedVendor = mergeVendorLocale(
+        formVendor,
+        selectedLocale,
+        formVendorValue,
+      );
+      const mergedTags = mergeTagsLocale(
+        formTags,
+        selectedLocale,
+        formTagsValue,
+      );
+      const mergedHandle = mergeHandleLocale(
+        formHandle,
+        selectedLocale,
+        formHandleValue,
+      );
+
+      const productData = {
+        title: formTitle,
+        description: formDescription || undefined,
+        shipping_class_id: formShippingClassId || null,
+        vendor: mergedVendor || undefined,
+        tags: mergedTags || undefined,
+        handle: mergedHandle || undefined,
+      };
+
+      if (editingProduct) {
+        await patchJson(
+          `${apiBase}/v1/products/${editingProduct.id}`,
+          productData,
+        );
+
+        // Optimistic local update to avoid stale states
+        const updatedProduct: Product = {
+          ...editingProduct,
+          title: productData.title,
+          description: productData.description || "",
+          status: formStatus,
+          vendor: (productData.vendor as string) || null,
+          tags: (productData.tags as unknown as string[]) || null,
+          handle: (productData.handle as string) || null,
+        };
+
+        setProducts((prev) =>
+          prev.map((prod) =>
+            prod.id === editingProduct.id ? updatedProduct : prod,
+          ),
+        );
+        setEditingProduct(updatedProduct);
+
+        setCreateModal(false);
+      } else {
+        await postJson(`${apiBase}/v1/products`, productData);
+        setCreateModal(false);
+        await loadProducts();
+      }
+    } catch (err) {
+      console.error("Error saving product", err);
+    }
+  };
+
+  /**
+   * Translate vendor to selected locale (AI).
+   * Placeholder for now — would call an AI translation API.
+   */
+  const handleTranslateVendor = () => {
+    // TODO: Implement AI translation
+    console.log("Translate vendor");
+  };
+
+  /**
+   * Translate tags to selected locale (AI).
+   * Placeholder for now — would call an AI translation API.
+   */
+  const handleTranslateTags = () => {
+    // TODO: Implement AI translation
+    console.log("Translate tags");
+  };
+
+  /**
+   * Translate handle to selected locale (AI).
+   * Placeholder for now — would call an AI translation API.
+   */
+  const handleTranslateHandle = () => {
+    // TODO: Implement AI translation
+    console.log("Translate handle");
+  };
+
+  /**
+   * Reset variant form fields and close the variant modal.
+   */
+  const resetVariantForm = () => {
+    setEditingVariant(null);
+    setVariantSku("");
+    setVariantTitle("");
+    setVariantPrice("");
+    setVariantImage(null);
+    setVariantThumbnail(null);
+    setVariantWeightG("");
+    setVariantDimsL("");
+    setVariantDimsW("");
+    setVariantDimsH("");
+    setVariantRequiresShipping(true);
+    setVariantCurrency("USD");
+    setVariantBarcode("");
+    setVariantCompareAtPrice("");
+    setVariantTaxCode("");
+    setVariantType('physical');
+    setVariantAiTokenUnits("");
+  };
+
+  /**
+   * Open variant creation form with empty fields.
+   */
+  const openCreateVariant = () => {
+    resetVariantForm();
+    setVariantModal(true);
+  };
+
+  /**
+   * Populate variant form with existing data and open for editing.
+   *
+   * @param v - variant to edit
+   */
+  const openEditVariant = (v: Variant) => {
+    setEditingVariant(v);
+    setVariantSku(v.sku);
+    setVariantTitle(v.title);
+    setVariantPrice(String(v.price_cents));
+    setVariantImage(v.image_url || null);
+    setVariantThumbnail(v.thumbnail_url || null);
+    setVariantWeightG(String(v.weight_g || 0));
+    setVariantDimsL(String(v.dims_cm?.l || ""));
+    setVariantDimsW(String(v.dims_cm?.w || ""));
+    setVariantDimsH(String(v.dims_cm?.h || ""));
+    setVariantRequiresShipping(v.requires_shipping !== false);
+    setVariantCurrency(v.currency || "USD");
+    setVariantBarcode(v.barcode || "");
+    setVariantCompareAtPrice(String(v.compare_at_price_cents || ""));
+    setVariantTaxCode(v.tax_code || "");
+    setVariantType(v.variant_type || 'physical');
+    setVariantAiTokenUnits(v.ai_token_units != null ? String(v.ai_token_units) : "");
+    setVariantModal(true);
+  };
+
+  /**
+   * Handle image upload: Upload using the new ImageUploadInput component
+   * which supports 3 storage methods: base64 local, R2 remote, external URL
+   */
+  // (Image handling is now handled by ImageUploadInput component)
+
+  /**
+   * Submit variant form: create or update variant.
+   *
+   * @param e - form submission event
+   */
+  const submitVariant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    setSubmittingVariant(true);
+    try {
+      const price = parseInt(variantPrice, 10);
+
+      if (isNaN(price)) {
+        alert(t("admin-products-invalid-price"));
+        setSubmittingVariant(false);
+
+        return;
+      }
+
+      // Build enrichment object
+      const variantData: Record<string, any> = {
+        sku: variantSku,
+        title: variantTitle,
+        price_cents: price,
+        currency: variantCurrency,
+        image_url: variantImage || undefined,
+        thumbnail_url: variantThumbnail || undefined,
+        weight_g: variantWeightG ? parseFloat(variantWeightG) : undefined,
+        requires_shipping: variantRequiresShipping,
+        variant_type: variantType,
+        ai_token_units: variantType === 'ai_tokens' && variantAiTokenUnits
+          ? parseInt(variantAiTokenUnits, 10)
+          : undefined,
+        barcode: variantBarcode || undefined,
+        compare_at_price_cents: variantCompareAtPrice
+          ? parseInt(variantCompareAtPrice, 10)
+          : undefined,
+        tax_code: variantTaxCode || undefined,
+      };
+
+      // Add dimensions if provided
+      if (variantDimsL || variantDimsW || variantDimsH) {
+        variantData.dims_cm = {
+          l: variantDimsL ? parseFloat(variantDimsL) : 0,
+          w: variantDimsW ? parseFloat(variantDimsW) : 0,
+          h: variantDimsH ? parseFloat(variantDimsH) : 0,
+        };
+      }
+
+      if (editingVariant) {
+        // Update variant
+        await patchJson(
+          `${apiBase}/v1/products/${editingProduct.id}/variants/${editingVariant.id}`,
+          variantData,
+        );
+      } else {
+        // Create variant
+        await postJson(
+          `${apiBase}/v1/products/${editingProduct.id}/variants`,
+          variantData,
+        );
+      }
+
+      setVariantModal(false);
+      resetVariantForm();
+
+      // Reload product to show new/updated variant
+      const updated = await getJson(
+        `${apiBase}/v1/products/${editingProduct.id}`,
+      );
+
+      setEditingProduct(updated);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === editingProduct.id ? updated : p)),
+      );
+    } catch (err) {
+      console.error("Error saving variant", err);
+      alert(t("admin-products-variant-save-error"));
+    } finally {
+      setSubmittingVariant(false);
+    }
+  };
+
+  return (
+    <DefaultLayout>
+      <div className="px-4 py-6">
+        {/* header bar */}
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-semibold">{t("admin-products-title")}</h1>
+          <div className="flex items-center gap-2">
+            <div className="relative flex flex-1">
+              <Input
+                className="pl-8"
+                placeholder={t("search") + "..."}
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+              />
+              <SearchIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 pointer-events-none text-default-400 w-4 h-4" />
+            </div>
+            <select
+              className="w-32 border rounded px-2 py-1 text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt === ""
+                    ? t("all")
+                    : opt === "active"
+                      ? t("admin-products-status-active")
+                      : t("admin-products-status-draft")}
+                </option>
+              ))}
+            </select>
+            <Button
+              className="min-w-40 whitespace-nowrap"
+              size="md"
+              variant="primary"
+              onPress={openCreate}
+            >
+              {t("admin-products-btn-add")}
+            </Button>
+          </div>
+        </div>
+
+        {/* product list */}
+        {loading ? (
+          <p className="text-default-500">{t("admin-products-loading")}</p>
+        ) : (
+          <Table aria-label="Products">
+            <Table.Content selectionMode="none">
+              <Table.Header>
+                <Table.Column isRowHeader>
+                  {t("admin-products-col-title")}
+                </Table.Column>
+                <Table.Column>
+                  {t("admin-products-col-description")}
+                </Table.Column>
+                <Table.Column>{t("admin-products-col-variants")}</Table.Column>
+                <Table.Column>{t("admin-products-col-status")}</Table.Column>
+                <Table.Column>{t("actions")}</Table.Column>
+              </Table.Header>
+              <Table.Body renderEmptyState={() => t("admin-products-empty")}>
+                {displayed.map((p) => (
+                  <Table.Row key={p.id}>
+                    <Table.Cell>
+                      {resolveTitle(p.title, i18n.language)}
+                    </Table.Cell>
+                    <Table.Cell>
+                      {resolveDescription(p.description, i18n.language) || "-"}
+                    </Table.Cell>
+                    <Table.Cell>{p.variants.length}</Table.Cell>
+                    <Table.Cell>{p.status}</Table.Cell>
+                    <Table.Cell>
+                      <Button size="sm" onPress={() => openEdit(p)}>
+                        {t("admin-products-btn-edit")}
+                      </Button>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
+            <Table.Footer>
+              <div className="w-full p-2">
+                <Pagination className="justify-between">
+                  <Pagination.Summary>
+                    {products.length === 0
+                      ? t("admin-products-empty")
+                      : `${(currentPage - 1) * 10 + 1} - ${
+                          (currentPage - 1) * 10 + products.length
+                        } / page ${currentPage}`}
+                  </Pagination.Summary>
+                  <Pagination.Content>
+                    <Pagination.Item>
+                      <Pagination.Previous
+                        isDisabled={cursorHistory.length === 0}
+                        onPress={goToPreviousPage}
+                      >
+                        <Pagination.PreviousIcon />
+                        <span>{t("previous")}</span>
+                      </Pagination.Previous>
+                    </Pagination.Item>
+                    <Pagination.Item>
+                      <Pagination.Next
+                        isDisabled={!hasMore}
+                        onPress={goToNextPage}
+                      >
+                        <span>{t("next")}</span>
+                        <Pagination.NextIcon />
+                      </Pagination.Next>
+                    </Pagination.Item>
+                  </Pagination.Content>
+                </Pagination>
+              </div>
+            </Table.Footer>
+          </Table>
+        )}
+      </div>
+
+      {/* create/edit modal */}
+      <Modal
+        isOpen={createModal}
+        // In v3, use onOpenChange callback instead of onClose/onOpen
+        onOpenChange={(open) => {
+          setCreateModal(open);
+          if (!open) {
+            setEditingProduct(null);
+          }
+        }}
+      >
+        <Modal.Backdrop variant="blur">
+          <Modal.Container size="cover">
+            <Modal.Dialog>
+              {({ close }) => (
+                <>
+                  <Modal.CloseTrigger onPress={close} />
+                  <Modal.Header>
+                    {editingProduct
+                      ? resolveTitle(editingProduct.title, i18n.language)
+                      : t("admin-products-modal-title")}
+                  </Modal.Header>
+                  <Modal.Body className="space-y-4">
+                    <form
+                      className="space-y-4"
+                      id="product-form"
+                      onSubmit={submitForm}
+                    >
+                      <div className="flex items-center gap-2">
+                        <label className="block text-sm font-medium">
+                          {t("admin-products-title-locale")}
+                        </label>
+                        <Select
+                          className="w-36"
+                          value={selectedLocale}
+                          onChange={(value) =>
+                            setSelectedLocale((value as string) || "")
+                          }
+                        >
+                          <Label>{t("admin-products-title-locale")}</Label>
+                          <Select.Trigger>
+                            <Select.Value />
+                            <Select.Indicator />
+                          </Select.Trigger>
+                          <Select.Popover>
+                            <ListBox>
+                              {availableLanguages.map((lang) => (
+                                <ListBox.Item
+                                  key={lang.code}
+                                  id={lang.code}
+                                  textValue={lang.nativeName}
+                                >
+                                  {lang.nativeName}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                              ))}
+                            </ListBox>
+                          </Select.Popover>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          {t("admin-products-modal-field-title")}
+                        </label>
+                        <LocalizedTitleInput
+                          required
+                          locale={selectedLocale}
+                          value={formTitle}
+                          onChange={setFormTitle}
+                          onLocaleChange={setSelectedLocale}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          {t("admin-products-modal-field-description")}
+                        </label>
+                        <RichDescriptionEditor
+                          locale={selectedLocale}
+                          value={formDescription}
+                          onChange={setFormDescription}
+                          onLocaleChange={setSelectedLocale}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">
+                          {t("status")}
+                        </label>
+                        <select
+                          className="border rounded px-2 py-1 w-full"
+                          value={formStatus}
+                          onChange={(e) => setFormStatus(e.target.value as any)}
+                        >
+                          <option value="active">active</option>
+                          <option value="draft">draft</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          {t("admin-products-shipping-class-label")}
+                        </label>
+                        <Select
+                          value={formShippingClassId || ""}
+                          onChange={(value) =>
+                            setFormShippingClassId((value as string) || "")
+                          }
+                        >
+                          <Label>
+                            {t("admin-products-shipping-class-select-label")}
+                          </Label>
+                          <Select.Trigger>
+                            <Select.Value />
+                            <Select.Indicator />
+                          </Select.Trigger>
+                          <Select.Popover>
+                            <ListBox>
+                              <ListBox.Item
+                                id=""
+                                textValue={t(
+                                  "admin-products-shipping-class-default",
+                                )}
+                              >
+                                {t("admin-products-shipping-class-default")}
+                                <ListBox.ItemIndicator />
+                              </ListBox.Item>
+                              {shippingClasses.map((cls) => {
+                                const resolutionLabel =
+                                  cls.resolution === "exclusive"
+                                    ? t(
+                                        "admin-products-shipping-class-resolution-exclusive",
+                                      )
+                                    : t(
+                                        "admin-products-shipping-class-resolution-additive",
+                                      );
+
+                                const displayLabel = `${resolutionLabel} ${cls.display_name}`;
+                                const fullLabel = cls.description
+                                  ? `${displayLabel} — ${cls.description}`
+                                  : displayLabel;
+
+                                return (
+                                  <ListBox.Item
+                                    key={cls.id}
+                                    id={cls.id}
+                                    textValue={displayLabel}
+                                  >
+                                    {fullLabel}
+                                    <ListBox.ItemIndicator />
+                                  </ListBox.Item>
+                                );
+                              })}
+                            </ListBox>
+                          </Select.Popover>
+                        </Select>
+                      </div>
+
+                      {/* Enrichment Fields - Simple values (not localized) */}
+                      <div className="border-t pt-4 mt-4">
+                        <h3 className="font-semibold text-sm mb-3">
+                          {t("admin-products-enrichment-heading")}
+                        </h3>
+
+                        {/* Vendor */}
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-sm font-medium">
+                              {t("admin-products-field-vendor")}{" "}
+                              <span className="text-xs text-default-500">
+                                (optional)
+                              </span>
+                            </label>
+                            <div className="flex gap-2">
+                              <p className="text-xs text-default-500">
+                                {selectedLocale}
+                              </p>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="tertiary"
+                                onPress={handleTranslateVendor}
+                              >
+                                <Wand2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <Input
+                            placeholder={t(
+                              "admin-products-field-vendor-placeholder",
+                            )}
+                            value={formVendorValue}
+                            onChange={(e) => setFormVendorValue(e.target.value)}
+                          />
+                        </div>
+
+                        {/* Tags */}
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-sm font-medium">
+                              {t("admin-products-field-tags")}{" "}
+                              <span className="text-xs text-default-500">
+                                (comma-separated)
+                              </span>
+                            </label>
+                            <div className="flex gap-2">
+                              <p className="text-xs text-default-500">
+                                {selectedLocale}
+                              </p>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="tertiary"
+                                onPress={handleTranslateTags}
+                              >
+                                <Wand2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <Input
+                            placeholder={t(
+                              "admin-products-field-tags-placeholder",
+                            )}
+                            value={formTagsValue}
+                            onChange={(e) => setFormTagsValue(e.target.value)}
+                          />
+                        </div>
+
+                        {/* Handle */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-sm font-medium">
+                              {t("admin-products-field-handle")}{" "}
+                              <span className="text-xs text-default-500">
+                                (URL slug - optional, auto-generated if empty)
+                              </span>
+                            </label>
+                            <div className="flex gap-2">
+                              <p className="text-xs text-default-500">
+                                {selectedLocale}
+                              </p>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="tertiary"
+                                onPress={handleTranslateHandle}
+                              >
+                                <Wand2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <Input
+                            placeholder={t(
+                              "admin-products-field-handle-placeholder",
+                            )}
+                            value={formHandleValue}
+                            onChange={(e) => setFormHandleValue(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </form>
+
+                    {/* Categories section */}
+                    {editingProduct && (
+                      <Card>
+                        <Card.Content className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-sm font-semibold">
+                                {t("admin-products-categories")}
+                              </h3>
+                              <p className="text-xs text-default-500 mt-1">
+                                {selectedLocale}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onPress={openCategoriesModal}
+                            >
+                              {t("admin-products-btn-manage-categories")}
+                            </Button>
+                          </div>
+
+                          {/* Display current categories with scroll if > 3 */}
+                          {editingProduct.categories &&
+                          editingProduct.categories.length > 0 ? (
+                            <div
+                              className={`space-y-2 ${editingProduct.categories.length > 3 ? "max-h-48 overflow-y-auto" : ""}`}
+                            >
+                              {editingProduct.categories.map((cat) => (
+                                <div
+                                  key={cat.id}
+                                  className="flex items-center justify-between p-2 rounded border bg-default-50"
+                                >
+                                  <span className="text-sm">
+                                    {getCategoryNameForLocale(
+                                      cat,
+                                      selectedLocale,
+                                    )}
+                                  </span>
+                                  <span className="text-xs text-default-500">
+                                    {cat.handle}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-default-500">
+                              {t("admin-products-no-categories")}
+                            </p>
+                          )}
+                        </Card.Content>
+                      </Card>
+                    )}
+
+                    {/* Variants section */}
+                    {editingProduct && (
+                      <Card>
+                        <Card.Content className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold">
+                              {t("admin-products-variants")} (
+                              {editingProduct.variants?.length ?? 0})
+                            </h3>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onPress={openCreateVariant}
+                            >
+                              {t("admin-products-btn-add-variant")}
+                            </Button>
+                          </div>
+
+                          {(editingProduct.variants?.length ?? 0) === 0 ? (
+                            <p className="text-sm text-default-500">
+                              {t("admin-products-no-variants")}
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {(editingProduct.variants ?? []).map((v) => (
+                                <VariantCard
+                                  key={v.id}
+                                  variant={v}
+                                  onEdit={() => openEditVariant(v)}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </Card.Content>
+                      </Card>
+                    )}
+                  </Modal.Body>
+                  <Modal.Footer>
+                    {editingProduct && (
+                      <Button
+                        variant="danger"
+                        onPress={handleDeleteProduct}
+                        className="mr-auto"
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        {deleteConfirm
+                          ? t("admin-products-btn-delete-confirm")
+                          : t("admin-products-btn-delete")}
+                      </Button>
+                    )}
+                    <Button
+                      onPress={() => {
+                        setCreateModal(false);
+                        setEditingProduct(null);
+                        setDeleteConfirm(false);
+                      }}
+                    >
+                      {t("admin-products-btn-cancel")}
+                    </Button>
+                    <Button form="product-form" type="submit" variant="primary">
+                      {editingProduct
+                        ? t("save")
+                        : t("admin-products-btn-create")}
+                    </Button>
+                  </Modal.Footer>
+                </>
+              )}
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+
+      {/* Variant modal */}
+      <Modal
+        isOpen={variantModal}
+        onOpenChange={(open) => {
+          setVariantModal(open);
+          if (!open) {
+            resetVariantForm();
+          }
+        }}
+      >
+        <Modal.Backdrop>
+          <Modal.Container size="lg">
+            <Modal.Dialog>
+              {({ close }) => (
+                <>
+                  <Modal.CloseTrigger onPress={close} />
+                  <Modal.Header>
+                    {editingVariant
+                      ? t("admin-products-edit-variant")
+                      : t("admin-products-add-variant")}
+                  </Modal.Header>
+                  <Modal.Body>
+                    <form
+                      className="space-y-4"
+                      id="variant-form"
+                      onSubmit={submitVariant}
+                    >
+                      <div>
+                        <label className="block text-sm font-medium">
+                          {t("admin-products-field-sku")}
+                        </label>
+                        <Input
+                          required
+                          placeholder={t(
+                            "admin-products-field-sku-placeholder",
+                          )}
+                          value={variantSku}
+                          onChange={(e) => setVariantSku(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">
+                          {t("admin-products-field-variant-title")}
+                        </label>
+                        <Input
+                          required
+                          placeholder={t(
+                            "admin-products-field-variant-title-placeholder",
+                          )}
+                          value={variantTitle}
+                          onChange={(e) => setVariantTitle(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium">
+                          {t("admin-products-field-price")}
+                        </label>
+                        <Input
+                          required
+                          placeholder={t(
+                            "admin-products-field-price-placeholder",
+                          )}
+                          type="number"
+                          value={variantPrice}
+                          onChange={(e) => setVariantPrice(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          {t("admin-products-field-currency")}
+                        </label>
+                        <Select
+                          value={variantCurrency}
+                          onChange={(value) =>
+                            setVariantCurrency((value as string) || "USD")
+                          }
+                        >
+                          <Label>{t("admin-products-field-currency")}</Label>
+                          <Select.Trigger>
+                            <Select.Value />
+                            <Select.Indicator />
+                          </Select.Trigger>
+                          <Select.Popover>
+                            <ListBox>
+                              {variantCurrencies.length === 0 ? (
+                                <ListBox.Item key="USD" id="USD" textValue="USD">
+                                  USD
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                              ) : (
+                                variantCurrencies.map((c) => (
+                                  <ListBox.Item
+                                    key={c.code}
+                                    id={c.code}
+                                    textValue={`${c.code} — ${c.display_name}`}
+                                  >
+                                    {c.code} — {c.display_name} ({c.symbol})
+                                    <ListBox.ItemIndicator />
+                                  </ListBox.Item>
+                                ))
+                              )}
+                            </ListBox>
+                          </Select.Popover>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">
+                          {t("admin-products-field-image")}
+                        </label>
+                        <ImageUploadInput
+                          apiBaseUrl={apiBase}
+                          disabled={submittingVariant}
+                          value={variantImage}
+                          onChange={setVariantImage}
+                          onThumbnailChange={setVariantThumbnail}
+                        />
+                      </div>
+
+                      {/* Enrichment Fields */}
+                      <div className="border-t pt-4 mt-4">
+                        <h3 className="font-semibold text-sm mb-3">
+                          {t("admin-products-enrichment-heading")}
+                        </h3>
+
+                        {/* Weight */}
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium">
+                            {t("admin-products-field-weight")}
+                          </label>
+                          <Input
+                            placeholder={t(
+                              "admin-products-field-weight-placeholder",
+                            )}
+                            type="number"
+                            value={variantWeightG}
+                            onChange={(e) => setVariantWeightG(e.target.value)}
+                          />
+                        </div>
+
+                        {/* Dimensions */}
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium mb-2">
+                            {t("admin-products-field-dimensions")}
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            <Input
+                              placeholder={t(
+                                "admin-products-field-dimension-length",
+                              )}
+                              type="number"
+                              value={variantDimsL}
+                              onChange={(e) => setVariantDimsL(e.target.value)}
+                            />
+                            <Input
+                              placeholder={t(
+                                "admin-products-field-dimension-width",
+                              )}
+                              type="number"
+                              value={variantDimsW}
+                              onChange={(e) => setVariantDimsW(e.target.value)}
+                            />
+                            <Input
+                              placeholder={t(
+                                "admin-products-field-dimension-height",
+                              )}
+                              type="number"
+                              value={variantDimsH}
+                              onChange={(e) => setVariantDimsH(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Requires Shipping Toggle */}
+                        <div className="mb-3 flex items-center">
+                          <label className="block text-sm font-medium mr-2">
+                            {t("admin-products-field-requires-shipping")}
+                          </label>
+                          <input
+                            checked={variantRequiresShipping}
+                            type="checkbox"
+                            onChange={(e) =>
+                              setVariantRequiresShipping(e.target.checked)
+                            }
+                          />
+                        </div>
+
+                        {/* Variant Type */}
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium mb-1">
+                            {t("admin-products-field-variant-type")}
+                          </label>
+                          <Select
+                            value={variantType}
+                            onChange={(value) => {
+                              const vt = (value as string) as 'physical' | 'digital' | 'ai_tokens';
+                              setVariantType(vt);
+                              if (vt !== 'physical') setVariantRequiresShipping(false);
+                              else setVariantRequiresShipping(true);
+                              if (vt !== 'ai_tokens') setVariantAiTokenUnits('');
+                            }}
+                          >
+                            <Label>{t("admin-products-field-variant-type")}</Label>
+                            <Select.Trigger>
+                              <Select.Value />
+                              <Select.Indicator />
+                            </Select.Trigger>
+                            <Select.Popover>
+                              <ListBox>
+                                <ListBox.Item key="physical" id="physical" textValue={t("admin-products-variant-type-physical")}>
+                                  {t("admin-products-variant-type-physical")}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                                <ListBox.Item key="digital" id="digital" textValue={t("admin-products-variant-type-digital")}>
+                                  {t("admin-products-variant-type-digital")}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                                <ListBox.Item key="ai_tokens" id="ai_tokens" textValue={t("admin-products-variant-type-ai-tokens")}>
+                                  {t("admin-products-variant-type-ai-tokens")}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                              </ListBox>
+                            </Select.Popover>
+                          </Select>
+                        </div>
+
+                        {/* AI Token Units — shown only for ai_tokens type */}
+                        {variantType === 'ai_tokens' && (
+                          <div className="mb-3">
+                            <label className="block text-sm font-medium">
+                              {t("admin-products-field-ai-token-units")}
+                            </label>
+                            <Input
+                              min={1}
+                              placeholder={t("admin-products-field-ai-token-units-placeholder")}
+                              type="number"
+                              value={variantAiTokenUnits}
+                              onChange={(e) => setVariantAiTokenUnits(e.target.value)}
+                            />
+                          </div>
+                        )}
+
+                        {/* Barcode */}
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium">
+                            {t("admin-products-field-barcode")}
+                          </label>
+                          <Input
+                            placeholder={t(
+                              "admin-products-field-barcode-placeholder",
+                            )}
+                            value={variantBarcode}
+                            onChange={(e) => setVariantBarcode(e.target.value)}
+                          />
+                        </div>
+
+                        {/* Compare at Price */}
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium">
+                            {t("admin-products-field-compare-at-price")}
+                          </label>
+                          <Input
+                            placeholder={t(
+                              "admin-products-field-compare-at-price-placeholder",
+                            )}
+                            type="number"
+                            value={variantCompareAtPrice}
+                            onChange={(e) =>
+                              setVariantCompareAtPrice(e.target.value)
+                            }
+                          />
+                        </div>
+
+                        {/* Tax Code */}
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            {t("admin-products-field-tax-code")}
+                          </label>
+                          <Select
+                            placeholder={t(
+                              "admin-products-field-tax-code-placeholder",
+                            )}
+                            value={variantTaxCode || ""}
+                            onChange={(value) =>
+                              setVariantTaxCode((value as string) || "")
+                            }
+                          >
+                            <Label>{t("admin-products-field-tax-code")}</Label>
+                            <Select.Trigger>
+                              <Select.Value />
+                              <Select.Indicator />
+                            </Select.Trigger>
+                            <Select.Popover>
+                              <ListBox>
+                                <ListBox.Item
+                                  key=""
+                                  id=""
+                                  textValue={t("none") || "None"}
+                                >
+                                  {t("none") || "None"}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                                {Array.from(
+                                  new Map(
+                                    taxRates.map((r) => [r.tax_code, r]),
+                                  ).values(),
+                                )
+                                  .filter((r) => r.tax_code)
+                                  .map((r) => (
+                                    <ListBox.Item
+                                      key={r.tax_code!}
+                                      id={r.tax_code!}
+                                      textValue={`${getTaxNameForLocale(r.display_name, i18n.language)} (${r.tax_code})`}
+                                    >
+                                      {getTaxNameForLocale(
+                                        r.display_name,
+                                        i18n.language,
+                                      )}{" "}
+                                      ({r.tax_code})
+                                      <ListBox.ItemIndicator />
+                                    </ListBox.Item>
+                                  ))}
+                              </ListBox>
+                            </Select.Popover>
+                          </Select>
+                        </div>
+                      </div>
+                    </form>
+
+                    {/* Multi-currency pricing section */}
+                    {editingProduct && editingVariant && (
+                      <div className="border-t pt-6">
+                        <VariantPrices
+                          basePriceCents={editingVariant.price_cents}
+                          currency={editingVariant.currency || "USD"}
+                          productId={editingProduct.id}
+                          variantId={editingVariant.id}
+                          variantTitle={editingVariant.title}
+                        />
+                      </div>
+                    )}
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      onPress={() => {
+                        setVariantModal(false);
+                        resetVariantForm();
+                      }}
+                    >
+                      {t("admin-products-btn-cancel")}
+                    </Button>
+                    <Button
+                      form="variant-form"
+                      isDisabled={submittingVariant}
+                      isPending={submittingVariant}
+                      type="submit"
+                      variant="primary"
+                    >
+                      {editingVariant
+                        ? t("save")
+                        : t("admin-products-btn-add-variant")}
+                    </Button>
+                  </Modal.Footer>
+                </>
+              )}
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+
+      {/* Categories selection modal */}
+      <Modal
+        isOpen={categoriesModal}
+        onOpenChange={(open) => {
+          setCategoriesModal(open);
+          if (!open) {
+            setSelectedCategoryIds(new Set());
+          }
+        }}
+      >
+        <Modal.Backdrop>
+          <Modal.Container>
+            <Modal.Dialog>
+              {({ close }) => (
+                <>
+                  <Modal.CloseTrigger onPress={close} />
+                  <Modal.Header>
+                    {t("admin-products-modal-title-categories")}
+                  </Modal.Header>
+                  <Modal.Body>
+                    <div className="space-y-3">
+                      {allCategories.length > 0 ? (
+                        <div className="max-h-96 overflow-y-auto space-y-2">
+                          {allCategories.map((cat) => (
+                            <div
+                              key={cat.id}
+                              className="flex items-center gap-3 p-2 rounded hover:bg-default-100"
+                            >
+                              <Checkbox
+                                id={`category-${cat.id}`}
+                                isSelected={selectedCategoryIds.has(cat.id)}
+                                onChange={(isSelected) => {
+                                  const newIds = new Set(selectedCategoryIds);
+
+                                  if (isSelected) {
+                                    newIds.add(cat.id);
+                                  } else {
+                                    newIds.delete(cat.id);
+                                  }
+                                  setSelectedCategoryIds(newIds);
+                                }}
+                              >
+                                <Checkbox.Control>
+                                  <Checkbox.Indicator />
+                                </Checkbox.Control>
+                                <Checkbox.Content>
+                                  <Label
+                                    className="flex-1"
+                                    htmlFor={`category-${cat.id}`}
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium">
+                                        {getCategoryNameForLocale(
+                                          cat,
+                                          selectedLocale,
+                                        )}
+                                      </p>
+                                      <p className="text-xs text-default-500">
+                                        {cat.handle}
+                                      </p>
+                                    </div>
+                                  </Label>
+                                </Checkbox.Content>
+                              </Checkbox>
+                              {cat.image_url && (
+                                <img
+                                  alt={cat.handle}
+                                  className="w-8 h-8 object-cover rounded shrink-0"
+                                  src={cat.image_url}
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-default-500">
+                          {t("admin-products-no-categories-available")}
+                        </p>
+                      )}
+                    </div>
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      onPress={() => {
+                        setCategoriesModal(false);
+                        setSelectedCategoryIds(new Set());
+                      }}
+                    >
+                      {t("admin-products-btn-cancel")}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onPress={saveCategoriesForProduct}
+                    >
+                      {t("save")}
+                    </Button>
+                  </Modal.Footer>
+                </>
+              )}
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+    </DefaultLayout>
+  );
+}
+
+/**
+ * Display a single variant with image thumbnail and pricing.
+ * Clickable to edit the variant.
+ */
+function VariantCard({
+  variant,
+  onEdit,
+}: {
+  variant: Variant;
+  onEdit: () => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-default-100 transition-colors"
+      onClick={onEdit}
+    >
+      {(variant.thumbnail_url ?? variant.image_url) ? (
+        <img
+          alt={variant.title}
+          className="w-12 h-12 object-cover rounded border"
+          src={variant.thumbnail_url ?? variant.image_url}
+        />
+      ) : (
+        <div className="w-12 h-12 flex items-center justify-center rounded border bg-default-100">
+          <ImageIcon className="text-default-400" size={20} />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className=" text-sm">{variant.title}</p>
+        <p className="text-xs text-default-500">{variant.sku}</p>
+      </div>
+      <p className=" text-sm font-semibold">
+        {formatMoney(variant.price_cents, variant.currency || "USD")}
+      </p>
+    </div>
+  );
+}

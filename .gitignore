@@ -1,0 +1,36 @@
+# AI config plaintext — only the encrypted ai.json.enc belongs in git
+ai.json
+
+# Node modules
+node_modules/
+
+# Turbo cache
+.turbo/
+
+# npm logs
+npm-debug.log*
+
+# dotenv environment files
+.env
+
+.dev.vars
+apps/client/package-lock.json.bak
+apps/cloudflare-worker/package-lock.json.bak
+export.*
+openapi.json
+.DS_Store
+_sensitive_datas/gpg_key_id.txt
+.env.test
+IMPLEMENTATION_GUIDE.md
+IMPLEMENTATION_SUMMARY.md
+apps/merchant/.dev.vars.bak
+*.tsbuildinfo
+docs/
+typedoc.json
+llms.md
+llms.txt
+llms-slim.md
+playwright-report/
+.wrangler/
+.continue/
+.vscode/mcp.json

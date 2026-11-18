@@ -1,0 +1,48 @@
+{
+  "name": "merchant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source commerce backend. Bring Stripe key, start selling.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:env": "bash ./dev-env.sh \"$@\"",
+    "preview:env": "bash ./dev-env.sh \"$@\"",
+    "stripe:listen": "bash -c 'source ../../.env && stripe --api-key $STRIPE_SECRET_KEY listen --load-from-webhooks-api --forward-to http://localhost:8787'",
+    "deploy": "wrangler deploy",
+    "gen:openapi": "bash -c 'source ../../.env && wrangler dev --port 8787 & PID=$! && for i in $(seq 1 30); do sleep 1 && curl -sf http://localhost:8787/openapi.json > ../../openapi.json && echo \"\\n✓ Generated openapi.json\" && kill $PID && exit 0; done; echo \"\\n✗ wrangler did not respond\" && kill $PID && exit 1'",
+    "db:init": "source ../../.env && npx tsx scripts/init.ts",
+    "db:seed": "source ../../.env  && npx tsx scripts/seed.ts  http://localhost:8787 ${MERCHANT_SK}",
+    "db:reset": "echo 'merchant must be cleaned with rm -rf .wrangler and started' && source ../../.env  && npm run db:init && npm run db:seed",
+    "test": "vitest --config vitest.config.ts --run",
+    "test:regions": "bash tests/run-integration.sh",
+    "test:integration": "vitest run tests/regions.integration.test.ts --reporter=verbose",
+    "test:advanced": "vitest run tests/advanced-routes.test.ts --reporter=verbose",
+    "test:schema": "vitest run tests/schema-validation.test.ts --reporter=verbose",
+    "test:api-helpers": "vitest run tests/api-helpers.test.ts --reporter=verbose",
+    "test:all": "vitest run --reporter=verbose",
+    "typegen": "bash -c 'cp ../../.env .dev.vars && wrangler types'",
+    "ai:kv:put": "wrangler kv key put ai:config --binding KV_CACHE --path ../../ai.json.enc"
+  },
+  "dependencies": {
+    "@auth0/auth0-react": "^2.30.0",
+    "@hono/swagger-ui": "^0.6.1",
+    "@hono/zod-openapi": "^1.4.0",
+    "hono": "^4.12.18",
+    "jose": "^6.2.3",
+    "stripe": "^22.1.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260511.1",
+    "@types/jpeg-js": "^0.3.7",
+    "@types/pngjs": "^6.0.5",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.9",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "webp-wasm": "^1.0.6",
+    "wrangler": "^4.90.1"
+  }
+}

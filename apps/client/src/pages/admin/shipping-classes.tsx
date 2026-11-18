@@ -1,0 +1,428 @@
+/**
+ * Copyright (c) 2024-2026 Ronan LE MEILLAT
+ * License: AGPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@heroui/react";
+import { Input, TextField, Label } from "@heroui/react";
+import { Table } from "@heroui/react";
+import { Modal } from "@heroui/react";
+import { Card } from "@heroui/react";
+import { Chip } from "@heroui/react";
+import { Package } from "lucide-react";
+
+import DefaultLayout from "@/layouts/default";
+import { useSecuredApi } from "@/authentication";
+import {
+  ShippingClass,
+  getShippingClasses,
+  createShippingClass,
+  updateShippingClass,
+  deleteShippingClass,
+} from "@/lib/store-api";
+import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
+import { RowActions } from "@/shared/ui/admin/row-actions";
+import { StatusBadge } from "@/shared/ui/admin/status-badge";
+import { useAdminCrud } from "@/hooks/use-admin-crud";
+
+// ─── Component ───────────────────────────────────────────────────────────
+
+export default function ShippingClassesPage() {
+  const { t } = useTranslation();
+  const securedApi = useSecuredApi();
+
+  const {
+    setItems: setClasses,
+    displayedItems: displayed,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem: editingClass,
+    openCreate,
+    openEdit,
+  } = useAdminCrud<ShippingClass>({
+    filterFn: (c, term) =>
+      c.display_name.toLowerCase().includes(term) ||
+      c.code.toLowerCase().includes(term),
+  });
+
+  const [formData, setFormData] = useState({
+    code: "",
+    display_name: "",
+    description: "",
+    resolution: "exclusive" as "exclusive" | "additive",
+    status: "active" as "active" | "inactive",
+  });
+
+  // ─── Load data ─────────────────────────────────────────────────────────
+
+  const loadData = async () => {
+    try {
+      const resp = await getShippingClasses(100, undefined, securedApi);
+
+      setClasses(resp.items ?? []);
+    } catch (err) {
+      console.error("Failed to load shipping classes", err);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // ─── Handlers ──────────────────────────────────────────────────────────
+
+  const handleOpenCreate = () => {
+    setFormData({
+      code: "",
+      display_name: "",
+      description: "",
+      resolution: "exclusive",
+      status: "active",
+    });
+    openCreate();
+  };
+
+  const handleOpenEdit = (cls: ShippingClass) => {
+    setFormData({
+      code: cls.code,
+      display_name: cls.display_name,
+      description: cls.description ?? "",
+      resolution: cls.resolution,
+      status: cls.status,
+    });
+    openEdit(cls);
+  };
+
+  const handleSave = async () => {
+    try {
+      if (isEditMode && editingClass) {
+        const updated = await updateShippingClass(
+          editingClass.id,
+          {
+            display_name: formData.display_name,
+            description: formData.description || null,
+            resolution: formData.resolution,
+            status: formData.status,
+          },
+          securedApi,
+        );
+
+        if (updated) {
+          setClasses((prev) =>
+            prev.map((c) => (c.id === editingClass.id ? updated : c)),
+          );
+        } else {
+          await loadData();
+        }
+      } else {
+        const created = await createShippingClass(
+          {
+            code: formData.code,
+            display_name: formData.display_name,
+            description: formData.description || undefined,
+            resolution: formData.resolution,
+          },
+          securedApi,
+        );
+
+        if (created) {
+          setClasses((prev) => [...prev, created]);
+        } else {
+          await loadData();
+        }
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error("Failed to save shipping class", err);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm(t("admin-shipping-classes-confirm-delete"))) return;
+    try {
+      await deleteShippingClass(id, securedApi);
+      await loadData();
+    } catch (err) {
+      console.error("Failed to delete shipping class", err);
+    }
+  };
+
+  // ─── Render ────────────────────────────────────────────────────────────
+
+  return (
+    <DefaultLayout>
+      <AdminCrudLayout
+        addLabel={t("admin-shipping-classes-btn-new")}
+        filterPlaceholder={t("admin-shipping-classes-filter-placeholder")}
+        globalFilter={globalFilter}
+        headerExtra={
+          <Card className="mb-6 border-l-4 border-blue-400">
+            <Card.Content className="py-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-semibold text-orange-600">
+                    {t("admin-shipping-classes-exclusive-help-title")}
+                  </span>
+                  <p className="text-default-500 mt-1">
+                    {t("admin-shipping-classes-exclusive-help-desc")}
+                  </p>
+                </div>
+                <div>
+                  <span className="font-semibold text-green-600">
+                    {t("admin-shipping-classes-additive-help-title")}
+                  </span>
+                  <p className="text-default-500 mt-1">
+                    {t("admin-shipping-classes-additive-help-desc")}
+                  </p>
+                </div>
+              </div>
+            </Card.Content>
+          </Card>
+        }
+        icon={<Package className="w-8 h-8 text-primary" />}
+        statusActiveLabel={t("admin-shipping-classes-active")}
+        statusAllLabel={t("admin-shipping-classes-filter-status")}
+        statusFilter={statusFilter}
+        statusInactiveLabel={t("admin-shipping-classes-inactive")}
+        statusLabel={t("admin-shipping-classes-status")}
+        subtitle={t("admin-shipping-classes-subtitle")}
+        title={t("admin-shipping-classes-title")}
+        onAdd={handleOpenCreate}
+        onGlobalFilterChange={setGlobalFilter}
+        onStatusFilterChange={setStatusFilter}
+      >
+        <Card>
+          <Card.Content>
+            <Table>
+              <Table.Content>
+                <Table.Header>
+                  <Table.Column key="code" isRowHeader>
+                    {t("admin-shipping-classes-col-code")}
+                  </Table.Column>
+                  <Table.Column key="display_name">
+                    {t("admin-shipping-classes-col-name")}
+                  </Table.Column>
+                  <Table.Column key="resolution">
+                    {t("admin-shipping-classes-col-resolution")}
+                  </Table.Column>
+                  <Table.Column key="description">
+                    {t("admin-shipping-classes-col-description")}
+                  </Table.Column>
+                  <Table.Column key="status">
+                    {t("admin-shipping-classes-col-status")}
+                  </Table.Column>
+                  <Table.Column key="actions">
+                    {t("admin-shipping-classes-col-actions")}
+                  </Table.Column>
+                </Table.Header>
+                <Table.Body
+                  renderEmptyState={() => (
+                    <div>{t("admin-shipping-classes-empty")}</div>
+                  )}
+                >
+                  {displayed.map((cls) => (
+                    <Table.Row key={cls.id} className="odd:bg-default-50">
+                      <Table.Cell>
+                        <code className="text-xs bg-default-100 px-2 py-0.5 rounded">
+                          {cls.code}
+                        </code>
+                      </Table.Cell>
+                      <Table.Cell className="font-medium">
+                        {cls.display_name}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {cls.resolution === "exclusive" ? (
+                          <Chip size="sm" variant="tertiary">
+                            {t("admin-shipping-classes-exclusive")}
+                          </Chip>
+                        ) : (
+                          <Chip size="sm" variant="tertiary">
+                            {t("admin-shipping-classes-additive")}
+                          </Chip>
+                        )}
+                      </Table.Cell>
+                      <Table.Cell className="text-default-500 text-sm">
+                        {cls.description ?? "—"}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <StatusBadge status={cls.status} />
+                      </Table.Cell>
+                      <Table.Cell>
+                        <RowActions
+                          onDelete={() => handleDelete(cls.id)}
+                          onEdit={() => handleOpenEdit(cls)}
+                        />
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table>
+          </Card.Content>
+        </Card>
+
+        {/* Create / Edit Modal */}
+        <Modal isOpen={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Modal.Backdrop>
+            <Modal.Container size="lg">
+              <Modal.Dialog>
+                {({ close }) => (
+                  <>
+                    <Modal.CloseTrigger onPress={close} />
+                    <Modal.Header>
+                      {isEditMode
+                        ? t("admin-shipping-classes-modal-title-edit")
+                        : t("admin-shipping-classes-modal-title-create")}
+                    </Modal.Header>
+                    <Modal.Body>
+                      <div className="space-y-4">
+                        {/* Code — only editable on creation */}
+                        <TextField isDisabled={isEditMode}>
+                          <Label>{t("admin-shipping-classes-code")}</Label>
+                          <Input
+                            placeholder={t(
+                              "admin-shipping-classes-code-placeholder",
+                            )}
+                            value={formData.code}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                code: e.target.value.toLowerCase(),
+                              })
+                            }
+                          />
+                        </TextField>
+
+                        <TextField>
+                          <Label>
+                            {t("admin-shipping-classes-display-name")}
+                          </Label>
+                          <Input
+                            placeholder={t(
+                              "admin-shipping-classes-display-name-placeholder",
+                            )}
+                            value={formData.display_name}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                display_name: e.target.value,
+                              })
+                            }
+                          />
+                        </TextField>
+
+                        <TextField>
+                          <Label>
+                            {t("admin-shipping-classes-description")}
+                          </Label>
+                          <Input
+                            placeholder={t(
+                              "admin-shipping-classes-description-placeholder",
+                            )}
+                            value={formData.description}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                description: e.target.value,
+                              })
+                            }
+                          />
+                        </TextField>
+
+                        <div className="flex flex-col gap-1">
+                          <Label>
+                            {t("admin-shipping-classes-resolution-mode")}
+                          </Label>
+                          <select
+                            className="px-3 py-2 rounded-lg bg-default-100 border border-default-300 text-sm focus:outline-none focus:ring-2"
+                            value={formData.resolution}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                resolution: e.target.value as
+                                  | "exclusive"
+                                  | "additive",
+                              })
+                            }
+                          >
+                            <option value="exclusive">
+                              {t(
+                                "admin-shipping-classes-resolution-exclusive-label",
+                              )}
+                            </option>
+                            <option value="additive">
+                              {t(
+                                "admin-shipping-classes-resolution-additive-label",
+                              )}
+                            </option>
+                          </select>
+                        </div>
+
+                        {isEditMode && (
+                          <div className="flex flex-col gap-1">
+                            <Label>{t("admin-shipping-classes-status")}</Label>
+                            <select
+                              className="px-3 py-2 rounded-lg bg-default-100 border border-default-300 text-sm focus:outline-none focus:ring-2"
+                              value={formData.status}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  status: e.target.value as
+                                    | "active"
+                                    | "inactive",
+                                })
+                              }
+                            >
+                              <option value="active">
+                                {t("admin-shipping-classes-active")}
+                              </option>
+                              <option value="inactive">
+                                {t("admin-shipping-classes-inactive")}
+                              </option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <Button variant="tertiary" onPress={close}>
+                        {t("admin-shipping-classes-modal-cancel")}
+                      </Button>
+                      <Button
+                        isDisabled={!formData.code || !formData.display_name}
+                        variant="primary"
+                        onPress={handleSave}
+                      >
+                        {t("admin-shipping-classes-modal-save")}
+                      </Button>
+                    </Modal.Footer>
+                  </>
+                )}
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+      </AdminCrudLayout>
+    </DefaultLayout>
+  );
+}

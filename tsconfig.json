@@ -1,0 +1,19 @@
+{
+  "files": [],
+  "references": [
+    { "path": "apps/client" },
+    { "path": "apps/merchant" }
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "incremental": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "strict": true,
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "target": "ES2022",
+    "esModuleInterop": true,
+    "types": []
+  }
+}

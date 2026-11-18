@@ -1,0 +1,140 @@
+/**
+ * Copyright (c) 2024-2026 Ronan LE MEILLAT
+ * License: AGPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/**
+ * Currency formatting utilities using Intl.NumberFormat
+ * Handles ISO 4217 currency codes with proper localization
+ */
+
+/**
+ * Formats an amount in cents to a localized currency string.
+ * Uses the standard `Intl.NumberFormat` API — no hard-coded currency symbols.
+ *
+ * @param cents    - Amount in cents (e.g. `2999` → `29.99`).
+ * @param currency - ISO 4217 currency code (e.g. `"EUR"`, `"USD"`, `"JPY"`).
+ *   Pass an empty string to format as a plain number without a currency symbol.
+ * @param locale   - Optional BCP 47 locale tag (e.g. `"fr-FR"`, `"en-US"`).
+ *   Defaults to the browser's language.
+ * @returns Formatted string (e.g. `"29,99 €"`, `"$29.99"`, `"¥9,800"`).
+ *
+ * @example
+ * formatMoney(2999, "EUR", "fr-FR") // "29,99 €"
+ * formatMoney(2999, "USD", "en-US") // "$29.99"
+ * formatMoney(2999, "", "fr-FR")    // "29,99" (no symbol)
+ * formatMoney(9800, "JPY", "ja-JP") // "¥9,800" (0 decimal places for JPY)
+ */
+export function formatMoney(
+  cents: number,
+  currency: string = "",
+  locale?: string,
+): string {
+  // Si pas de devise, utilise le format nombre simple
+  if (!currency) {
+    return new Intl.NumberFormat(locale ?? navigator.language, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(cents / 100);
+  }
+
+  // Récupère le nombre de décimales standard pour cette devise
+  // Intl gère nativement JPY (0 décimales), KWD (3 décimales), etc.
+  return new Intl.NumberFormat(locale ?? navigator.language, {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    currencyDisplay: "narrowSymbol",
+  }).format(cents / 100);
+}
+
+/**
+ * Variante avec décimales forcées (pour les affichages comptables admin).
+ * Utile quand on veut toujours afficher 2 décimales même pour le JPY.
+ *
+ * @param cents     - montant en centimes
+ * @param currency  - code ISO 4217
+ * @param decimals  - nombre de décimales à forcer (défaut: 2)
+ * @param locale    - locale optionnelle
+ * @returns string formatée avec décimales exactes
+ *
+ * @example
+ * formatMoneyFixed(2999, "EUR", 2, "fr-FR") // "29,99 €"
+ * formatMoneyFixed(10, "JPY", 2, "ja-JP")   // "¥0.10"
+ */
+export function formatMoneyFixed(
+  cents: number,
+  currency: string,
+  decimals = 2,
+  locale?: string,
+): string {
+  return new Intl.NumberFormat(locale ?? navigator.language, {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    currencyDisplay: "narrowSymbol",
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(cents / 100);
+}
+
+/**
+ * Retourne uniquement le symbole de la devise pour une locale donnée.
+ *
+ * @param currency - code ISO 4217
+ * @param locale   - locale optionnelle
+ * @returns string symbole (ex: "$", "€", "¥")
+ *
+ * @example
+ * currencySymbol("EUR", "fr-FR") // "€"
+ * currencySymbol("USD", "en-US") // "$"
+ * currencySymbol("GBP", "en-GB") // "£"
+ */
+export function currencySymbol(currency: string, locale?: string): string {
+  return (
+    new Intl.NumberFormat(locale ?? navigator.language, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })
+      .formatToParts(0)
+      .find((p) => p.type === "currency")?.value ?? currency
+  );
+}
+
+/**
+ * Formate un montant en centimes sans symbole (juste le nombre).
+ * Utile pour les champs d'affichage numérique pur.
+ *
+ * @param cents    - montant en centimes
+ * @param currency - code ISO 4217 (pour déterminer les décimales standards)
+ * @param locale   - locale optionnelle
+ * @returns string nombre formaté (ex: "29,99" ou "29.99")
+ *
+ * @example
+ * formatAmount(2999, "EUR", "fr-FR") // "29,99"
+ * formatAmount(2999, "USD", "en-US") // "29.99"
+ */
+export function formatAmount(
+  cents: number,
+  _currency: string,
+  locale?: string,
+): string {
+  return new Intl.NumberFormat(locale ?? navigator.language, {
+    style: "decimal",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}

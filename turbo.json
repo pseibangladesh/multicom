@@ -1,0 +1,29 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "dev:env": {
+      "cache": false,
+      "persistent": true,
+      "with": ["stripe:listen"]
+    },
+    "stripe:listen": {
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "build:env": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "preview:env": {
+      "cache": false
+    }
+  }
+}
