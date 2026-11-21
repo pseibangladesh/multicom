@@ -8,7 +8,7 @@
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
+ * copies of the Software, to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
  *
  * The above copyright notice and this permission notice shall be included in all
@@ -34,20 +34,54 @@ import { ApiError, now, type AuthRole, type HonoEnv } from '../types';
 /**
  * Authentication middleware for admin/OAuth-protected routes.
  *
- * Accepts three token formats:
- * 1. **Auth0 JWT** — three-part Bearer token; verified against the tenant's JWKS.
- *    The token must carry the `admin:store` permission (or the value of
- *    `ADMIN_STORE_PERMISSION`). Additional role bits are derived from other
- *    permission claims.
+ * Accepts three token formats (in priority order):
+ * 1. **Better Auth session cookie** — secure HttpOnly cookie set by /api/auth/*
+ *    The session is verified server-side against the D1 database.
  * 2. **Admin API key** (`sk_` prefix) — stored in the database.
  * 3. **OAuth key** (64-char hex) — scoped API key.
- *
- * On success, sets `c.var.auth` (`AuthContext`) with role, permissions, and
- * optionally the Auth0 `sub` / `email` claims.
- *
- * @throws {@link ApiError} 401 / 403 on any authentication or authorization failure.
  */
 export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
+  const db = getDb(c.var.db);
+  const stripeSecretKey = c.env.STRIPE_SECRET_KEY || null;
+  const stripeWebhookSecret = c.env.STRIPE_WEBHOOK_SECRET || null;
+
+  // ── Priority 1: Better Auth session cookie ────────────────────────
+  const sessionCookie = c.req.header('cookie') || '';
+  const sessionMatch = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
+
+  if (sessionMatch) {
+    try {
+      const token = sessionMatch[1];
+      const hashedToken = await hashKey(token);
+
+      const sessionResult = await db.query<any>(
+        `SELECT s.*, u.email, u.name
+         FROM sessions s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.token = ? AND s.expires_at > ?
+         LIMIT 1`,
+        [hashedToken, now()]
+      );
+
+      if (sessionResult.length > 0) {
+        const row = sessionResult[0];
+        c.set('auth', {
+          role: 'admin',
+          stripeSecretKey,
+          stripeWebhookSecret,
+          email: row.email,
+          name: row.name,
+          userId: row.user_id,
+        });
+        await next();
+        return;
+      }
+    } catch (err) {
+      console.warn('Better Auth session verification failed:', err);
+    }
+  }
+
+  // ── Priority 2: Bearer token (OAuth or API key) ──────────────────
   const authHeader = c.req.header('Authorization');
 
   if (!authHeader?.startsWith('Bearer ')) {
@@ -55,107 +89,9 @@ export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   }
 
   const token = authHeader.slice(7);
-  const db = getDb(c.var.db);
-  const stripeSecretKey = c.env.STRIPE_SECRET_KEY || null;
-  const stripeWebhookSecret = c.env.STRIPE_WEBHOOK_SECRET || null;
-
   const isOAuthToken = token.length === 64 && /^[a-f0-9]+$/.test(token);
 
-  // ------------------------------------------------------------------
-  // Auth0 JWT support
-  // ------------------------------------------------------------------
-  // When the Authorization header contains a standard JWT (three dot-joined
-  // segments) and the token does **not** start with our API key prefixes, we
-  // treat it as an Auth0 access token.  The token must:
-  //   1. validate against the Auth0 tenant's JWKS
-  //   2. include the expected audience claim (from AUTH0_AUDIENCE)
-  //   3. carry the `admin:store` permission in the `permissions` array
-  //
-  // This allows browser clients obtaining Auth0 tokens to call the same
-  // endpoints as the legacy API key system, with a single `admin` role.
-  //
-  // detect values with the three-part JWT structure (header.payload.signature)
-  // while skipping API keys that might accidentally contain dots.
-  if (
-    token.split('.').length === 3 &&
-    !token.startsWith('pk_') &&
-    !token.startsWith('sk_')
-  ) {
-    const { verifyAuth0Jwt } = await import('../lib/auth0');
-
-    const domain = c.env.AUTH0_DOMAIN;
-    const audience = c.env.AUTH0_AUDIENCE;
-
-    if (!domain || !audience) {
-      throw ApiError.unauthorized('Auth0 not configured on server');
-    }
-
-    let payload;
-    try {
-      payload = await verifyAuth0Jwt(token, domain, audience);
-    } catch (err) {
-      console.error('JWT verification failed', err);
-      throw ApiError.unauthorized('Invalid Auth0 JWT');
-    }
-
-    const perms = Array.isArray(payload.permissions)
-      ? (payload.permissions as unknown[]).map(String)
-      : [];
-
-    // permission required for admin access is driven by an environment
-    // variable so it can be changed without a deploy.  fall back to the
-    // historical value for backward compatibility.
-    const requiredPerm = c.env.ADMIN_STORE_PERMISSION || 'admin:store';
-
-    if (!perms.includes(requiredPerm)) {
-      throw ApiError.forbidden(`${requiredPerm} permission required`);
-    }
-
-    // Build a list of roles based on permissions in the token.
-    // This ensures we include all matching permissions (e.g. admin + authadmin + databaseadmin).
-    const roles: AuthRole[] = [];
-
-    // `requiredPerm` is used as an access gate; its presence implies at least `admin`.
-    if (perms.includes(requiredPerm)) {
-      roles.push('admin');
-    }
-
-    const authAdminPerm = c.env.ADMIN_AUTH0_PERMISSION || 'auth0:admin:api';
-    if (perms.includes(authAdminPerm)) {
-      roles.push('authadmin');
-    }
-
-    const databasePerm = c.env.DATABASE_PERMISSION || 'admin:database';
-    if (perms.includes(databasePerm)) {
-      roles.push('databaseadmin');
-    }
-    
-    const aiPerm = c.env.AI_PERMISSION || 'ai:api';
-    if (perms.includes(aiPerm)) {
-      roles.push('aiadmin');
-    }
-
-    const mailPerm = c.env.MAIL_PERMISSION || 'mail:api';
-    if (perms.includes(mailPerm)) {
-      roles.push('mail');
-    }
-
-    if (roles.length === 0) {
-      // This should not happen because we already checked requiredPerm above,
-      // but keep a guard in case requiredPerm is changed in the future.
-      throw ApiError.forbidden(`${requiredPerm} permission required`);
-    }
-
-    c.set('auth', {
-      role: roles.length === 1 ? roles[0] : roles,
-      stripeSecretKey,
-      stripeWebhookSecret,
-    });
-
-    await next();
-    return;
-  }
-
+  // ── Priority 3: OAuth token (64-char hex) ────────────────────────
   if (isOAuthToken) {
     const tokenHash = await hashKey(token);
     const oauthResult = await db.query<any>(
@@ -182,6 +118,7 @@ export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
     }
   }
 
+  // ── Priority 4: API key (sk_ or pk_ prefix) ──────────────────────
   const keyHash = await hashKey(token);
   const result = await db.query<any>(
     `SELECT role FROM api_keys WHERE key_hash = ? LIMIT 1`,
@@ -200,6 +137,8 @@ export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
 
   await next();
 });
+
+// ── Role-gate middleware (unchanged from previous implementation) ──
 
 export const superAdminOnly = createMiddleware<HonoEnv>(async (c, next) => {
   const auth = c.get('auth');
@@ -281,40 +220,50 @@ export const mailAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
   await next();
 });
 
-// This allow access to any valid JWT token with the correct audience, regardless of permissions.  It can be used for routes that need to be accessed by non-admin users with Auth0 tokens, while still blocking non-JWT tokens (like API keys). It uses jose for parsing and validating the JWT, but does not check for any specific permissions since it's meant for more general use cases like the customer-facing /v1/me endpoints.
-export const validJwtAuthOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const authHeader = c.req.header('Authorization');
+/**
+ * Customer authentication middleware — verifies Better Auth session cookie.
+ * Used for customer-facing routes like /v1/me/*, /v1/downloads, etc.
+ */
+export const customerAuthMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
+  // ── Priority 1: Better Auth session cookie ────────────────────────
+  const sessionCookie = c.req.header('cookie') || '';
+  const sessionMatch = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
 
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw ApiError.unauthorized('Missing or invalid Authorization header');
+  if (sessionMatch) {
+    try {
+      const token = sessionMatch[1];
+      const hashedToken = await hashKey(token);
+      const db = getDb(c.var.db);
+
+      const sessionResult = await db.query<any>(
+        `SELECT s.*, u.email, u.name
+         FROM sessions s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.token = ? AND s.expires_at > ?
+         LIMIT 1`,
+        [hashedToken, now()]
+      );
+
+      if (sessionResult.length > 0) {
+        const row = sessionResult[0];
+        c.set('auth', {
+          role: 'customer',
+          email: row.email,
+          name: row.name,
+          userId: row.user_id,
+          stripeSecretKey: null,
+          stripeWebhookSecret: null,
+        });
+        await next();
+        return;
+      }
+    } catch (err) {
+      console.warn('Better Auth session verification failed:', err);
+    }
   }
 
-  const token = authHeader.slice(7);
-
-  // Only accept JWTs (three-part format), not API keys
-  if (
-    token.split('.').length !== 3 ||
-    token.startsWith('pk_') ||
-    token.startsWith('sk_')
-  ) {
-    throw ApiError.unauthorized('Invalid token for this endpoint');
-  }
-
-  const domain = c.env.AUTH0_DOMAIN;
-  const audience = c.env.AUTH0_AUDIENCE;
-
-  if (!domain || !audience) {
-    throw ApiError.unauthorized('Auth0 not configured');
-  }
-
-  try {
-    const { verifyAuth0Jwt } = await import('../lib/auth0');
-    await verifyAuth0Jwt(token, domain, audience);
-  } catch (err) {
-    throw ApiError.unauthorized('Invalid token for this endpoint');
-  }
-}
-);
+  throw ApiError.unauthorized('Missing or invalid session');
+});
 
 export function requireScope(...requiredScopes: string[]) {
   return createMiddleware<HonoEnv>(async (c, next) => {

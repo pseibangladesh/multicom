@@ -16,109 +16,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * Root authentication provider component.
+ *
+ * Uses Better Auth session cookies via /api/auth/* (local provider).
+ */
+
 import React from "react";
-import { Auth0Provider } from "@auth0/auth0-react";
-import { useNavigate } from "react-router-dom";
 
 import { AuthProviderWrapper } from "./providers/use-auth";
-import { AutoPermissionProvisioner } from "./components/auth-components";
-
-import { getBaseURL } from "@/utils/base-url";
 
 // Provider types we support
-export type AuthenticationType = "auth0" | "dex";
+export type AuthenticationType = "local";
 
 interface AuthenticationProviderProps {
   children: React.ReactNode;
-  providerType: AuthenticationType;
   config?: any;
 }
 
 /**
- * Root authentication provider component that sets up the appropriate
- * authentication provider based on the specified type
+ * Root authentication provider component that sets up the Better Auth
+ * session-based authentication.
  */
 export const AuthenticationProvider: React.FC<AuthenticationProviderProps> = ({
   children,
-  providerType = "auth0",
 }) => {
-  // Set up Auth0 provider
-  const navigate = useNavigate();
-
-  if (providerType === "auth0") {
-    // Auth0 uses the following environment variables:
-    // AUTH0_DOMAIN
-    // AUTH0_CLIENT_ID
-    // AUTH0_AUDIENCE
-    // AUTH0_SCOPE
-    const redirectUri = new URL(
-      getBaseURL() || "/",
-      window.location.origin,
-    ).toString();
-
-    const handleRedirectCallback = (appState: any) => {
-      // Store pendingWishlistProduct in sessionStorage if present
-      // This allows the WishlistButton to detect and execute the pending action
-      if (appState?.pendingWishlistProduct) {
-        sessionStorage.setItem(
-          "pendingWishlistProduct",
-          appState.pendingWishlistProduct,
-        );
-      }
-
-      if (appState?.returnTo) {
-        console.log("Redirecting to:", appState.returnTo);
-        const target = appState?.returnTo || window.location.pathname;
-
-        navigate(target, { replace: true });
-      }
-    };
-
-    return (
-      <Auth0Provider
-        authorizationParams={{
-          redirect_uri: redirectUri,
-          audience: import.meta.env.AUTH0_AUDIENCE,
-          scope: import.meta.env.AUTH0_SCOPE,
-        }}
-        cacheLocation="localstorage"
-        clientId={import.meta.env.AUTH0_CLIENT_ID}
-        domain={import.meta.env.AUTH0_DOMAIN}
-        useCookiesForTransactions={true}
-        useRefreshTokens={true}
-        onRedirectCallback={handleRedirectCallback}
-      >
-        <AuthProviderWrapper providerType={providerType}>
-          <AutoPermissionProvisioner>{children}</AutoPermissionProvisioner>
-        </AuthProviderWrapper>
-      </Auth0Provider>
-    );
-  }
-
-  // For Dex and other providers, we'd need to set up their specific provider
-  if (providerType === "dex") {
-    // Dex doesn't need an external provider wrapper like Auth0 does
-    // Dex use the fowlowing environment variables:
-    // DEX_AUTHORITY
-    // DEX_CLIENT_ID
-    // DEX_REDIRECT_URI
-    // DEX_SCOPE
-    // DEX_AUDIENCE
-    // DEX_TOKEN_ISSUER
-    // DEX_JWKS_ENDPOINT
-    // DEX_DOMAIN
-    return (
-      <AuthProviderWrapper providerType={providerType}>
-        {children}
-      </AuthProviderWrapper>
-    );
-  }
-
-  // Default fallback - should not happen if proper validation is in place
   return (
-    <div>
-      <h1>Invalid authentication provider type: {providerType}</h1>
-      <p>Please check your configuration.</p>
-    </div>
+    <AuthProviderWrapper>{children}</AuthProviderWrapper>
   );
 };

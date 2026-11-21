@@ -621,20 +621,22 @@ CREATE INDEX IF NOT EXISTS idx_product_reviews_customer
   ON product_reviews (customer_id);
 
 -- ============================================================
--- SAVED CARTS (migration 026)
+-- SAVED CARTS (migration 026, column renamed in 038)
+-- Original column was 'auth0_user_id' (Auth0 JWT sub claim).
+-- Renamed to 'user_id' via migration 038 for Better Auth compatibility.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS saved_carts (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  auth0_user_id TEXT NOT NULL,
+  user_id       TEXT NOT NULL,
   cart_id       TEXT NOT NULL,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(auth0_user_id, cart_id),
+  UNIQUE(user_id, cart_id),
   FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(auth0_user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(user_id);
 
 -- ============================================================
 -- CATEGORIES (migrations 027 + 031)
@@ -938,8 +940,8 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
           name: '024_shipping_rates_add_tax_inclusive',
           sql: "ALTER TABLE shipping_rates ADD COLUMN tax_inclusive INTEGER NOT NULL DEFAULT 0",
         },
-        // ── Migration 025 ── Customer Auth0 sub lookup indexes ────────────────
-        // Fast lookup for resolving customers from Auth0 JWT 'sub' claim.
+        // ── Migration 025 ── Customer auth provider lookup indexes ────────────────
+        // Fast lookup for resolving customers from auth_provider_id.
         {
           name: '025_idx_customers_auth_provider_id',
           sql: 'CREATE INDEX IF NOT EXISTS idx_customers_auth_provider_id ON customers(auth_provider_id)',
@@ -948,25 +950,25 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
           name: '025_idx_customers_email',
           sql: 'CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)',
         },
-        // ── Migration 026 ── Saved carts table for Auth0 users ──────────────────
-        // Links Auth0 users to their saved carts via auth0_user_id (JWT 'sub' claim).
+        // ── Migration 026 ── Saved carts table ───────────────────────────────
+        // Links users to their saved carts via user_id.
         {
           name: '026_saved_carts_table',
           sql: `
             CREATE TABLE IF NOT EXISTS saved_carts (
               id            INTEGER PRIMARY KEY AUTOINCREMENT,
-              auth0_user_id TEXT NOT NULL,
-              cart_id       INTEGER NOT NULL,
+              user_id       TEXT NOT NULL,
+              cart_id       TEXT NOT NULL,
               created_at    TEXT NOT NULL DEFAULT (datetime('now')),
               updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
-              UNIQUE(auth0_user_id, cart_id),
+              UNIQUE(user_id, cart_id),
               FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
             )
           `,
         },
         {
           name: '026_idx_saved_carts_user',
-          sql: 'CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(auth0_user_id)',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(user_id)',
         },
         {
           name: '026_trg_saved_carts_updated_at',
@@ -1269,6 +1271,36 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
             ALTER TABLE orders ADD COLUMN payment_gateway TEXT DEFAULT 'stripe';
             CREATE INDEX IF NOT EXISTS idx_orders_sslcommerz_tran ON orders(sslcommerz_tran_id);
             CREATE INDEX IF NOT EXISTS idx_orders_payment_gateway ON orders(payment_gateway);
+          `,
+        },
+        // ── Migration 037 ── Better Auth tables (users, sessions, accounts) ────
+        // These are applied via the external migration file; skip here to avoid
+        // duplicates on fresh DBs where migrations/037 has already run.
+        {
+          name: '037_skip_better_auth_tables',
+          sql: "SELECT 1",
+        },
+        // ── Migration 038 ── Rename auth0_user_id → user_id in saved_carts ────
+        // D1/SQLite lacks ALTER TABLE ... RENAME COLUMN, so we recreate the table.
+        // Wrapped in try/catch via the migration error handler so it's safe on fresh DBs
+        // (where embedded schema already uses 'user_id') and existing DBs (with data to migrate).
+        {
+          name: '038_rename_auth0_user_id_to_user_id',
+          sql: `
+            CREATE TABLE IF NOT EXISTS saved_carts_new (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id       TEXT NOT NULL,
+              cart_id       TEXT NOT NULL,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(user_id, cart_id),
+              FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
+            );
+            INSERT OR IGNORE INTO saved_carts_new (id, user_id, cart_id, created_at, updated_at)
+            SELECT id, auth0_user_id, cart_id, created_at, updated_at FROM saved_carts;
+            DROP TABLE IF EXISTS saved_carts;
+            ALTER TABLE saved_carts_new RENAME TO saved_carts;
+            CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(user_id);
           `,
         },
       ];

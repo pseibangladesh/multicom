@@ -17,7 +17,6 @@
  */
 
 /* global process */
-import dotenv from "dotenv";
 import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -25,14 +24,6 @@ import tailwindcss from "@tailwindcss/vite";
 import { githubPagesSpa } from "@sctg/vite-plugin-github-pages-spa";
 
 import _package from "./package.json" with { type: "json" };
-
-const env = dotenv.config({
-  path: path.resolve(import.meta.dirname, '../../.env'),
-});
-// Construct an array containing all the *_PERMISSION values from the .env file
-const scopesArray = Object.entries(env.parsed || {})
-  .filter(([key]) => key.endsWith("_PERMISSION"))
-  .map(([_, value]) => value);
 
 /**
  * Package.json type definition for React project
@@ -94,57 +85,23 @@ export function extractPerVendorDependencies(
  */
 if (process.env.NODE_ENV === "development") {
   console.warn("Launching Vite in development mode, environment variables loaded (sensitive values hidden)", {
-    AUTH0_DOMAIN: process.env.AUTH0_DOMAIN,
     STORE_URL: process.env.STORE_URL,
     API_BASE_URL: process.env.API_BASE_URL,
-    PERMISSIONS: scopesArray,
   });
 }
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
   define: {
-    // Get the AUthentication provider type from environment variables
+    // Get the authentication provider type from environment variables
     "import.meta.env.AUTHENTICATION_PROVIDER_TYPE": JSON.stringify(
-      process.env.AUTHENTICATION_PROVIDER_TYPE || "auth0",
-    ),
-    // Auth0 environment variables
-    "import.meta.env.AUTH0_DOMAIN": JSON.stringify(process.env.AUTH0_DOMAIN),
-    "import.meta.env.AUTH0_CLIENT_ID": JSON.stringify(
-      process.env.AUTH0_CLIENT_ID || "",
-    ),
-    "import.meta.env.AUTH0_AUDIENCE": JSON.stringify(
-      process.env.AUTH0_AUDIENCE,
-    ),
-    "import.meta.env.AUTH0_SCOPE": JSON.stringify(
-      process.env.AUTH0_SCOPE || "openid profile email",
+      process.env.AUTHENTICATION_PROVIDER_TYPE || "local",
     ),
     "import.meta.env.API_BASE_URL": JSON.stringify(process.env.API_BASE_URL),
-    // Dex environment variables
-    "import.meta.env.DEX_AUTHORITY": JSON.stringify(process.env.DEX_AUTHORITY),
-    "import.meta.env.DEX_CLIENT_ID": JSON.stringify(process.env.DEX_CLIENT_ID),
-    "import.meta.env.DEX_REDIRECT_URI": JSON.stringify(
-      process.env.DEX_REDIRECT_URI,
-    ),
-    "import.meta.env.DEX_SCOPE": JSON.stringify(process.env.DEX_SCOPE),
-    "import.meta.env.DEX_AUDIENCE": JSON.stringify(process.env.DEX_AUDIENCE),
-    "import.meta.env.DEX_TOKEN_ISSUER": JSON.stringify(
-      process.env.DEX_TOKEN_ISSUER,
-    ),
-    "import.meta.env.DEX_JWKS_ENDPOINT": JSON.stringify(
-      process.env.DEX_JWKS_ENDPOINT,
-    ),
-    "import.meta.env.DEX_DOMAIN": JSON.stringify(process.env.DEX_DOMAIN),
-    "import.meta.env.AUTH0_CACHE_DURATION_S": JSON.stringify(
-      process.env.AUTH0_CACHE_DURATION_S || "300",
-    ),
     "import.meta.env.MERCHANT_PK": JSON.stringify(process.env.MERCHANT_PK || "merchant_pk_placeholder"),
     "import.meta.env.STORE_URL": JSON.stringify(process.env.STORE_URL || "https://github.com/sctg-development/fufuni"),
     "import.meta.env.STORE_NAME": JSON.stringify(process.env.STORE_NAME || "Fufuni Store"),
     "import.meta.env.FUFUNI_THEME": JSON.stringify(process.env.FUFUNI_THEME ?? "heroui_standard"),
     // Permissions
-    "import.meta.env.PERMISSIONS": JSON.stringify(scopesArray),
-    "import.meta.env.AUTH0_AUTOMATIC_PERMISSIONS": JSON.stringify(process.env.AUTH0_AUTOMATIC_PERMISSIONS?.split(",") || []),
-    "import.meta.env.ADMIN_AUTH0_PERMISSION": JSON.stringify(process.env.ADMIN_AUTH0_PERMISSION || "auth0:admin:api"),
     "import.meta.env.ADMIN_STORE_PERMISSION": JSON.stringify(process.env.ADMIN_STORE_PERMISSION || "admin:store"),
     "import.meta.env.DATABASE_PERMISSION": JSON.stringify(process.env.DATABASE_PERMISSION || "admin:database"),
     "import.meta.env.AI_PERMISSION": JSON.stringify(process.env.AI_PERMISSION || "ai:api"),
@@ -196,9 +153,6 @@ export default defineConfig({
 
           // Group Heroui packages together for better caching
           if (id.includes("/node_modules/@heroui/")) return "heroui";
-
-          // Group Auth0 packages together
-          if (id.includes("/node_modules/@auth0/")) return "auth0";
         },
       },
     },

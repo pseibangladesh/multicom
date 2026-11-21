@@ -2,14 +2,15 @@
  * Copyright (c) 2026 Ronan LE MEILLAT
  * License: AGPL-3.0-or-later
  *
- * Store metadata utilities for managing Auth0 user_metadata
- * Handles normalization and retrieval of store-specific metadata
+ * Store metadata utilities for managing customer preferences.
+ * Handles normalization and retrieval of store-specific metadata.
+ *
+ * D1 stores preferences in customers.metadata (replaces Auth0 user_metadata).
  */
 
 /**
  * Normalize store URL for use as a metadata key.
- * Auth0 does not allow dots (.), colons (:), or slashes (/) in user_metadata field names,
- * so we replace them with underscores.
+ * Replaces dots, colons, and slashes with underscores for safe key usage.
  *
  * @param storeUrl - The store URL to normalize (e.g., "https://store.example.com/")
  * @returns Normalized key (e.g., "https___store_example_com") or undefined
@@ -24,25 +25,25 @@ export const normalizeStoreUrl = (storeUrl?: string): string | undefined => {
 };
 
 /**
- * Extract store-specific metadata from user_metadata.
+ * Extract store-specific metadata from customer metadata.
  * Falls back to root-level metadata for backward compatibility.
  *
- * @param userMetadata - The Auth0 user_metadata object
+ * @param metadata - The customer metadata object
  * @param storeUrl - Optional store URL to use as key
  * @returns Store metadata object or the parent metadata if no store URL
  */
-export const getStoreMetadata = (userMetadata: any, storeUrl?: string): any => {
-  if (!userMetadata || typeof userMetadata !== "object") return undefined;
+export const getStoreMetadata = (metadata: any, storeUrl?: string): any => {
+  if (!metadata || typeof metadata !== "object") return undefined;
 
   const normalizedUrl = normalizeStoreUrl(storeUrl);
 
   if (
     normalizedUrl &&
-    userMetadata[normalizedUrl] &&
-    typeof userMetadata[normalizedUrl] === "object"
+    metadata[normalizedUrl] &&
+    typeof metadata[normalizedUrl] === "object"
   ) {
-    return userMetadata[normalizedUrl];
+    return metadata[normalizedUrl];
   }
 
-  return userMetadata;
+  return metadata;
 };
