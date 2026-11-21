@@ -51,40 +51,17 @@ export type Env = {
   STRIPE_WEBHOOK_SECRET?: string;
 
   /**
-   * Domain configured in Auth0 (e.g. `your-tenant.auth0.com`).
-   * Required when validating JWTs issued by Auth0.
+   * Secret used to sign Better Auth session cookies.
+   * Must be a strong random string ≥32 chars. Set as a Cloudflare secret in production.
    */
-  AUTH0_DOMAIN?: string;
+  BETTER_AUTH_SECRET: string;
 
   /**
-   * Expected audience claim for incoming JWTs. Typically the API identifier
-   * configured in your Auth0 application settings.
+   * Base URL for the Better Auth instance (used for cookie callbacks).
    */
-  AUTH0_AUDIENCE?: string;
+  API_BASE_URL?: string;
 
-  /**
-   * Permission string required on incoming Auth0 tokens to be treated as an
-   * admin user.  Defaults to `admin:store` when not set.
-   */
-  ADMIN_STORE_PERMISSION?: string;
-
-  /**
-   * Permission string used to guard the `/api/__auth0/token` endpoint.  Any
-   * caller must be authenticated and have this permission to request a Management
-   * API token.  If unset the route is open to admins only.
-   */
-  ADMIN_AUTH0_PERMISSION?: string;
-
-  /**
-   * Comma-separated list of permissions to automatically assign to the current
-   * user when hitting `/api/__auth0/autopermissions`.
-   */
-  AUTH0_AUTOMATIC_PERMISSIONS?: string;
-
-  /**
-   * Permission string .  Defaults to
-   * `admin:database` when not set.
-   */
+  /** Database permission string. Defaults to `admin:database`. */
   DATABASE_PERMISSION?: string;
 
   /**
@@ -239,6 +216,7 @@ export type AuthContext = {
   stripeWebhookSecret: string | null;
   oauthScopes?: string[];
   customerEmail?: string;
+  userId?: string;
   email?: string;
   sub?: string;
   name?: string;

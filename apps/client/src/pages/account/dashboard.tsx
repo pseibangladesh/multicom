@@ -77,9 +77,7 @@ export default function Dashboard() {
   const displayName = useMemo(() => {
     if (!profile) return "";
 
-    return profile.name && !profile.name.endsWith("@auth0.local")
-      ? profile.name
-      : profile.email;
+    return profile.name ? profile.name : profile.email;
   }, [profile]);
 
   const savedCartsCount = useMemo(() => {

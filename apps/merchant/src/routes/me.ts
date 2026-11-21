@@ -28,91 +28,56 @@ import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { getDb } from '../db';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { calculateOrderTaxes } from '../lib/tax';
-import { getUserMetadata, updateUserMetadata } from '../lib/auth0';
-import { normalizeStoreUrl } from '../lib/store-metadata';
 
 const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', customerAuthMiddleware);
 
 /**
  * Resolves the currently authenticated customer from the database.
- * Uses the Auth0 'sub' claim from the JWT to find or create a customer record.
- * 
+ * Uses the Better Auth user_id to find the customer by email match.
+ *
  * @param db - Database connection
- * @param jwtSub - The Auth0 'sub' claim (e.g., 'auth0|abc123')
- * @param email - Email extracted from the JWT payload (optional)
+ * @param userId - The Better Auth user_id from session auth
  * @returns The customer row or throws a 401 error
  */
-async function resolveCustomer(db: any, jwtSub: string, email?: string, name?: string) {
-    // Try to find customer by Auth0 sub first (fastest lookup)
-    let customer = await db.query(
-        `SELECT * FROM customers WHERE auth_provider_id = ? AND auth_provider = 'auth0' LIMIT 1`,
-        [jwtSub]
-    );
+async function resolveCustomer(db: any, userId: string) {
+  // Find customer whose email matches the Better Auth user's email
+  const customerResult = await db.query<any>(
+    `SELECT * FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
+    [userId]
+  );
 
-    if (customer.length > 0) {
-        const existingCustomer = customer[0];
+  if (customerResult.length > 0) {
+    return customerResult[0];
+  }
 
-        // If Auth0 provided a “real” email (non-placeholder), keep DB in sync
-        if (email && !email.endsWith('@auth0.local') && email.toLowerCase() !== existingCustomer.email.toLowerCase()) {
-            await db.run(
-                `UPDATE customers SET email = ?, updated_at = ? WHERE id = ?`,
-                [email.toLowerCase(), now(), existingCustomer.id]
-            );
-            existingCustomer.email = email.toLowerCase();
-        }
+  // No matching customer — create one (auto-provision on first session login)
+  const userResult = await db.query<any>(
+    `SELECT email, name FROM "user" WHERE id = ? LIMIT 1`,
+    [userId]
+  );
 
-        // Sync display name from auth token when not defined or placeholder
-        if (name && !existingCustomer.name) {
-            await db.run(
-                `UPDATE customers SET name = ?, updated_at = ? WHERE id = ?`,
-                [name, now(), existingCustomer.id]
-            );
-            existingCustomer.name = name;
-        }
-
-        return existingCustomer;
-    }
-
-    // Fallback: try to find by email (handles accounts created before Auth0 sub linking)
-    if (email) {
-        const emailResult = await db.query(
-            `SELECT * FROM customers WHERE email = ? LIMIT 1`,
-            [email.toLowerCase()]
-        );
-
-        if (emailResult.length > 0) {
-            const existingCustomer = emailResult[0];
-            // Link the existing customer to their Auth0 sub
-            await db.run(
-                `UPDATE customers SET auth_provider = 'auth0', auth_provider_id = ?, updated_at = ? WHERE id = ?`,
-                [jwtSub, now(), existingCustomer.id]
-            );
-            existingCustomer.auth_provider = 'auth0';
-            existingCustomer.auth_provider_id = jwtSub;
-            return existingCustomer;
-        }
-    }
-
-    // Create a new customer record on first login
+  if (userResult.length > 0) {
+    const userRow = userResult[0];
     const customerId = uuid();
-    // Generate a placeholder email from sub if email not available
-    const customerEmail = email ? email.toLowerCase() : `${jwtSub.replace(/[^a-z0-9]/g, '').substring(0, 16)}@auth0.local`;
 
     await db.run(
-        `INSERT INTO customers (
-      id, email, auth_provider, auth_provider_id, 
-      locale, order_count, total_spent_cents, created_at, updated_at
-    ) VALUES (?, ?, 'auth0', ?, 'en-US', 0, 0, ?, ?)`,
-        [customerId, customerEmail, jwtSub, now(), now()]
+      `INSERT INTO customers (
+        id, email, auth_provider, auth_provider_id,
+        name, locale, order_count, total_spent_cents, created_at, updated_at
+      ) VALUES (?, ?, 'better-auth', ?, ?, 'en-US', 0, 0, ?, ?)`,
+      [customerId, userRow.email.toLowerCase(), userId, userRow.name || null, now(), now()]
     );
 
-    const newCustomer = await db.query(
-        `SELECT * FROM customers WHERE id = ?`,
-        [customerId]
+    const newCustomer = await db.query<any>(
+      `SELECT * FROM customers WHERE id = ?`,
+      [customerId]
     );
 
     return newCustomer[0];
+  }
+
+  throw ApiError.unauthorized('User not found in Better Auth');
 }
 
 // ============================================================
@@ -158,16 +123,14 @@ const getMyProfile = createRoute({
 
 adminApp.openapi(getMyProfile, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
-    const name = auth?.name as string | undefined;
+    const userId = auth?.userId as string | undefined;
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email, name);
+    const customer = await resolveCustomer(db, userId);
 
     return c.json(
         {
@@ -236,16 +199,15 @@ const updateMyProfile = createRoute({
 
 adminApp.openapi(updateMyProfile, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
+    const userId = auth?.userId as string | undefined;
     const body = await c.req.json();
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email);
+    const customer = await resolveCustomer(db, userId);
 
     // Build dynamic SET clause from provided fields only
     const updates: Record<string, any> = { updated_at: now() };
@@ -338,17 +300,16 @@ const getMyOrders = createRoute({
 
 adminApp.openapi(getMyOrders, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
+    const userId = auth?.userId as string | undefined;
     const { limit: limitStr, cursor } = c.req.query();
     const limit = Math.min(parseInt(limitStr ?? '20'), 100);
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email);
+    const customer = await resolveCustomer(db, userId);
 
     // Fetch orders linked to this customer (by customer_id or email fallback)
     let query = `SELECT * FROM orders WHERE (customer_id = ? OR customer_email = ?) `;
@@ -476,16 +437,15 @@ const getOrderByNumber = createRoute({
 
 adminApp.openapi(getOrderByNumber, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
+    const userId = auth?.userId as string | undefined;
     const { number } = c.req.param();
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email);
+    const customer = await resolveCustomer(db, userId);
 
     // Get order by number, ensure it belongs to this customer
     const orderResult = await db.query<any>(
@@ -582,15 +542,14 @@ const getMyAddresses = createRoute({
 
 adminApp.openapi(getMyAddresses, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
+    const userId = auth?.userId as string | undefined;
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email);
+    const customer = await resolveCustomer(db, userId);
 
     const addresses = await db.query<any>(
         `SELECT * FROM customer_addresses WHERE customer_id = ? ORDER BY is_default DESC, created_at DESC`,
@@ -651,16 +610,15 @@ const createAddress = createRoute({
 
 adminApp.openapi(createAddress, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
+    const userId = auth?.userId as string | undefined;
     const body = await c.req.json();
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email);
+    const customer = await resolveCustomer(db, userId);
 
     const addressId = uuid();
     await db.run(
@@ -722,16 +680,15 @@ const deleteAddress = createRoute({
 
 adminApp.openapi(deleteAddress, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
+    const userId = auth?.userId as string | undefined;
     const { id } = c.req.param();
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email);
+    const customer = await resolveCustomer(db, userId);
 
     // Verify ownership before delete
     const address = await db.query<any>(
@@ -777,15 +734,14 @@ const getMyPreferences = createRoute({
 
 adminApp.openapi(getMyPreferences, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
+    const userId = auth?.userId as string | undefined;
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email);
+    const customer = await resolveCustomer(db, userId);
 
     const metadata = customer.metadata ? JSON.parse(customer.metadata) : {};
 
@@ -839,16 +795,15 @@ const updateMyPreferences = createRoute({
 
 adminApp.openapi(updateMyPreferences, async (c) => {
     const auth = c.get('auth') as any;
-    const jwtSub = auth?.sub as string;
-    const email = auth?.email as string | undefined;
+    const userId = auth?.userId as string | undefined;
     const body = await c.req.json();
 
-    if (!jwtSub) {
+    if (!userId) {
         throw ApiError.unauthorized('Invalid token');
     }
 
     const db = getDb(c.var.db);
-    const customer = await resolveCustomer(db, jwtSub, email);
+    const customer = await resolveCustomer(db, userId);
 
     const updates: Record<string, any> = {
         updated_at: now(),
@@ -869,29 +824,6 @@ adminApp.openapi(updateMyPreferences, async (c) => {
         ...Object.values(updates),
         customer.id,
     ]);
-
-    // Persist theme into Auth0 user_metadata so the JWT reflects the change
-    if (body.theme !== undefined) {
-        try {
-            const userMetadata = await getUserMetadata(jwtSub, c.env);
-            const storeKey = normalizeStoreUrl(c.env.STORE_URL);
-            if (storeKey) {
-                const existingStore =
-                    userMetadata[storeKey] && typeof userMetadata[storeKey] === 'object'
-                        ? { ...userMetadata[storeKey] }
-                        : {};
-                await updateUserMetadata(jwtSub, {
-                    ...userMetadata,
-                    [storeKey]: { ...existingStore, theme: body.theme },
-                }, c.env);
-            } else {
-                await updateUserMetadata(jwtSub, { ...userMetadata, theme: body.theme }, c.env);
-            }
-        } catch (err) {
-            // Non-fatal: Auth0 metadata update failed, SQLite is the source of truth
-            console.warn('[me] Failed to sync theme to Auth0 user_metadata:', err);
-        }
-    }
 
     return c.json({ ok: true }, 200);
 });

@@ -66,7 +66,7 @@ function SvgIcon({ svg }: { svg: string }) {
 }
 
 /**
- * LoginModal provides a centered Auth0 login experience matching the Fufuni design:
+ * LoginModal provides a centered login experience matching the Fufuni design:
  * - Email passwordless login (magic link) as primary flow
  * - Social login providers (Google, Apple, GitHub, Microsoft) below a divider
  *
