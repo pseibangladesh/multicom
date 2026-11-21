@@ -60,6 +60,7 @@ import { customerOrderDownloads, publicDownloads } from './routes/downloads';
 import { customerAiTokensRouter, proxyAiTokensRouter, adminAiTokensRouter } from './routes/ai-tokens';
 import { sslcommerzCheckoutApp, sslcommerzIpnApp } from './routes/sslcommerz-ipn';
 import { adminSettings } from './routes/admin-settings';
+import { marketplaceRoutes } from './routes/marketplace';
 
 // ... inside the app setup ...
 
@@ -184,6 +185,8 @@ app.route('/v1/admin/digital-assets', adminDigitalAssetsRouter);
 app.route('/v1/ai-tokens/proxy', proxyAiTokensRouter);
 app.route('/v1/admin/ai-tokens', adminAiTokensRouter);
 app.route('/v1/admin/settings', adminSettings);
+// Marketplace integrations (OAuth connect, webhooks, sync)
+app.route('/v1/marketplace', marketplaceRoutes());
 app.route('/oauth', oauth);
 app.route('', oauth);
 app.route('/', ucp);
