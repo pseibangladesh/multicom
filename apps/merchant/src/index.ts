@@ -38,7 +38,7 @@ import { publicImages } from './routes/images';
 import { adminDiscounts } from './routes/discounts';
 import { oauth } from './routes/oauth';
 import { ucp } from './routes/ucp';
-import { adminAuth0 } from './routes/auth0';
+import { createAuthRouter, createSessionRouter } from './routes/auth';
 import { adminMe } from './routes/me';
 import { adminUserPreferencesRouter } from './routes/user-preferences';
 import { adminSavedCartsRouter } from './routes/saved-carts';
@@ -190,14 +190,23 @@ app.route('/v1/marketplace', marketplaceRoutes());
 app.route('/oauth', oauth);
 app.route('', oauth);
 app.route('/', ucp);
-app.route('/v1/__auth0', adminAuth0);
+// Better Auth routes — handles signin, signup, session management via cookies
+app.all('/api/auth/*', async (c) => {
+  const auth = createAuthRouter(c.env as any);
+  return auth.fetch(c.req.raw);
+});
+
+app.get('/api/auth/session', async (c) => {
+  const sessionApp = createSessionRouter(c.env as any);
+  return sessionApp.fetch(c.req.raw);
+});
 
 app.doc31('/openapi.json', {
   openapi: '3.1.0',
   info: {
     title: 'Fufuni API',
     version: '1.0.0',
-    description: 'The open-source commerce backend for Cloudflare + Stripe + Auth0',
+    description: 'The open-source commerce backend for Cloudflare + Stripe + Better Auth',
   },
   servers: [{ url: '/' }],
 });

@@ -21,7 +21,7 @@ interface SaveCartButtonProps {
  * SaveCartButton — Save or unsave the current cart to the user's account
  * 
  * Requires authentication. Saves the current cart ID to the user's
- * saved carts list for quick retrieval later. Uses the Auth0 user_metadata token.
+ * saved carts list for quick retrieval later. Uses customer metadata.
  * 
  * Usage:
  * ```tsx

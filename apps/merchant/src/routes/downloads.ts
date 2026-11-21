@@ -136,19 +136,22 @@ const listOrderDownloads = createRoute({
 customerApp.openapi(listOrderDownloads, async (c) => {
   const { orderId } = c.req.valid('param');
   const auth = c.get('auth') as any;
-  const jwtSub = auth?.sub as string;
-  if (!jwtSub) throw ApiError.unauthorized('Invalid token');
+  const userId = auth?.userId as string | undefined;
+
+  if (!userId) throw ApiError.unauthorized('Invalid token');
 
   const secret = c.env.ORDER_TOKEN_SECRET;
   if (!secret) throw ApiError.serverError('Download tokens are not configured on this instance');
 
   const db = getDb(c.var.db);
 
-  // Resolve the customer to verify ownership.
+  // Resolve customer by Better Auth session user_id → email match
   const [customer] = await db.query<any>(
-    `SELECT id FROM customers WHERE auth_provider_id = ? AND auth_provider = 'auth0' LIMIT 1`,
-    [jwtSub]
+    `SELECT id FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
+    [userId]
   );
+
+  if (!customer) throw ApiError.unauthorized('Customer not found');
 
   const [order] = await db.query<any>(
     `SELECT id, status, customer_id FROM orders WHERE id = ?`,
