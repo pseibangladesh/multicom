@@ -1,8 +1,8 @@
 /**
  * Better Auth API routes mounted at /api/auth/*
  *
- * Handles: POST /api/auth/signin/email, POST /api/auth/signup/email,
- *           POST /api/auth/signout, GET /api/auth/session, etc.
+ * Handles: POST /api/auth/sign-in/email, POST /api/auth/sign-up/email,
+ *           POST /api/auth/sign-out, GET /api/auth/session, etc.
  *
  * These endpoints replace the previous Auth0 redirect flow and the
  * `/v1/__auth0/*` Management API proxy routes.

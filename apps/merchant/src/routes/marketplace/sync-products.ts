@@ -26,6 +26,7 @@
 import { Hono } from 'hono';
 import { getDb } from '../../db';
 import { ApiError, uuid } from '../../types';
+import type { HonoEnv } from '../../types';
 
 /**
  * Sync trigger routes (admin auth required).
@@ -34,8 +35,8 @@ import { ApiError, uuid } from '../../types';
  * POST /v1/marketplace/:channelId/sync/inventory — Trigger inventory sync.
  */
 
-export function syncRoutes(): Hono {
-  const app = new Hono();
+export function syncRoutes(): Hono<HonoEnv> {
+  const app = new Hono<HonoEnv>();
 
   // ── POST /:channelId/sync/products ──────────────────────────────────────
 

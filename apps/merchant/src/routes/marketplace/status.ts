@@ -26,6 +26,7 @@
 import { Hono } from 'hono';
 import { getDb } from '../../db';
 import { ApiError } from '../../types';
+import type { HonoEnv } from '../../types';
 
 /**
  * Channel status routes (admin auth required).
@@ -33,8 +34,8 @@ import { ApiError } from '../../types';
  * GET /v1/marketplace/:channelId/status — Health check for a connected channel.
  */
 
-export function statusRoutes(): Hono {
-  const app = new Hono();
+export function statusRoutes(): Hono<HonoEnv> {
+  const app = new Hono<HonoEnv>();
 
   // ── GET /:channelId/status ──────────────────────────────────────────────
 

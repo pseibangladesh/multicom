@@ -1280,27 +1280,54 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
           name: '037_skip_better_auth_tables',
           sql: "SELECT 1",
         },
-        // ── Migration 038 ── Rename auth0_user_id → user_id in saved_carts ────
-        // D1/SQLite lacks ALTER TABLE ... RENAME COLUMN, so we recreate the table.
-        // Wrapped in try/catch via the migration error handler so it's safe on fresh DBs
-        // (where embedded schema already uses 'user_id') and existing DBs (with data to migrate).
         {
-          name: '038_rename_auth0_user_id_to_user_id',
-          sql: `
-            CREATE TABLE IF NOT EXISTS saved_carts_new (
-              id            INTEGER PRIMARY KEY AUTOINCREMENT,
-              user_id       TEXT NOT NULL,
-              cart_id       TEXT NOT NULL,
-              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-              updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
-              UNIQUE(user_id, cart_id),
-              FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
-            );
-            INSERT OR IGNORE INTO saved_carts_new (id, user_id, cart_id, created_at, updated_at)
-            SELECT id, auth0_user_id, cart_id, created_at, updated_at FROM saved_carts;
-            DROP TABLE IF EXISTS saved_carts;
-            ALTER TABLE saved_carts_new RENAME TO saved_carts;
-            CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(user_id);
+  name: '037_better_auth_tables_actual',
+  sql: `
+    CREATE TABLE IF NOT EXISTS "user" (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      email_verified INTEGER NOT NULL DEFAULT 0,
+      image TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS "session" (
+      id TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS "account" (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+      access_token TEXT,
+      refresh_token TEXT,
+      id_token TEXT,
+      access_token_expires_at INTEGER,
+      refresh_token_expires_at INTEGER,
+      scope TEXT,
+      password TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS "verification" (
+      id TEXT PRIMARY KEY,
+      identifier TEXT NOT NULL,
+      value TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER,
+      updated_at INTEGER
+    );
+  `
+},
+       
         // ── Migration 037 ── Marketplace integrations (Etsy, eBay, Amazon) ──
         {
           name: '037_marketplace_channels',

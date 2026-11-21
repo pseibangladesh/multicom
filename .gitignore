@@ -11,9 +11,7 @@ node_modules/
 npm-debug.log*
 
 # dotenv environment files
-.env
 
-.dev.vars
 apps/client/package-lock.json.bak
 apps/cloudflare-worker/package-lock.json.bak
 export.*
@@ -25,7 +23,6 @@ IMPLEMENTATION_GUIDE.md
 IMPLEMENTATION_SUMMARY.md
 apps/merchant/.dev.vars.bak
 *.tsbuildinfo
-docs/
 typedoc.json
 llms.md
 llms.txt

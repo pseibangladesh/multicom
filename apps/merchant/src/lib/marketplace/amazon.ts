@@ -456,7 +456,7 @@ function mapAmazonOrderToOrder(
   const lineItems = Array.isArray(external?.order_line_items)
     ? (external.order_line_items as Array<Record<string, unknown>>).map((item) => ({
         sku: String(item?.seller_sku ?? item?.product_sku ?? ''),
-        title: String(item?.product_supplier_details?.product_description ?? item?.title ?? ''),
+        title: String((item?.product_supplier_details as any)?.product_description ?? item?.title ?? ''),
         qty: Number(item?.quantity ?? 1),
         unitPriceCents: (() => {
           const p = item?.price as Record<string, unknown> | undefined;

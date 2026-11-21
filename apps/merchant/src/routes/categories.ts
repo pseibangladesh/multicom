@@ -214,27 +214,31 @@ publicApp.openapi(getCategoryProductsRoute, async (c) => {
     // Build response items with variants array
     const items = products.map((p: any) => {
       const variants = (variantsByProduct[p.id] || []).map((v: any) => {
-        const code = (v.tax_code as string | null) ?? null;
-        const taxRate = code ? taxRateByCode[code] : null;
-        const resolved = taxRate || defaultTaxRate;
-        return {
-          id: v.id,
-          sku: v.sku,
-          title: v.title,
-          price_cents: v.price_cents,
-          currency: v.currency ?? 'USD',
-          image_url: null,
-          thumbnail_url: v.thumbnail_url ?? null,
-          weight_g: v.weight_g ?? 0,
-          requires_shipping: v.requires_shipping !== 0,
-          barcode: v.barcode ?? null,
-          compare_at_price_cents: v.compare_at_price_cents ?? null,
-          tax_code: v.tax_code ?? null,
-          tax_rate_percentage: resolved?.rate_percentage ?? 0,
-          tax_display_name: resolved?.display_name ?? null,
-          tax_inclusive: (v.tax_inclusive as boolean | undefined) ?? defaultTaxInclusive,
-        };
-      });
+  const code = (v.tax_code as string | null) ?? null;
+  const taxRate = code ? taxRateByCode[code] : null;
+  const resolved = taxRate || defaultTaxRate;
+  return {
+    id: v.id,
+    sku: v.sku,
+    title: v.title,
+    price_cents: v.price_cents,
+    currency: v.currency ?? 'USD',
+    image_url: null,
+    thumbnail_url: v.thumbnail_url ?? null,
+    weight_g: v.weight_g ?? 0,
+    requires_shipping: v.requires_shipping !== 0,
+    barcode: v.barcode ?? null,
+    compare_at_price_cents: v.compare_at_price_cents ?? null,
+    tax_code: v.tax_code ?? null,
+    tax_rate_percentage: resolved?.rate_percentage ?? 0,
+    tax_display_name: resolved?.display_name ?? null,
+    tax_inclusive: (v.tax_inclusive as boolean | undefined) ?? defaultTaxInclusive,
+    // Add these three lines:
+    variant_type: v.variant_type ?? 'physical',
+    ai_token_units: v.ai_token_units ?? null,
+    dims_cm: v.dims_cm ?? null,
+  };
+});
       return {
         id: p.id,
         title: p.title,
@@ -246,6 +250,7 @@ publicApp.openapi(getCategoryProductsRoute, async (c) => {
         description: p.description ?? null,
         review_count: p.review_count ?? 0,
         average_rating: p.average_rating ?? 0,
+        created_at: p.created_at,
         variants,
       };
     });

@@ -465,10 +465,9 @@ export async function creditAiTokens(
   stub?: DOStub,
   ctx?: ExecutionContext
 ): Promise<void> {
-  const [customer] = await db.query<any>(
+  const [customer] = await db.query(
     `SELECT metadata FROM customers WHERE id = ?`,
-    [customerId]
-  );
+    [customerId]) as any[];
 
   let meta: Record<string, unknown> = {};
   try { meta = customer?.metadata ? JSON.parse(customer.metadata) : {}; } catch { /* ignore */ }
@@ -497,20 +496,18 @@ export async function creditAiTokens(
   );
 
   // Upsert balance.
-  const [existing] = await db.query<any>(
+  const [existing] = await db.query (
     `SELECT customer_id FROM ai_token_balances WHERE customer_id = ?`,
-    [customerId]
-  );
+    [customerId]) as any[];
   let newBalance: number;
   if (existing) {
     await db.run(
       `UPDATE ai_token_balances SET api_key = ?, balance_units = balance_units + ?, updated_at = ? WHERE customer_id = ?`,
       [apiKey, units, timestamp, customerId]
     );
-    const [updated] = await db.query<any>(
+    const [updated] = await db.query (
       `SELECT balance_units FROM ai_token_balances WHERE customer_id = ?`,
-      [customerId]
-    );
+      [customerId]) as any[];
     newBalance = updated?.balance_units ?? units;
   } else {
     newBalance = units;

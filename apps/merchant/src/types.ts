@@ -163,6 +163,14 @@ export type Env = {
     * Cloudflare AI Gateway bearer token. When set, adds the cf-aig-authorization header to AI requests.
     */
   CLOUDFLARE_AIG_TOKEN?: string;
+
+
+  ETSY_CLIENT_ID?: string;
+  EBAY_CLIENT_ID?: string;
+  EBAY_CLIENT_SECRET?: string;
+  EBAY_RU_NAME?: string;
+  AMAZON_LWA_APP_ID?: string;
+  AMAZON_LWA_APP_SECRET?: string;
 };
 
 /**
@@ -170,8 +178,8 @@ export type Env = {
  * Hono application layer via `getDb()`.  Matches the actual DO stub API.
  */
 export type DOStub = {
-  query: <T = unknown>(sql: string, params: unknown[]) => Promise<T[]>;
-  run: (sql: string, params: unknown[]) => Promise<{ changes: number }>;
+  query: <T = unknown>(sql: string, params?: unknown[]) => Promise<T[]>; 
+  run: (sql: string, params?: unknown[]) => Promise<{ changes: number }>; 
   broadcast: (event: { type: string; data: unknown; timestamp: string }) => void;
 };
 

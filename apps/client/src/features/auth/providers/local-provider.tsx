@@ -45,14 +45,14 @@ export const useLocalProvider = (): AuthProvider => {
   }, [checkSession]);
 
   const login = async (_options?: LoginOptions): Promise<void> => {
-    // Redirect to the backend's /api/auth/signin/email or show a login form
+    // Redirect to the backend's /api/auth/sign-in/email or show a login form
     window.location.href = `${getBaseURL() || ""}/login`;
   };
 
   const logout = async (_options?: LogoutOptions): Promise<void> => {
     try {
       const apiBase = getBaseURL() || "";
-      await fetch(`${apiBase}/api/auth/signout`, { method: "POST" });
+      await fetch(`${apiBase}/api/auth/sign-out`, { method: "POST" });
     } catch (err) {
       console.error("[Local Auth] Signout failed:", err);
     }

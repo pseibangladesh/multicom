@@ -447,7 +447,7 @@ webhooks.post('/stripe', async (c) => {
                 );
                 for (const aiItem of aiTokenItems) {
                   if (aiItem.ai_token_units) {
-                    await creditAiTokens(db, customerId, orderId, aiItem.ai_token_units * aiItem.qty, c.var.db, c.executionCtx);
+                    await creditAiTokens(db, customerId, orderId, aiItem.ai_token_units * aiItem.qty, c.var.db, c.executionCtx as any);
                   }
                 }
               } catch (err) {
@@ -468,7 +468,7 @@ webhooks.post('/stripe', async (c) => {
         const orderItems = await db.query<any>(`SELECT * FROM order_items WHERE order_id = ?`, [
           orderId,
         ]);
-        await dispatchWebhooks(c.var.db, c.executionCtx, 'order.created', {
+        await dispatchWebhooks(c.var.db, c.executionCtx as any, 'order.created', {
           order: {
             id: orderId,
             number: orderNumber,

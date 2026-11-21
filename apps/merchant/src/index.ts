@@ -191,7 +191,12 @@ app.route('/oauth', oauth);
 app.route('', oauth);
 app.route('/', ucp);
 // Better Auth routes — handles signin, signup, session management via cookies
-app.all('/api/auth/*', async (c) => {
+app.use('/api/auth/*', async (c, next) => {
+  const auth = createAuthRouter(c.env as any);
+  return auth.fetch(c.req.raw);
+});
+
+app.get('/api/auth/ok', async (c) => {
   const auth = createAuthRouter(c.env as any);
   return auth.fetch(c.req.raw);
 });

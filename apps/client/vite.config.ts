@@ -134,7 +134,7 @@ export default defineConfig({
          * Groups all @heroui dependencies into a single chunk
          * to optimize loading performance and avoid oversized chunks
          */
-        manualChunks(id) {
+        manualChunks(id:string) {
           if (!id.includes("node_modules")) return;
 
           // Group core React + i18n dependencies into a single chunk

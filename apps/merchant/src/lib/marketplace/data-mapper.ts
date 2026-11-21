@@ -79,7 +79,7 @@ export function mapMarketplaceToProduct(
     description: String(external.description ?? ''),
     priceCents,
     currency: options.currency ?? 'USD',
-    imageUrl: external.image_url ?? null,
+    imageUrl: (external.image_url as string) ?? null,    
     quantity: typeof external.quantity === 'number' ? external.quantity : 0,
     weightG: typeof external.weight_g === 'number' ? external.weight_g : 0,
     requiresShipping: external.requires_shipping !== false,

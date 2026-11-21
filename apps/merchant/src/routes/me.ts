@@ -42,20 +42,19 @@ adminApp.use('*', customerAuthMiddleware);
  */
 async function resolveCustomer(db: any, userId: string) {
   // Find customer whose email matches the Better Auth user's email
-  const customerResult = await db.query<any>(
+  const customerResult = await db.query (
     `SELECT * FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
+    [userId]) as any[];
 
   if (customerResult.length > 0) {
     return customerResult[0];
   }
 
   // No matching customer — create one (auto-provision on first session login)
-  const userResult = await db.query<any>(
+  const userResult = await db.query (
     `SELECT email, name FROM "user" WHERE id = ? LIMIT 1`,
-    [userId]
-  );
+    [userId]) as any[];
+  
 
   if (userResult.length > 0) {
     const userRow = userResult[0];
@@ -69,10 +68,9 @@ async function resolveCustomer(db: any, userId: string) {
       [customerId, userRow.email.toLowerCase(), userId, userRow.name || null, now(), now()]
     );
 
-    const newCustomer = await db.query<any>(
+    const newCustomer = await db.query (
       `SELECT * FROM customers WHERE id = ?`,
-      [customerId]
-    );
+      [customerId]) as any[];
 
     return newCustomer[0];
   }

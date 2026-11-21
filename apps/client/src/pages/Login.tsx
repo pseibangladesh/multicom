@@ -60,7 +60,7 @@ export default function LoginPage() {
 
       if (useMagicLink) {
         // Magic link flow — sends an email with a sign-in link
-        await fetch(`${apiBase}/api/auth/signin/email`, {
+        await fetch(`${apiBase}/api/auth/sign-in/email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
@@ -72,7 +72,7 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        const resp = await fetch(`${apiBase}/api/auth/signin/credentials`, {
+        const resp = await fetch(`${apiBase}/api/auth/sign-in/credentials`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password }),

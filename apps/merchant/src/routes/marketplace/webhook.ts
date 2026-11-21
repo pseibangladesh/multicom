@@ -23,9 +23,11 @@
  * SOFTWARE.
  */
 
-import { Hono } from 'hono';
 import { getDb } from '../../db';
 import { ApiError, uuid } from '../../types';
+import { Hono, type Context } from 'hono'; 
+import type { HonoEnv } from '../../types'; 
+// import { handleEtsyEvent } from './etsy-handler'; 
 
 /**
  * Webhook receiver routes.
@@ -41,28 +43,27 @@ export function webhookRoutes(): Hono {
 
   // ── POST /webhook/:platform — Unified webhook receiver ──────────────────
 
-  app.post('/:platform', async (c) => {
-    const platform = c.req.param('platform');
-    if (!['etsy', 'ebay', 'amazon'].includes(platform)) {
-      throw ApiError.invalidRequest('Unsupported platform for webhooks');
-    }
+app.post('/:platform', async (c: Context<HonoEnv>) => {
+  const platform = c.req.param('platform');
+  const payload = await c.req.json();
+  
+  // Declare these here so they are accessible in the switch statement
+  const eventType = payload.event_type || payload.type || 'unknown';
+const storeId = payload.shop_id || payload.store_id || c.req.header('x-store-id');
 
-    // Parse raw body (signature verification needs exact bytes).
-    const rawBody = await c.req.text();
-
-    // Verify platform-specific signature.
-    const isValid = await verifySignature(platform, rawBody, c);
-    if (!isValid) {
-      return c.json({ error: 'Invalid signature' }, 401);
-    }
-
-    // Parse and process the event.
-    const payload = parsePayload(rawBody, platform);
-    await processWebhookEvent(platform, payload, rawBody);
-
-    // Respond quickly — platform will retry failures.
-    return c.json({ ok: true });
-  });
+  switch (platform) {
+    case 'etsy':
+      // Now eventType and storeId are defined
+      await handleEtsyEvent(eventType, payload, storeId); 
+      break;
+    case 'ebay':
+      console.log(`[marketplace] eBay event ${eventType} — TODO`);
+      break;
+    case 'amazon':
+      console.log(`[marketplace] Amazon event ${eventType} — TODO`);
+      break;
+  }
+});
 
   return app;
 }
@@ -72,13 +73,13 @@ export function webhookRoutes(): Hono {
 async function verifySignature(
   platform: string,
   rawBody: string,
-  _c: Hono.Context,
+  c: Context,
 ): Promise<boolean> {
   switch (platform) {
     case 'etsy': {
       // Etsy uses HMAC-SHA256 with headers: webhook-id, webhook-timestamp, webhook-signature.
-      const signature = _c.req.header('webhook-signature');
-      const timestamp = _c.req.header('webhook-timestamp');
+      const signature = c.req.header('webhook-signature');
+      const timestamp = c.req.header('webhook-timestamp');
 
       if (!signature || !timestamp) return false;
 
@@ -98,7 +99,7 @@ async function verifySignature(
 
     case 'ebay': {
       // eBay Notification API — basic auth or bearer token in Authorization header.
-      const auth = _c.req.header('authorization');
+      const auth = c.req.header('authorization');
       if (!auth) return false;
       console.log(`[marketplace] eBay notification received`);
       return true;
@@ -133,8 +134,8 @@ async function processWebhookEvent(
   payload: Record<string, unknown>,
   rawPayload: string,
 ): Promise<void> {
-  // Placeholder DB — real implementation gets db from Hono context in route handler.
-  // This is called async; store event for later processing.
+  const eventType = (payload.event_type || payload.type || 'unknown') as string;
+  const storeId = (payload.shop_id || payload.store_id || '') as string;
   console.log(`[marketplace] Event ${payload.event_type} for ${platform}`);
 
   // Dispatch to platform-specific handler.

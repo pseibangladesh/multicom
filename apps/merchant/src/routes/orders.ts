@@ -209,7 +209,7 @@ adminApp.openapi(updateOrder, async (c) => {
     let eventType: WebhookEventType = 'order.updated';
     if (status === 'shipped') eventType = 'order.shipped';
 
-    await dispatchWebhooks(c.var.db, c.executionCtx, eventType, {
+    await dispatchWebhooks(c.var.db, c.executionCtx as any, 'order.refunded', {
       order: formattedOrder,
       previous_status: order.status,
     });
@@ -217,7 +217,7 @@ adminApp.openapi(updateOrder, async (c) => {
     const emailableStatuses: OrderEmailEvent[] = ['processing', 'shipped', 'delivered', 'refunded', 'canceled'];
     if (emailableStatuses.includes(status as OrderEmailEvent)) {
       c.executionCtx.waitUntil(
-        sendOrderStatusEmail(c.env, c.var.db, orderId, status as OrderEmailEvent).catch(() => {}),
+        sendOrderStatusEmail(c.env, getDb(c.var.db), orderId, status as OrderEmailEvent).catch(() => {})
       );
     }
   }
@@ -352,13 +352,13 @@ adminApp.openapi(refundOrder, async (c) => {
       const [refundedOrder] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
       const orderItems = await db.query<any>(`SELECT * FROM order_items WHERE order_id = ?`, [orderId]);
 
-      await dispatchWebhooks(c.var.db, c.executionCtx, 'order.refunded', {
+      await dispatchWebhooks(c.var.db, c.executionCtx as any, 'order.refunded', {
         order: formatOrder(refundedOrder, orderItems),
         refund: { stripe_refund_id: refund.id, amount_cents: refund.amount },
       });
 
       c.executionCtx.waitUntil(
-        sendOrderStatusEmail(c.env, c.var.db, orderId, 'refunded').catch(() => {}),
+        sendOrderStatusEmail(c.env, getDb(c.var.db), orderId, status as OrderEmailEvent).catch(() => {})
       );
     }
 
@@ -408,11 +408,11 @@ adminApp.openapi(listRefunds, async (c) => {
   if (!order) throw ApiError.notFound('Order not found');
 
   const refunds = await db.query(
-    `SELECT id, stripe_refund_id, amount_cents, currency, reason, notes, status, created_at
-     FROM refunds WHERE order_id = ? ORDER BY created_at DESC`,
-    [orderId]
-  );
-  return c.json(refunds);
+  `SELECT id, stripe_refund_id, amount_cents, currency, reason, notes, status, created_at
+   FROM refunds WHERE order_id = ? ORDER BY created_at DESC`,
+  [orderId]
+) as any[];
+return c.json(refunds, 200);
 });
 
 const createTestOrder = createRoute({
