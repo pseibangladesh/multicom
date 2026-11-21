@@ -18,7 +18,6 @@
     "openapi": "node --experimental-strip-types get-openapi.ts"
   },
   "dependencies": {
-    "@auth0/auth0-react": "^2.16.2",
     "@heroui/react": "^3.0.4",
     "@heroui/styles": "^3.0.4",
     "@react-aria/visually-hidden": "3.9.0",
@@ -30,10 +29,10 @@
     "@tiptap/extension-placeholder": "^3.23.4",
     "@tiptap/react": "^3.23.4",
     "@tiptap/starter-kit": "^3.23.4",
+    "better-auth": "^1.7.25",
     "clsx": "^2.1.1",
     "i18next": "^26.1.0",
     "i18next-http-backend": "^4.0.0",
-    "jose": "^6.2.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "jszip": "^3.10.1",

@@ -28,7 +28,7 @@ interface WishlistButtonProps {
  * - Authenticated: Click heart → POST /v1/me/wishlist → Token refresh → Heart red
  * - Not authenticated: Click heart → LoginModal → Login → POST /v1/me/wishlist → Heart red
  * 
- * The pending action is preserved across Auth0 redirect via appState + sessionStorage.
+ * The pending action is preserved across login via sessionStorage.
  * 
  * Usage:
  * ```tsx

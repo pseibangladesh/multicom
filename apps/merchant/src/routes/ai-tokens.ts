@@ -128,14 +128,16 @@ const getMyBalance = createRoute({
 
 customerAiTokensRouter.openapi(getMyBalance, async (c) => {
   const auth = c.get('auth') as any;
-  const jwtSub = auth?.sub as string;
-  if (!jwtSub) throw ApiError.unauthorized('Invalid token');
+  const userId = auth?.userId as string | undefined;
+
+  if (!userId) throw ApiError.unauthorized('Invalid token');
 
   const db = getDb(c.var.db);
 
+  // Resolve customer by Better Auth session user_id → email match
   const [customer] = await db.query<any>(
-    `SELECT id FROM customers WHERE auth_provider_id = ? AND auth_provider = 'auth0' LIMIT 1`,
-    [jwtSub]
+    `SELECT id FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
+    [userId]
   );
   if (!customer) throw ApiError.notFound('Customer not found');
 
@@ -182,15 +184,17 @@ const linkApiKey = createRoute({
 
 customerAiTokensRouter.openapi(linkApiKey, async (c) => {
   const auth = c.get('auth') as any;
-  const jwtSub = auth?.sub as string;
-  if (!jwtSub) throw ApiError.unauthorized('Invalid token');
+  const userId = auth?.userId as string | undefined;
+
+  if (!userId) throw ApiError.unauthorized('Invalid token');
 
   const { api_key } = c.req.valid('json');
   const db = getDb(c.var.db);
 
+  // Resolve customer by Better Auth session user_id → email match
   const [customer] = await db.query<any>(
-    `SELECT id, metadata FROM customers WHERE auth_provider_id = ? AND auth_provider = 'auth0' LIMIT 1`,
-    [jwtSub]
+    `SELECT id, metadata FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
+    [userId]
   );
   if (!customer) throw ApiError.notFound('Customer not found');
 

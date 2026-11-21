@@ -5,7 +5,6 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./app.tsx";
 import "./i18n";
 import { Provider } from "./provider.tsx";
-// REMOVE: import { Auth0Provider } from "@auth0/auth0-react";
 import { getBaseURL } from "@/utils/base-url";
 import "@/styles/globals.css";
 import { CookieConsentProvider } from "./contexts/cookie-consent-context.tsx";
@@ -20,12 +19,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <BrowserRouter basename={getBaseURL()}>
       <Provider>
         <CookieConsentProvider>
-          {/* REMOVE the Auth0Provider wrapper here */}
-          <AuthenticationProvider
-            providerType={
-              import.meta.env.AUTHENTICATION_PROVIDER_TYPE || "auth0"
-            }
-          >
+          <AuthenticationProvider>
             <QueryClientProvider client={queryClient}>
               <CookieConsent />
               <App />

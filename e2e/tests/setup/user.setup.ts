@@ -18,7 +18,7 @@ setup("validate user storage state exists", async () => {
   const state = JSON.parse(raw);
 
   expect(state).toHaveProperty("origins");
-  expect(state.origins[0].localStorage.some(
-    (e: { name: string }) => e.name.startsWith("@@auth0spajs@@")
-  )).toBe(true);
+  // Better Auth uses session cookies (no localStorage tokens like Auth0)
+  // The fixture is valid if it has origins with storage data
+  expect(state.origins.length).toBeGreaterThan(0);
 });

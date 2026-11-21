@@ -142,7 +142,7 @@ const eligibilityRoute = createRoute({
   path: '/eligibility',
   tags: ['Reviews'],
   summary: 'Check if the current customer can review this product',
-  security: [{ bearerAuth: ['valid jwt'] }],
+  middleware: [customerAuthMiddleware] as const,
   request: {
     params: z.object({ productId: z.string().uuid() }),
   },
@@ -164,30 +164,17 @@ const eligibilityRoute = createRoute({
 app.openapi(eligibilityRoute, async (c) => {
   const { productId } = c.req.valid('param');
   const db = getDb(c.var.db);
+  const auth = c.get('auth') as any;
 
-  // Inline auth (same pattern as createReviewRoute)
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
+  // Resolve customer from session or JWT sub claim (set by customerAuthMiddleware)
+  const customerId = auth?.sub || null;
+  if (!customerId) {
     return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
   }
-  const jwtToken = authHeader.slice(7);
-  const domain = c.env.AUTH0_DOMAIN;
-  const audience = c.env.AUTH0_AUDIENCE;
-  if (!domain || !audience) return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
-
-  let jwtSub: string | undefined;
-  try {
-    const { verifyAuth0Jwt } = await import('../lib/auth0');
-    const payload = await verifyAuth0Jwt(jwtToken, domain, audience);
-    jwtSub = payload.sub as string | undefined;
-  } catch {
-    return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
-  }
-  if (!jwtSub) return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
 
   const [customer] = await db.query<{ id: string }>(
     `SELECT id FROM customers WHERE auth_provider_id = ? LIMIT 1`,
-    [jwtSub]
+    [customerId]
   );
   if (!customer) return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
 
@@ -262,30 +249,16 @@ app.openapi(createReviewRoute, async (c) => {
   const { productId } = c.req.valid('param');
   const { rating, title, body } = c.req.valid('json');
   const db = getDb(c.var.db);
+  const auth = c.get('auth') as any;
 
-  // Inline auth: verify Bearer token manually (avoids Hono sub-app prefix issue with route-level middleware)
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    throw ApiError.unauthorized('Missing or invalid Authorization header');
-  }
-  const jwtToken = authHeader.slice(7);
-  const domain = c.env.AUTH0_DOMAIN;
-  const audience = c.env.AUTH0_AUDIENCE;
-  if (!domain || !audience) throw ApiError.unauthorized('Auth0 not configured');
-  let authPayload: any;
-  try {
-    const { verifyAuth0Jwt } = await import('../lib/auth0');
-    authPayload = await verifyAuth0Jwt(jwtToken, domain, audience);
-  } catch {
-    throw ApiError.unauthorized('Invalid Auth0 JWT');
-  }
-  const jwtSub = authPayload.sub as string | undefined;
-  if (!jwtSub) throw ApiError.unauthorized('Invalid token: missing sub claim');
+  // Resolve customer from session or JWT sub claim (set by customerAuthMiddleware)
+  const customerId = auth?.sub || null;
+  if (!customerId) throw ApiError.unauthorized('Authentication required');
 
-  // Resolve customer from Auth0 JWT sub claim
+  // Resolve customer from Auth0 JWT sub claim (or session — dual-mode)
   const [customer] = await db.query<{ id: string; email: string; name: string | null }>(
     `SELECT id, email, name FROM customers WHERE auth_provider_id = ? LIMIT 1`,
-    [jwtSub]
+    [customerId]
   );
   if (!customer) throw ApiError.unauthorized('Customer account not found');
 

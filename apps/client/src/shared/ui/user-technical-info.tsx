@@ -16,23 +16,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { User } from "@auth0/auth0-react";
-
 import { memo, useState, useEffect } from "react";
 import { Modal } from "@heroui/react";
 import { Chip } from "@heroui/react";
 import { Separator } from "@heroui/react";
 import { ScrollShadow } from "@heroui/react";
-import { Button } from "@heroui/react";
 import { Tooltip } from "@heroui/react";
-import { Download } from "lucide-react";
-import { JWTPayload } from "jose";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 
 import { CopyButton } from "@/shared/ui/buttons/copy-button";
-import { AuthenticationGuardWithPermission } from "@/authentication";
-import { useTokenRefresh } from "@/hooks/use-token-refresh";
 
 /**
  * Props for the technical information modal displayed to authenticated users.
@@ -40,19 +32,17 @@ import { useTokenRefresh } from "@/hooks/use-token-refresh";
 interface UserTechnicalInfoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  user: User;
+  user: any;
   accessToken: string | null;
-  tokenPayload: JWTPayload | null;
+  tokenPayload: any | null;
   onTokenRefreshed?: (newToken: string) => Promise<void>;
 }
 
 /**
- * Format an Auth0 expiry timestamp as a localized French date string.
- * @param exp Unix timestamp in seconds
- * @returns Localized formatted expiration date string
+ * Format an expiry timestamp as a localized date string.
  */
 function formatExpiry(exp: number): string {
-  return new Date(exp * 1000).toLocaleString("fr-FR", {
+  return new Date(exp * 1000).toLocaleString("en-US", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -63,8 +53,6 @@ function formatExpiry(exp: number): string {
 
 /**
  * Compute how many seconds remain until the token expires.
- * @param exp Expiration timestamp in seconds
- * @returns Remaining seconds until expiry, or 0 if already expired
  */
 function getSecondsLeft(exp: number): number {
   return Math.max(0, Math.floor(exp - Date.now() / 1000));
@@ -72,9 +60,6 @@ function getSecondsLeft(exp: number): number {
 
 /**
  * Format a duration from seconds into a human-readable string.
- * @param seconds Duration in seconds
- * @param t Translation function used for day pluralization
- * @returns Formatted duration string in HH:mm:ss or D days HH:mm:ss
  */
 function formatDuration(seconds: number, t: any): string {
   const days = Math.floor(seconds / (24 * 3600));
@@ -94,129 +79,12 @@ function formatDuration(seconds: number, t: any): string {
 }
 
 /**
- * Export the current Auth0 browser session into a Playwright storage state ZIP.
- * @param userEmail The email of the authenticated user
- * @param permissions Auth0 permission claims from the current token payload
- */
-async function exportAuth0PlaywrightSession(
-  userEmail: string,
-  permissions: string[],
-): Promise<void> {
-  const localStorageEntries: { name: string; value: string }[] = [];
-
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
-
-    if (!key) continue;
-    if (key.startsWith("@@auth0spajs@@") || key.startsWith("auth0.")) {
-      const value = localStorage.getItem(key);
-
-      if (value !== null) {
-        localStorageEntries.push({ name: key, value });
-      }
-    }
-  }
-
-  const cookieEntries = document.cookie
-    .split(";")
-    .map((cookie) => cookie.trim())
-    .filter(Boolean)
-    .map((cookie) => {
-      const separatorIndex = cookie.indexOf("=");
-
-      if (separatorIndex === -1) {
-        return {
-          name: cookie,
-          value: "",
-          domain: window.location.hostname,
-          path: "/",
-          secure: window.location.protocol === "https:",
-          httpOnly: false,
-          sameSite: "Lax" as const,
-        };
-      }
-
-      return {
-        name: cookie.substring(0, separatorIndex),
-        value: cookie.substring(separatorIndex + 1),
-        domain: window.location.hostname,
-        path: "/",
-        secure: window.location.protocol === "https:",
-        httpOnly: false,
-        sameSite: "Lax" as const,
-      };
-    });
-
-  const storageState = {
-    cookies: cookieEntries,
-    origins: [
-      {
-        origin: window.location.origin,
-        localStorage: localStorageEntries,
-      },
-    ],
-  };
-
-  const role = permissions.includes(
-    import.meta.env.ADMIN_AUTH0_PERMISSION as string,
-  )
-    ? "admin"
-    : "user";
-
-  const readme = [
-    "# Auth0 Playwright Session",
-    "",
-    `**Email :** ${userEmail}`,
-    `**Role :** ${role}`,
-    `**Permissions :** ${permissions.join(", ") || "none"}`,
-    `**Exported on :** ${new Date().toISOString()}`,
-    "",
-    "## Usage in Playwright",
-    "",
-    "```typescript",
-    "// playwright.config.ts",
-    "use: {",
-    `  storageState: './e2e/fixtures/storage-state-${role}.json',`,
-    "},",
-    "```",
-    "",
-    "```typescript",
-    "// In a specific test",
-    `test.use({ storageState: './e2e/fixtures/storage-state-${role}.json' });`,
-    "```",
-    "",
-    "> ⚠️  This file contains authentication tokens.",
-    "> Do not commit this file to the repository.",
-    "> Add `e2e/fixtures/storage-state-*.json` to `.gitignore`.",
-  ].join("\n");
-
-  const JSZip = (await import("jszip")).default;
-  const zip = new JSZip();
-
-  zip.file("storage-state.json", JSON.stringify(storageState, null, 2));
-  zip.file("README.md", readme);
-
-  const blob = await zip.generateAsync({ type: "blob" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const safeEmail = userEmail.replace(/[^a-z0-9]/gi, "-").toLowerCase();
-
-  a.href = url;
-  a.download = `auth0-session-${safeEmail}-${role}.zip`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Modal component exposing user technical info, token status, and E2E export utilities.
- * It displays Auth0 profile info, JWT claims, token expiry, and an E2E export action.
- * Intended for admin / debug use only; render only with the appropriate permission guard.
+ * Modal component exposing user technical info and token status.
+ * Displays user profile info, access token, and permissions from Better Auth session.
  */
 export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
   ({ isOpen, onClose, user, accessToken, tokenPayload, onTokenRefreshed }) => {
     const { t } = useTranslation();
-    const navigate = useNavigate();
-    const { refreshToken } = useTokenRefresh({ onTokenRefreshed });
     const [secondsLeft, setSecondsLeft] = useState<number>(0);
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -233,6 +101,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
       }
     };
 
+    // Update countdown timer
     useEffect(() => {
       if (!tokenPayload?.exp) return;
       setSecondsLeft(getSecondsLeft(tokenPayload.exp));
@@ -246,7 +115,9 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
     const handleRefreshToken = async () => {
       setIsRefreshing(true);
       try {
-        await refreshToken();
+        if (onTokenRefreshed) {
+          await onTokenRefreshed("session");
+        }
       } catch (error) {
         console.error("[Modal] Token refresh error:", error);
       } finally {
@@ -254,8 +125,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
       }
     };
 
-    const permissions =
-      (tokenPayload?.permissions as string[] | undefined) ?? [];
+    const permissions = tokenPayload?.permissions as string[] | undefined;
     const isExpiringSoon = secondsLeft < 120;
 
     return (
@@ -272,7 +142,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                         {t("nav-user-dropdown-connected-as")}
                       </span>
                       <span className="text-sm font-semibold text-primary truncate max-w-75">
-                        {user.email}
+                        {user?.email}
                       </span>
                     </div>
                   </Modal.Header>
@@ -281,13 +151,13 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                     {/* User Identity */}
                     <div className="bg-default-100 border border-default-200 rounded-xl p-3 space-y-1">
                       <p className="text-xs text-default-400 uppercase tracking-wider font-bold mb-2">
-                        Identité
+                        Identity
                       </p>
                       <p className="text-sm font-semibold text-foreground">
-                        {user.name}
+                        {user?.name}
                       </p>
-                      <p className="text-xs text-default-500  break-all">
-                        ID: {user.sub}
+                      <p className="text-xs text-default-500 break-all">
+                        ID: {user?.sub || user?.id}
                       </p>
                     </div>
 
@@ -301,15 +171,10 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                         </p>
                         <Tooltip>
                           <Tooltip.Trigger>
-                            <Button
-                              isIconOnly
-                              className="h-7 w-7 min-w-7 bg-default text-foreground"
-                              isDisabled={isRefreshing}
-                              size="sm"
-                              onPress={() => {
-                                console.log("[Modal] Button pressed");
-                                handleRefreshToken();
-                              }}
+                            <button
+                              className="h-7 w-7 min-w-7 bg-default text-foreground rounded flex items-center justify-center hover:opacity-80 transition-opacity"
+                              disabled={isRefreshing}
+                              onClick={handleRefreshToken}
                             >
                               <svg
                                 className="w-4 h-4"
@@ -324,7 +189,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                                   strokeWidth={2}
                                 />
                               </svg>
-                            </Button>
+                            </button>
                           </Tooltip.Trigger>
                           <Tooltip.Content>
                             {t("nav-user-dropdown-refresh-token")}
@@ -338,7 +203,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                               {t("nav-user-dropdown-expires-in")}
                             </span>
                             <Chip
-                              className=" font-bold text-xs"
+                              className="font-bold text-xs"
                               color={isExpiringSoon ? "danger" : "success"}
                               size="sm"
                             >
@@ -347,20 +212,20 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                           </div>
                           <div className="flex justify-between items-center text-xs text-default-500 my-2">
                             <span>Expiration</span>
-                            <span className=" text-default-400">
+                            <span className="text-default-400">
                               {formatExpiry(tokenPayload.exp)}
                             </span>
                           </div>
                         </div>
                       ) : (
                         <p className="text-xs text-danger">
-                          {t("nav-user-dropdown-no-expiry")}
+                          Session-based auth (no JWT expiry)
                         </p>
                       )}
                     </div>
 
                     {/* Permissions */}
-                    {permissions.length > 0 && (
+                    {permissions && permissions.length > 0 && (
                       <>
                         <Separator className="my-2" />
                         <div className="space-y-2">
@@ -368,86 +233,20 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                             Permissions
                           </p>
                           <div className="flex flex-wrap gap-1.5">
-                            {permissions.map((perm) => {
-                              if (
-                                perm ===
-                                (import.meta.env
-                                  .ADMIN_AUTH0_PERMISSION as string)
-                              ) {
-                                return (
-                                  <AuthenticationGuardWithPermission
-                                    key={perm}
-                                    permission={
-                                      import.meta.env
-                                        .ADMIN_AUTH0_PERMISSION as string
-                                    }
-                                  >
-                                    <Chip
-                                      className="text-xs  cursor-pointer hover:bg-accent-600 transition-colors"
-                                      color="accent"
-                                      size="sm"
-                                      onClick={() => {
-                                        navigate("/admin/users");
-                                        close();
-                                      }}
-                                    >
-                                      {perm} (Admin Panel)
-                                    </Chip>
-                                  </AuthenticationGuardWithPermission>
-                                );
-                              }
-
-                              return (
-                                <Chip
-                                  key={perm}
-                                  className="text-xs "
-                                  color="default"
-                                  size="sm"
-                                >
-                                  {perm}
-                                </Chip>
-                              );
-                            })}
+                            {permissions.map((perm) => (
+                              <Chip
+                                key={perm}
+                                className="text-xs"
+                                color="default"
+                                size="sm"
+                              >
+                                {perm}
+                              </Chip>
+                            ))}
                           </div>
                         </div>
                       </>
                     )}
-
-                    <Separator className="my-2" />
-
-                    {/* Playwright session export for E2E debugging */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-default-400 uppercase tracking-wider font-bold">
-                          Playwright
-                        </p>
-                        <Tooltip>
-                          <Tooltip.Trigger>
-                            <Button
-                              isIconOnly
-                              className="h-7 w-7 min-w-7 rounded-full bg-warning/10 text-warning-600 hover:bg-warning-soft-hover"
-                              size="sm"
-                              onPress={() =>
-                                exportAuth0PlaywrightSession(
-                                  user.email ?? "",
-                                  permissions,
-                                )
-                              }
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content>
-                            Export Playwright session (.zip)
-                          </Tooltip.Content>
-                        </Tooltip>
-                      </div>
-                      <p className="text-xs text-default-400 leading-relaxed">
-                        Exporte les tokens Auth0 au format{" "}
-                        <code>storageState</code> Playwright. Réservé aux tests
-                        E2E — ne jamais committer.
-                      </p>
-                    </div>
 
                     <Separator className="my-2" />
 
@@ -459,14 +258,14 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                         </p>
                         <CopyButton
                           className="h-7 w-7 min-w-7"
-                          value={accessToken ?? ""}
+                          value={accessToken || ""}
                         />
                       </div>
                       <ScrollShadow
                         className="h-32 w-full"
                         orientation="horizontal"
                       >
-                        <p className="text-[10px] text-default-500  break-all leading-relaxed select-all">
+                        <p className="text-[10px] text-default-500 break-all leading-relaxed select-all">
                           {accessToken || t("nav-user-dropdown-loading")}
                         </p>
                       </ScrollShadow>

@@ -23,7 +23,7 @@ let styleInjected = false;
 
 /**
  * Full-screen loading overlay rendered via a React portal into `document.body`.
- * Displayed while the application is initializing (Auth0 loading state, etc.).
+ * Displayed while the application is initializing (auth loading state, etc.).
  * Injects its animation styles into `<head>` once to avoid duplicate `<style>` tags.
  */
 export const SiteLoading = () => {

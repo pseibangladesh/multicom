@@ -13,7 +13,7 @@ import { useTokenUserData } from "@/hooks/use-token-user-data";
 import { getApiBase } from "@/lib/api-base";
 
 /**
- * SavedCartSnapshot — Complete cart snapshot stored in Auth0 user_metadata
+ * SavedCartSnapshot — Complete cart snapshot stored in customer metadata
  * Allows reconstruction of cart without database fetch
  */
 export interface SavedCartSnapshot {

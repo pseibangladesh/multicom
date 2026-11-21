@@ -112,11 +112,13 @@ test.describe("Admin — accès refusé sans permission admin", () => {
     // e2e/fixtures/storage-state-user.json (distinct from storage-state-admin.json).
     const adminRaw = fs.readFileSync(path.join(__dirname, "../../fixtures/storage-state-admin.json"), "utf-8");
     const userRaw = fs.readFileSync(path.join(__dirname, "../../fixtures/storage-state-user.json"), "utf-8");
-    const adminToken = JSON.parse(adminRaw).origins?.[0]?.localStorage
-      ?.find((e: { name: string }) => e.name.startsWith("@@auth0spajs@@"))?.value;
-    const userToken = JSON.parse(userRaw).origins?.[0]?.localStorage
-      ?.find((e: { name: string }) => e.name.startsWith("@@auth0spajs@@"))?.value;
-    test.skip(adminToken === userToken, "Fixtures identiques — exportez une session utilisateur standard séparée dans storage-state-user.json");
+    // Better Auth uses cookie-based sessions (no localStorage tokens). Compare cookies instead.
+    const adminCookies = JSON.parse(adminRaw).cookies?.map((c: any) => c.name + "=" + c.value)?.sort()?.join("; ");
+    const userCookies = JSON.parse(userRaw).cookies?.map((c: any) => c.name + "=" + c.value)?.sort()?.join("; ");
+    test.skip(
+      adminCookies === userCookies,
+      "Fixtures identiques — exportez une session utilisateur standard séparée dans storage-state-user.json",
+    );
 
     await page.goto("/admin/categories");
     await page.waitForLoadState("networkidle");

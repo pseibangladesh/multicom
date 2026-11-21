@@ -22,35 +22,30 @@ import { Button, Tooltip } from "@heroui/react";
 
 import { title } from "@/shared/ui/primitives";
 import DefaultLayout from "@/layouts/default";
-import { useAuth, useSecuredApi } from "@/authentication";
+import { getBaseURL } from "@/utils/base-url";
 
 export default function ApiPage() {
   const { t } = useTranslation();
-  const { getJson } = useSecuredApi();
-  const { user, isAuthenticated } = useAuth();
-  const [apiResponse, setApiResponse] = useState("");
+  const [sessionData, setSessionData] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (isAuthenticated) {
-        try {
-          const response = await getJson(
-            `${import.meta.env.API_BASE_URL}/v1/__auth0/get/${user?.sub}`,
-          );
-
-          setApiResponse(response);
-        } catch (error) {
-          setApiResponse((error as Error).message);
-        }
+    const fetchSession = async () => {
+      try {
+        const apiBase = getBaseURL() || "";
+        const response = await fetch(`${apiBase}/api/auth/session`);
+        const data = await response.json();
+        setSessionData(data);
+      } catch (error) {
+        setSessionData({ error: (error as Error).message });
       }
     };
 
-    fetchData();
-  }, [isAuthenticated]);
+    fetchSession();
+  }, []);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(JSON.stringify(apiResponse, null, 2));
+    await navigator.clipboard.writeText(JSON.stringify(sessionData, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -65,8 +60,8 @@ export default function ApiPage() {
         </div>
         <div className="rounded-lg bg-default-100 px-3 py-2 max-w-2xl">
           <div className="flex items-start justify-between gap-2">
-            <pre className="text-sm  overflow-auto max-h-96">
-              <code>{JSON.stringify(apiResponse, null, 2)}</code>
+            <pre className="text-sm overflow-auto max-h-96">
+              <code>{JSON.stringify(sessionData, null, 2)}</code>
             </pre>
             <Tooltip>
               <Button

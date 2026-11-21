@@ -20,19 +20,16 @@ import type React from "react";
 
 import { Link } from "@heroui/react";
 import { Trans, useTranslation } from "react-i18next";
-import { useAuth0 } from "@auth0/auth0-react";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { JWTPayload, jwtVerify } from "jose";
 
-import { getLocalJwkSet } from "@/features/auth/utils/jwks";
+import { getBaseURL } from "@/utils/base-url";
 import { Navbar } from "@/components/navbar";
 import { CartDrawer } from "@/components/cart-drawer";
 import { useCartDrawer } from "@/contexts/cart-drawer-context";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { UserTechnicalInfoModal } from "@/shared/ui/user-technical-info";
 import { LoginLogoutLink } from "@/authentication";
-import { TOKEN_REFRESHED_EVENT } from "@/hooks/use-token-refresh";
 import { siteConfig } from "@/config/site";
 import {
   TwitterIcon,
@@ -47,120 +44,37 @@ export default function DefaultLayout({
   children: React.ReactNode;
 }) {
   const { t } = useTranslation();
-  const { isAuthenticated, user, getAccessTokenSilently } = useAuth0();
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [decodedToken, setDecodedToken] = useState<JWTPayload | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { isOpen: isCartOpen, open: openCart, close: closeCart } = useCartDrawer();
-  const decodedTokenCacheRef = useRef<Map<string, JWTPayload>>(new Map());
-  const accessTokenRef = useRef<string | null>(null);
 
-  const decodeAndStoreToken = useCallback(
-    async (token: string) => {
-      try {
-        if (decodedTokenCacheRef.current.has(token)) {
-          console.log("[Token] Using cached decoded token");
-          setDecodedToken(decodedTokenCacheRef.current.get(token) || null);
-          return;
-        }
+  // Fetch session data from Better Auth backend
+  const [user, setUser] = useState<any>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
-        console.log("[Token] Decoding new token, starting with 'ey...':", token.substring(0, 20));
-        const JWKS = await getLocalJwkSet(import.meta.env.AUTH0_DOMAIN);
+  const checkSession = useCallback(async () => {
+    try {
+      const apiBase = getBaseURL() || "";
+      const resp = await fetch(`${apiBase}/api/auth/session`);
+      const data = await resp.json();
 
-        const verified = await jwtVerify(token, JWKS, {
-          issuer: `https://${import.meta.env.AUTH0_DOMAIN}/`,
-          audience: import.meta.env.AUTH0_AUDIENCE,
-        });
-
-        const payload = verified.payload as JWTPayload;
-
-        decodedTokenCacheRef.current.set(token, payload);
-        setDecodedToken(payload);
-        console.log("[Token] Token decoded and stored successfully, exp:", new Date(payload.exp! * 1000).toISOString());
-      } catch (err) {
-        console.error("[Token] Failed to decode access token:", err);
+      if (data.session?.user) {
+        setUser(data.session.user);
+        // Store a placeholder token for the modal
+        setAccessToken("session");
+      } else {
+        setUser(null);
+        setAccessToken(null);
       }
-    },
-    [],
-  );
-
-  const loadToken = useCallback(
-    async (ignoreCache = false) => {
-      try {
-        console.log("[Token] Loading token with ignoreCache =", ignoreCache);
-        
-        // If forcing a refresh, clear the local cache first
-        if (ignoreCache) {
-          console.log("[Token] Clearing local token cache");
-          decodedTokenCacheRef.current.clear();
-        }
-
-        const options = ignoreCache
-          ? {
-              ignoreCache: true,
-              audience: import.meta.env.AUTH0_AUDIENCE,
-              scope: import.meta.env.AUTH0_SCOPE,
-              // Force a refresh if token has less than 0 seconds TTL (always refresh)
-              minTtl: 0,
-            }
-          : undefined;
-
-        console.log("[Token] Calling getAccessTokenSilently with options:", options);
-        const response = await getAccessTokenSilently(options as any);
-
-        // Extract token string from response (handles both string and verbose response)
-        const token =
-          typeof response === "string" ? response : response?.access_token;
-
-        if (!token) {
-          throw new Error("Failed to get access token");
-        }
-
-        console.log("[Token] Got token from Auth0, comparing...");
-        if (accessTokenRef.current && accessTokenRef.current === token) {
-          console.warn("[Token] WARNING: Got same token! Auth0 returned cached token despite ignoreCache");
-        }
-        
-        accessTokenRef.current = token;
-        setAccessToken(token);
-        await decodeAndStoreToken(token);
-      } catch (err) {
-        console.error("[Token] Failed to load access token:", err);
-      }
-    },
-    [getAccessTokenSilently, decodeAndStoreToken],
-  );
+    } catch (err) {
+      console.error("[Auth] Session check failed:", err);
+      setUser(null);
+      setAccessToken(null);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-
-    let isMounted = true;
-
-    loadToken().then(() => {
-      if (!isMounted) return;
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthenticated, loadToken]);
-
-  // Listen for global token refreshed events (e.g., from WishlistButton)
-  useEffect(() => {
-    const handleTokenRefreshed = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const newToken = customEvent.detail;
-      console.log("[Token] Global token refreshed event received in default layout");
-      accessTokenRef.current = newToken;
-      setAccessToken(newToken);
-      decodeAndStoreToken(newToken);
-    };
-
-    window.addEventListener(TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
-    return () => {
-      window.removeEventListener(TOKEN_REFRESHED_EVENT, handleTokenRefreshed);
-    };
-  }, [decodeAndStoreToken]);
+    checkSession();
+  }, [checkSession]);
 
   return (
     <div className="relative flex flex-col h-screen">
@@ -208,21 +122,22 @@ export default function DefaultLayout({
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">{t("footer-company")}</h3>
               <ul className="space-y-2">
-                {[
-                  { key: "footer-about",   href: "/pages/about" },
-                  { key: "footer-blog",    href: "/pages/blog" },
-                  { key: "footer-careers", href: "/pages/careers" },
-                  { key: "footer-press",   href: "/pages/press" },
-                ].map(({ key, href }) => (
-                  <li key={key}>
-                    <RouterLink
-                      to={href}
-                      className="text-sm text-default-500 hover:text-foreground transition-colors"
-                    >
-                      {t(key)}
-                    </RouterLink>
-                  </li>
-                ))}
+                {
+                  [
+                    { key: "footer-about",   href: "/pages/about" },
+                    { key: "footer-blog",    href: "/pages/blog" },
+                    { key: "footer-careers", href: "/pages/careers" },
+                    { key: "footer-press",   href: "/pages/press" },
+                  ].map(({ key, href }) => (
+                    <li key={key}>
+                      <RouterLink
+                        to={href}
+                        className="text-sm text-default-500 hover:text-foreground transition-colors"
+                      >
+                        {t(key)}
+                      </RouterLink>
+                    </li>
+                  ))}
               </ul>
             </div>
 
@@ -230,21 +145,22 @@ export default function DefaultLayout({
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">{t("footer-help")}</h3>
               <ul className="space-y-2">
-                {[
-                  { key: "footer-contact",  href: "/pages/contact" },
-                  { key: "footer-faq",      href: "/pages/faq" },
-                  { key: "footer-shipping", href: "/pages/shipping-policy" },
-                  { key: "footer-returns",  href: "/pages/returns-policy" },
-                ].map(({ key, href }) => (
-                  <li key={key}>
-                    <RouterLink
-                      to={href}
-                      className="text-sm text-default-500 hover:text-foreground transition-colors"
-                    >
-                      {t(key)}
-                    </RouterLink>
-                  </li>
-                ))}
+                {
+                  [
+                    { key: "footer-contact",  href: "/pages/contact" },
+                    { key: "footer-faq",      href: "/pages/faq" },
+                    { key: "footer-shipping", href: "/pages/shipping-policy" },
+                    { key: "footer-returns",  href: "/pages/returns-policy" },
+                  ].map(({ key, href }) => (
+                    <li key={key}>
+                      <RouterLink
+                        to={href}
+                        className="text-sm text-default-500 hover:text-foreground transition-colors"
+                      >
+                        {t(key)}
+                      </RouterLink>
+                    </li>
+                  ))}
               </ul>
             </div>
 
@@ -252,21 +168,22 @@ export default function DefaultLayout({
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">{t("footer-legal")}</h3>
               <ul className="space-y-2">
-                {[
-                  { key: "footer-privacy",        href: "/pages/privacy-policy" },
-                  { key: "footer-terms",          href: "/pages/terms-of-service" },
-                  { key: "footer-cookies",        href: "/pages/cookie-policy" },
-                  { key: "footer-legal-mentions", href: "/pages/legal-mentions" },
-                ].map(({ key, href }) => (
-                  <li key={key}>
-                    <RouterLink
-                      to={href}
-                      className="text-sm text-default-500 hover:text-foreground transition-colors"
-                    >
-                      {t(key)}
-                    </RouterLink>
-                  </li>
-                ))}
+                {
+                  [
+                    { key: "footer-privacy",        href: "/pages/privacy-policy" },
+                    { key: "footer-terms",          href: "/pages/terms-of-service" },
+                    { key: "footer-cookies",        href: "/pages/cookie-policy" },
+                    { key: "footer-legal-mentions", href: "/pages/legal-mentions" },
+                  ].map(({ key, href }) => (
+                    <li key={key}>
+                      <RouterLink
+                        to={href}
+                        className="text-sm text-default-500 hover:text-foreground transition-colors"
+                      >
+                        {t(key)}
+                      </RouterLink>
+                    </li>
+                  ))}
               </ul>
             </div>
           </div>
@@ -356,12 +273,12 @@ export default function DefaultLayout({
 
             {/* User info (dev/admin) */}
             <div className="flex items-center gap-2">
-              {isAuthenticated && (
+              {user && (
                 <button
                   onClick={() => setIsModalOpen(true)}
                   className="text-xs text-default-400 hover:text-foreground transition-colors cursor-pointer"
                 >
-                  {user?.name}
+                  {user.name}
                 </button>
               )}
               <span className="text-xs text-default-400">
@@ -376,12 +293,14 @@ export default function DefaultLayout({
         <UserTechnicalInfoModal
           accessToken={accessToken}
           isOpen={isModalOpen}
-          tokenPayload={decodedToken}
+          tokenPayload={null}
           user={user}
-          onClose={() => setIsModalOpen(false)}          onTokenRefreshed={async (newToken) => {
-            setAccessToken(newToken);
-            await decodeAndStoreToken(newToken);
-          }}        />
+          onClose={() => setIsModalOpen(false)}
+          onTokenRefreshed={async () => {
+            setAccessToken("session");
+            await checkSession();
+          }}
+        />
       ) : (
         <></>
       )}

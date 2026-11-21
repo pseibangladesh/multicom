@@ -4,7 +4,7 @@
  *
  * StoreThemeProvider — applies the active theme to the <html> element.
  *
- * - Authenticated users: theme is stored in Auth0 user_metadata (store-scoped)
+ * - Authenticated users: theme is stored in customer metadata (store-scoped)
  *   and read from the JWT access token. Mutations go via PATCH /v1/me/preferences.
  * - Unauthenticated users: theme is persisted in localStorage.
  *

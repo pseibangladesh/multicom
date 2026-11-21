@@ -5,38 +5,48 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@/authentication';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TextField, Label, Input, Card, Button } from '@heroui/react';
 import { X } from 'lucide-react';
+import { getBaseURL } from '@/utils/base-url';
 
 /**
- * Customer login page using Auth0 Passwordless (email magic link).
- * No password required — Auth0 sends a one-click link to the customer's inbox.
+ * Customer login page using Better Auth email + password or magic link.
+ * Session cookies are managed server-side via /api/auth/* endpoints.
  */
 export default function LoginPage() {
   const { t } = useTranslation();
-  const auth = useAuth() as any;
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [useMagicLink, setUseMagicLink] = useState(false);
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if already authenticated
-  const isAuth = (auth as any)?.isAuthenticated;
+  // Check if already authenticated — redirect to account
   useEffect(() => {
-    if (isAuth) {
-      const returnTo = searchParams.get('returnTo') || '/account';
-      navigate(returnTo);
-    }
-  }, [isAuth, navigate, searchParams]);
+    const checkAuth = async () => {
+      try {
+        const apiBase = getBaseURL() || '';
+        const resp = await fetch(`${apiBase}/api/auth/session`);
+        const data = await resp.json();
+        if (data.session?.user) {
+          const returnTo = searchParams.get('returnTo') || '/account';
+          navigate(returnTo);
+        }
+      } catch {
+        // Not authenticated, stay on login page
+      }
+    };
+    checkAuth();
+  }, [navigate, searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email) {
       setError(t('login-email-required'));
       return;
@@ -46,22 +56,39 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      // Call Auth0 loginWithRedirect with passwordless Email connection
-      // The loginWithRedirect method handles the redirect flow automatically
-      await auth.login({
-        authorizationParams: {
-          connection: 'email', // Use the Auth0 Email passwordless connection
-          login_hint: email,   // Pre-fill the email field
-          scope: 'openid profile email',
-        },
-      });
-      
+      const apiBase = getBaseURL() || '';
+
+      if (useMagicLink) {
+        // Magic link flow — sends an email with a sign-in link
+        await fetch(`${apiBase}/api/auth/signin/email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+      } else {
+        // Email + password flow
+        if (!password) {
+          setError(t('login-password-required'));
+          setLoading(false);
+          return;
+        }
+        const resp = await fetch(`${apiBase}/api/auth/signin/credentials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include',
+        });
+
+        if (!resp.ok) {
+          const data = await resp.json();
+          throw new Error(data?.message || 'Invalid credentials');
+        }
+      }
+
       setSent(true);
     } catch (err) {
       console.error('Login error:', err);
-      setError(
-        t('login-error')
-      );
+      setError(err instanceof Error ? err.message : t('login-error'));
       setLoading(false);
     }
   };
@@ -78,13 +105,13 @@ export default function LoginPage() {
           <Card.Content className="gap-4">
             <div className="text-center space-y-4">
               <p className="text-gray-600">
-                {t('login-sent-link')}
+                {useMagicLink ? t('login-sent-link') : t('login-success')}
               </p>
               <p className="font-semibold text-lg">{email}</p>
-              
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-gray-700">
-                  {t('login-instructions')}
+                  {useMagicLink ? t('login-instructions') : t('login-welcome-back')}
                 </p>
               </div>
 
@@ -97,6 +124,7 @@ export default function LoginPage() {
                   onClick={() => {
                     setSent(false);
                     setEmail('');
+                    setPassword('');
                   }}
                   className="w-full"
                 >
@@ -124,8 +152,8 @@ export default function LoginPage() {
 
         <Card.Content className="gap-6">
           <form onSubmit={handleLogin} className="space-y-4">
-            <TextField 
-              name="email" 
+            <TextField
+              name="email"
               type="email"
               isRequired
               isInvalid={!!error}
@@ -133,7 +161,7 @@ export default function LoginPage() {
             >
               <Label>{t('login-email')}</Label>
               <div className="flex items-center">
-                <Input 
+                <Input
                   placeholder={t('login-enter-email')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -153,11 +181,44 @@ export default function LoginPage() {
               </div>
             </TextField>
 
+            {!useMagicLink && (
+              <TextField
+                name="password"
+                type="password"
+                isRequired={!useMagicLink}
+                className="w-full"
+              >
+                <Label>{t('login-password')}</Label>
+                <Input
+                  placeholder={t('login-enter-password')}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  fullWidth
+                />
+              </TextField>
+            )}
+
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-700">{error}</p>
               </div>
             )}
+
+            {/* Toggle between password and magic link */}
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useMagicLink}
+                  onChange={(e) => setUseMagicLink(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                <span className="text-sm text-gray-600">
+                  {t('login-magic-link') || 'Use magic link instead'}
+                </span>
+              </label>
+            </div>
 
             <Button
               type="submit"
@@ -167,13 +228,17 @@ export default function LoginPage() {
             >
               {loading
                 ? t('login-sending')
-                : t('login-send-link')}
+                : useMagicLink
+                  ? t('login-send-link')
+                  : t('login-sign-in')}
             </Button>
           </form>
 
           <div className="text-center text-sm text-gray-600">
             <p>
-              {t('login-passwordless-info')}
+              {useMagicLink
+                ? t('login-passwordless-info')
+                : t('login-account-info')}
             </p>
           </div>
 
@@ -182,7 +247,9 @@ export default function LoginPage() {
               {t('login-new-customer')}
             </p>
             <p className="text-gray-500">
-              {t('login-signup-auto')}
+              {useMagicLink
+                ? t('login-signup-auto')
+                : t('login-create-account')}
             </p>
           </div>
         </Card.Content>

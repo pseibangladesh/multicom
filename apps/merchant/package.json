@@ -25,11 +25,11 @@
     "ai:kv:put": "wrangler kv key put ai:config --binding KV_CACHE --path ../../ai.json.enc"
   },
   "dependencies": {
-    "@auth0/auth0-react": "^2.30.0",
     "@hono/swagger-ui": "^0.6.1",
     "@hono/zod-openapi": "^1.4.0",
+    "better-auth": "^1.7.25",
     "hono": "^4.12.18",
-    "jose": "^6.2.3",
+    "jose": "^6.2.17",
     "stripe": "^22.1.1"
   },
   "devDependencies": {

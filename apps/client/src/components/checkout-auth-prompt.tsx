@@ -183,7 +183,7 @@ export function CheckoutAuthPrompt({
         </Modal.Backdrop>
       </Modal>
 
-      {/* LoginModal handles the actual Auth0 redirect */}
+      {/* LoginModal handles the actual login redirect */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
