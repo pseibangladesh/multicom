@@ -39,6 +39,9 @@ export interface MerchantEnv {
   CORS_ORIGIN?: string;
   STORE_URL?: string;
   ADMIN_EMAILS?: string;
+  /** Bootstrap API keys, hashed into api_keys when the object starts. */
+  MERCHANT_SK?: string;
+  MERCHANT_PK?: string;
 }
 
 export type WSEventType =
@@ -57,7 +60,8 @@ export interface WSEvent {
   timestamp: string;
 }
 
-const SCHEMA = `
+/** Base schema, run on every boot before the inline migrations. Exported for schema tests. */
+export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS migrations (
   name TEXT PRIMARY KEY,
   applied_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -707,6 +711,132 @@ CREATE TABLE IF NOT EXISTS order_email_settings (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ============================================================
+-- MARKETPLACE (Etsy, eBay, Amazon): final shape of migrations 037-039
+-- ============================================================
+-- Tables here match what the inline 037_marketplace_*, 038_* and 039_*
+-- migrations produce. On a fresh DB the later ALTER TABLE steps then fail
+-- harmlessly (column exists) and are recorded as applied.
+--
+-- Deliberately NOT here (they stay migration-only):
+--   * columns that 038/039 add to core tables (products/variants/orders
+--     updated_at + triggers, orders.channel_id, orders.tracking_carrier) and
+--     their indexes. SCHEMA runs before migrations and is not error-tolerant,
+--     so an index on a not-yet-added column would stop an older DO booting.
+--   * uq_marketplace_orders_channel_external: a UNIQUE index that failed here
+--     (duplicate rows on an old DO) would do the same. Migration
+--     038_marketplace_orders_unique_external creates it.
+-- Tests: tests/schema-marketplace.test.ts.
+
+CREATE TABLE IF NOT EXISTS marketplace_channels (
+  id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
+  store_id TEXT NOT NULL,
+  external_shop_id TEXT,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'active'
+       CHECK (status IN ('active', 'paused', 'error')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_credentials (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL REFERENCES marketplace_channels(id),
+  credential_type TEXT NOT NULL
+    CHECK (credential_type IN ('api_key', 'oauth_token', 'refresh_token')),
+  encrypted_value TEXT NOT NULL,
+  metadata TEXT DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT,
+  UNIQUE(channel_id, credential_type)
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_product_mappings (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL REFERENCES marketplace_channels(id),
+  variant_id TEXT REFERENCES variants(id),
+  external_listing_id TEXT NOT NULL,
+  external_sku TEXT,
+  status TEXT NOT NULL DEFAULT 'active'
+       CHECK (status IN ('active', 'inactive', 'error')),
+  last_sync_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(channel_id, external_listing_id)
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_orders (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL REFERENCES marketplace_channels(id),
+  internal_order_id TEXT REFERENCES orders(id),
+  external_order_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  raw_payload TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_sync_jobs (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL REFERENCES marketplace_channels(id),
+  job_type TEXT NOT NULL
+    CHECK (job_type IN ('push_products', 'push_inventory', 'pull_orders', 'sync_all')),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'in_progress', 'completed', 'failed')),
+  payload TEXT DEFAULT '{}',
+  error_message TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_oauth_states (
+  state TEXT PRIMARY KEY,
+  platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
+  channel_id TEXT REFERENCES marketplace_channels(id) ON DELETE CASCADE,
+  code_verifier TEXT,
+  return_to TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_order_lines (
+  id TEXT PRIMARY KEY,
+  marketplace_order_id TEXT NOT NULL REFERENCES marketplace_orders(id) ON DELETE CASCADE,
+  external_line_item_id TEXT NOT NULL,
+  order_item_id TEXT REFERENCES order_items(id),
+  sku TEXT,
+  qty INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  inventory_deducted INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (marketplace_order_id, external_line_item_id)
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_webhook_events (
+  id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
+  channel_id TEXT REFERENCES marketplace_channels(id) ON DELETE SET NULL,
+  external_event_id TEXT NOT NULL,
+  topic TEXT,
+  payload TEXT NOT NULL,
+  received_at TEXT NOT NULL DEFAULT (datetime('now')),
+  processed_at TEXT,
+  error TEXT,
+  UNIQUE (platform, external_event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketplace_channels_platform ON marketplace_channels(platform);
+CREATE INDEX IF NOT EXISTS idx_marketplace_channels_store ON marketplace_channels(store_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_credentials_channel ON marketplace_credentials(channel_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_product_mappings_channel ON marketplace_product_mappings(channel_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_channel ON marketplace_orders(channel_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_internal ON marketplace_orders(internal_order_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_sync_jobs_channel_status ON marketplace_sync_jobs(channel_id, status);
+CREATE INDEX IF NOT EXISTS idx_marketplace_oauth_states_expires ON marketplace_oauth_states(expires_at);
+CREATE INDEX IF NOT EXISTS idx_marketplace_order_lines_order_item ON marketplace_order_lines(order_item_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_webhook_events_unprocessed ON marketplace_webhook_events(processed_at, received_at);
 `;
 
 
@@ -720,6 +850,14 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
   constructor(ctx: DurableObjectState, env: MerchantEnv) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
+    // Seed the MERCHANT_SK / MERCHANT_PK keys before the object serves anything.
+    // Routes reach the DO over RPC (query/run), which never goes through
+    // fetch(), so doing this only in fetch() left POST /v1/setup/init (which is
+    // unauthenticated while api_keys is empty) open on a fresh deployment.
+    void ctx.blockConcurrencyWhile(async () => {
+      this.ensureInitialized();
+      await this.initializeDefaultKeys();
+    });
   }
 
   private async hashKey(key: string): Promise<string> {
@@ -1612,8 +1750,8 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
   private async initializeDefaultKeys(): Promise<void> {
     if (this.keysInitialized) return;
 
-    const merchantSk = (this.env as any).MERCHANT_SK;
-    const merchantPk = (this.env as any).MERCHANT_PK;
+    const merchantSk = this.env.MERCHANT_SK;
+    const merchantPk = this.env.MERCHANT_PK;
 
     if (merchantSk) {
       const skHash = await this.hashKey(merchantSk);

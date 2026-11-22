@@ -128,6 +128,33 @@ adminApp.openapi(setupStripe, async (c) => {
   return c.json({ ok: true as const }, 200);
 });
 
+const SECRET_FIELD = /secret|password|passwd|token|api_?key/i;
+
+/**
+ * Config rows can hold credentials (e.g. 'stripe' → secret_key, webhook_secret).
+ * The listing shows that they are set, never their values.
+ */
+export function redactConfigValue(value: string | null): string | null {
+  if (!value) return value;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return value;
+  }
+  const redact = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(redact);
+    if (!v || typeof v !== 'object') return v;
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>).map(([k, x]) => [
+        k,
+        SECRET_FIELD.test(k) && x !== null && x !== '' && typeof x !== 'object' ? '[redacted]' : redact(x),
+      ])
+    );
+  };
+  return JSON.stringify(redact(parsed));
+}
+
 const getConfig = createRoute({
   method: 'get',
   path: '/config',
@@ -147,7 +174,7 @@ adminApp.openapi(getConfig, async (c) => {
     `SELECT key, value FROM config`
   );
 
-  return c.json({ items }, 200);
+  return c.json({ items: items.map((i) => ({ key: i.key, value: redactConfigValue(i.value) })) }, 200);
 });
 
 const resetDatabase = createRoute({

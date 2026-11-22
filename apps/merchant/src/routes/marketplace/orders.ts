@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { getDb } from '../../db';
 import { ApiError, uuid, type HonoEnv } from '../../types';
-import { clientForChannel, loadChannel, updateChannelConfig } from '../../lib/marketplace/channel';
-import { importOrders } from '../../lib/marketplace/order-import';
+import { clientForChannel, loadChannel } from '../../lib/marketplace/channel';
+import { orderImportSummary, runOrderImport } from '../../lib/marketplace/sync-jobs';
 import { pushShipment } from '../../lib/marketplace/fulfillment';
 
 /**
@@ -16,9 +16,6 @@ import { pushShipment } from '../../lib/marketplace/fulfillment';
  * overlap, which is safe because import is idempotent), or the last 30 days.
  */
 
-const OVERLAP_MS = 60 * 60 * 1000;
-const FIRST_IMPORT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-
 export function marketplaceOrderRoutes(): Hono<HonoEnv> {
   const app = new Hono<HonoEnv>();
 
@@ -30,15 +27,10 @@ export function marketplaceOrderRoutes(): Hono<HonoEnv> {
     const channel = await loadChannel(db, channelId);
     const client = clientForChannel(db, c.env, channel);
 
-    const startedAt = new Date();
-    let from: Date;
+    let since: Date | undefined;
     if (body.since !== undefined) {
-      from = new Date(String(body.since));
-      if (Number.isNaN(from.getTime())) throw ApiError.invalidRequest('since must be an ISO 8601 date');
-    } else if (channel.config.last_order_import_at) {
-      from = new Date(new Date(channel.config.last_order_import_at).getTime() - OVERLAP_MS);
-    } else {
-      from = new Date(startedAt.getTime() - FIRST_IMPORT_WINDOW_MS);
+      since = new Date(String(body.since));
+      if (Number.isNaN(since.getTime())) throw ApiError.invalidRequest('since must be an ISO 8601 date');
     }
     const limit = body.limit === undefined ? undefined : Number(body.limit);
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) throw ApiError.invalidRequest('limit must be a positive integer');
@@ -46,27 +38,15 @@ export function marketplaceOrderRoutes(): Hono<HonoEnv> {
     const jobId = uuid();
     await db.run(
       `INSERT INTO marketplace_sync_jobs (id, channel_id, job_type, status, payload, attempts) VALUES (?, ?, 'pull_orders', 'in_progress', ?, 1)`,
-      [jobId, channelId, JSON.stringify({ from: from.toISOString(), limit: limit ?? null })],
+      [jobId, channelId, JSON.stringify({ since: since?.toISOString() ?? null, limit: limit ?? null })],
     );
 
     try {
-      const result = await importOrders(db, client, channelId, { from, limit });
+      const { from, result } = await runOrderImport(db, client, channel, { since, limit });
       await db.run(`UPDATE marketplace_sync_jobs SET status = 'completed', payload = ?, updated_at = datetime('now') WHERE id = ?`, [
-        JSON.stringify({
-          from: from.toISOString(),
-          fetched: result.fetched,
-          imported: result.imported.length,
-          skipped: result.skipped.length,
-          failed: result.failed.length,
-          shortfalls: result.shortfalls.length,
-        }),
+        JSON.stringify({ orders: orderImportSummary(from, result) }),
         jobId,
       ]);
-      // Failed orders were not recorded, so keep the window where it was and
-      // they are picked up again next run. A `limit` may also cut the window short.
-      if (result.failed.length === 0 && limit === undefined) {
-        await updateChannelConfig(db, channelId, { last_order_import_at: startedAt.toISOString() });
-      }
       return c.json({ ok: true, jobId, from: from.toISOString(), ...result });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

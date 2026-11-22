@@ -7,8 +7,9 @@
 ## How the schema is built (read this first)
 
 - **The source of truth is `do.ts`**: the `SCHEMA` constant plus the inline `migrations` array. The files in `apps/merchant/migrations/` (`001` to `037`) are reference copies and are not executed at runtime.
-- **The two are already out of sync.** The 5 `marketplace_*` tables exist **only** as inline migrations (`037_marketplace_*`). They are missing from `SCHEMA` and have no numbered `.sql` file. That breaks the project's three-edit rule (`SCHEMA` + inline migration + numbered file).
-- **Two different migrations are both numbered 037**: `037-add-better-auth-tables.sql` (Better Auth) and the inline `037_marketplace_*` entries. The next migration should be `038`.
+- **Marketplace tables (037–039) are now in all three places** (fixed 2026-11-22): `SCHEMA` holds the final shape of all 8 `marketplace_*` tables, and `migrations/037-add-marketplace-tables.sql`, `038-marketplace-repair-and-change-tracking.sql` and `039-marketplace-order-import.sql` are the reference copies. `tests/schema-marketplace.test.ts` fails if `SCHEMA` and the migrations drift apart.
+- **Deliberately migration-only:** columns that 038/039 add to *core* tables (`updated_at` + triggers on products/variants/orders, `orders.channel_id`, `orders.tracking_carrier`) and the unique index `uq_marketplace_orders_channel_external`. `SCHEMA` runs before migrations without error handling, so an index on a not-yet-added column (or a failing unique index) there would stop an older DO from booting. Older `SCHEMA` tables follow the same convention (e.g. `variants.variant_type`).
+- **Two files are numbered 037**: `037-add-better-auth-tables.sql` and `037-add-marketplace-tables.sql`. The inline names (`037_marketplace_*`) were already deployed, so they were not renumbered. The next migration is `040`.
 
 ---
 

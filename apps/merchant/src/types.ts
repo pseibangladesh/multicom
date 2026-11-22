@@ -24,6 +24,7 @@
  */
 
 import { type MerchantDO } from './do';
+import type { MarketplaceSyncMessage } from './lib/marketplace/sync-jobs';
 
 export type Env = {
   MERCHANT: DurableObjectNamespace<MerchantDO>;
@@ -187,6 +188,22 @@ export type Env = {
   EBAY_ENVIRONMENT?: string;
   AMAZON_LWA_APP_ID?: string;
   AMAZON_LWA_APP_SECRET?: string;
+  /** Amazon SP-API region: NA | EU | FE. Default NA. */
+  AMAZON_REGION?: string;
+
+  /**
+   * Producer binding for marketplace sync jobs (wrangler.jsonc "queues").
+   * The same Worker consumes the queue (src/workers/marketplace-consumer.ts).
+   * Optional so that routes can answer 503 instead of crashing when unbound.
+   */
+  MARKETPLACE_SYNC_QUEUE?: Queue<MarketplaceSyncMessage>;
+
+  /**
+   * Bootstrap API keys. MerchantDO's /init handler stores their hashes on first
+   * run (scripts/init-remote.ts). Secrets; set with `wrangler secret put`.
+   */
+  MERCHANT_SK?: string;
+  MERCHANT_PK?: string;
 };
 
 /**

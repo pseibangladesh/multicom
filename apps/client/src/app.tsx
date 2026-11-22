@@ -60,6 +60,7 @@ import CategoriesPage from "./pages/admin/categories";
 import AnalyticsPage from "@/pages/admin/analytics";
 import AdminReviewsPage from "@/pages/admin/reviews";
 import PaymentGatewaysPage from "@/pages/admin/payment-gateways";
+import MarketplacesPage from "@/pages/admin/marketplaces";
 import AdminDashboardPage from "@/pages/admin/index";
 
 function App() {
@@ -186,6 +187,10 @@ function App() {
         <Route
           element={<AdminGuard><PaymentGatewaysPage /></AdminGuard>}
           path="/admin/payment-gateways"
+        />
+        <Route
+          element={<AdminGuard><MarketplacesPage /></AdminGuard>}
+          path="/admin/marketplaces"
         />
         <Route
           element={<AuthenticationGuard component={SwaggerPage} />}

@@ -141,6 +141,11 @@ export const siteConfig = () => ({
       href: "/admin/payment-gateways",
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
+    {
+      label: i18next.t("admin-marketplaces-title"),
+      href: "/admin/marketplaces",
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+    },
   ],
   navMenuItems: [
     {
@@ -216,6 +221,11 @@ export const siteConfig = () => ({
     {
       label: i18next.t("admin-tax-rates-title"),
       href: "/admin/tax-rates",
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+    },
+    {
+      label: i18next.t("admin-marketplaces-title"),
+      href: "/admin/marketplaces",
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
   ],

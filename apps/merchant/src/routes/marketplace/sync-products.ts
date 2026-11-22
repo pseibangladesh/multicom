@@ -25,76 +25,63 @@
 
 import { Hono } from 'hono';
 import { getDb } from '../../db';
-import { ApiError, uuid } from '../../types';
+import { ApiError } from '../../types';
 import type { HonoEnv } from '../../types';
+import { enqueueSyncJob, SyncQueueError } from '../../lib/marketplace/sync-jobs';
+import type { SyncJobType } from '../../lib/marketplace/types';
 
 /**
  * Sync trigger routes (admin only: authMiddleware + adminOnly in ./index.ts).
+ * Each records a job and sends it to MARKETPLACE_SYNC_QUEUE; the consumer in
+ * src/workers/marketplace-consumer.ts does the work. Poll
+ * GET /v1/admin/marketplace/channels (lastJob) for progress.
  *
- * POST /v1/marketplace/:channelId/sync/products — Trigger product sync to marketplace.
- * POST /v1/marketplace/:channelId/sync/inventory — Trigger inventory sync.
+ *   POST /v1/marketplace/:channelId/sync/products   push the catalog
+ *   POST /v1/marketplace/:channelId/sync/inventory  push stock levels of listed variants
+ *   POST /v1/marketplace/:channelId/sync/orders     pull orders in the background
+ *   POST /v1/marketplace/:channelId/sync/all        products, then orders
+ *
+ * 202 { ok, jobId } when queued; 409 { error, details: { jobId } } while the
+ * same job type is already queued or running; 503 when the queue is not bound.
  */
+
+const ROUTES: Record<string, SyncJobType> = {
+  products: 'push_products',
+  inventory: 'push_inventory',
+  orders: 'pull_orders',
+  all: 'sync_all',
+};
 
 export function syncRoutes(): Hono<HonoEnv> {
   const app = new Hono<HonoEnv>();
 
-  // ── POST /:channelId/sync/products ──────────────────────────────────────
+  for (const [path, jobType] of Object.entries(ROUTES)) {
+    app.post(`/${path}`, async (c) => {
+      const db = getDb(c.var.db);
+      const channelId = c.req.param('channelId')!;
 
-  app.post('/products', async (c) => {
-    const db = getDb(c.var.db);
-    const channelId = c.req.param('channelId');
+      const [channel] = await db.query<{ platform: string; status: string }>(
+        `SELECT platform, status FROM marketplace_channels WHERE id = ?`,
+        [channelId],
+      );
+      if (!channel) throw ApiError.notFound('Channel not found');
+      if (channel.status !== 'active') throw ApiError.invalidRequest('Channel is not active');
+      if (channel.platform !== 'etsy' && channel.platform !== 'ebay') {
+        throw new ApiError('not_implemented', 501, `${channel.platform} channels are not supported yet`);
+      }
 
-
-    // Verify channel exists and is active.
-    const channel = await db.query<{ platform: string; status: string }>(
-      `SELECT platform, status FROM marketplace_channels WHERE id = ?`,
-      [channelId],
-    );
-
-    if (channel.length === 0) {
-      throw ApiError.notFound('Channel not found');
-    }
-    if (channel[0].status !== 'active') {
-      throw ApiError.invalidRequest('Channel is not active');
-    }
-
-    // Create a sync job record.
-    const jobId = uuid();
-    await db.run(
-      `INSERT INTO marketplace_sync_jobs (id, channel_id, job_type, status) VALUES (?, ?, 'push_products', 'pending')`,
-      [jobId, channelId],
-    );
-
-    return c.json({ ok: true, jobId, message: 'Sync job queued' });
-  });
-
-  // ── POST /:channelId/sync/inventory ─────────────────────────────────────
-
-  app.post('/inventory', async (c) => {
-    const db = getDb(c.var.db);
-    const channelId = c.req.param('channelId');
-
-
-    const channel = await db.query<{ status: string }>(
-      `SELECT status FROM marketplace_channels WHERE id = ?`,
-      [channelId],
-    );
-
-    if (channel.length === 0) {
-      throw ApiError.notFound('Channel not found');
-    }
-    if (channel[0].status !== 'active') {
-      throw ApiError.invalidRequest('Channel is not active');
-    }
-
-    const jobId = uuid();
-    await db.run(
-      `INSERT INTO marketplace_sync_jobs (id, channel_id, job_type, status) VALUES (?, ?, 'push_inventory', 'pending')`,
-      [jobId, channelId],
-    );
-
-    return c.json({ ok: true, jobId, message: 'Inventory sync queued' });
-  });
+      try {
+        const { jobId } = await enqueueSyncJob(db, c.env.MARKETPLACE_SYNC_QUEUE, channelId, jobType);
+        return c.json({ ok: true, jobId, jobType, status: 'pending' }, 202);
+      } catch (err) {
+        if (!(err instanceof SyncQueueError)) throw err;
+        if (err.code === 'job_already_running') {
+          throw new ApiError('conflict', 409, err.message, { jobId: err.existingJobId });
+        }
+        throw new ApiError('service_unavailable', 503, err.message);
+      }
+    });
+  }
 
   return app;
 }

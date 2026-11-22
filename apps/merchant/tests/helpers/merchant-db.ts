@@ -67,8 +67,18 @@ export function createMerchantDb(env: Record<string, unknown> = {}, sqlite = new
       }
     },
   };
-  const ctx = { storage, acceptWebSocket() {} };
+  let ready: Promise<unknown> = Promise.resolve();
+  const ctx = {
+    storage,
+    acceptWebSocket() {},
+    // Like the runtime: run the constructor's init; `ready` resolves when it finishes.
+    blockConcurrencyWhile<T>(fn: () => Promise<T>): Promise<T> {
+      const p = fn();
+      ready = p;
+      return p;
+    },
+  };
   const merchant = new MerchantDO(ctx as never, env as never);
   merchant.query('SELECT 1'); // runs SCHEMA + migrations
-  return { merchant, sqlite };
+  return { merchant, sqlite, ready: () => ready };
 }

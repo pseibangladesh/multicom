@@ -10,7 +10,11 @@ node_modules/
 # npm logs
 npm-debug.log*
 
-# dotenv environment files
+# dotenv environment files (secrets: never commit; see docs/production-checklist.md)
+.env
+.env.*
+!.env.example
+.dev.vars
 
 apps/client/package-lock.json.bak
 apps/cloudflare-worker/package-lock.json.bak

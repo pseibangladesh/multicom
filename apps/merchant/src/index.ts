@@ -61,6 +61,8 @@ import { customerAiTokensRouter, proxyAiTokensRouter, adminAiTokensRouter } from
 import { sslcommerzCheckoutApp, sslcommerzIpnApp } from './routes/sslcommerz-ipn';
 import { adminSettings } from './routes/admin-settings';
 import { marketplaceRoutes } from './routes/marketplace';
+import { adminMarketplaceChannelRoutes } from './routes/marketplace/channels';
+import { handleMarketplaceQueue } from './workers/marketplace-consumer';
 
 // ... inside the app setup ...
 
@@ -79,14 +81,19 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
   scheme: 'bearer',
 });
 
-// Allowed browser origins (CORS_ORIGIN / STORE_URL) get credentialed CORS so
-// the Better Auth session cookie is sent. Everyone else keeps '*', which still
-// works for pk_/sk_ Bearer requests from other headless frontends.
+// CORS is an allowlist: only STORE_URL (or the comma-separated CORS_ORIGIN
+// override, e.g. storefront + a separate admin host) gets an
+// Access-Control-Allow-Origin header, with credentials so the Better Auth
+// session cookie is sent. Any other browser origin gets no CORS headers and
+// cannot read responses. There is no '*' fallback; if neither variable is set,
+// no browser origin is allowed (fail closed). Server-to-server callers with
+// pk_/sk_ keys are unaffected because CORS only applies to browsers.
 app.use('*', (c, next) => {
   const allowed = allowedOrigins(c.env);
   return cors({
-    origin: (origin) => (origin && allowed.includes(origin) ? origin : '*'),
+    origin: (origin) => (origin && allowed.includes(origin) ? origin : null),
     credentials: true,
+    maxAge: 600,
   })(c, next);
 });
 
@@ -196,6 +203,7 @@ app.route('/v1/admin/ai-tokens', adminAiTokensRouter);
 app.route('/v1/admin/settings', adminSettings);
 // Marketplace integrations (OAuth connect, webhooks, sync)
 app.route('/v1/marketplace', marketplaceRoutes());
+app.route('/v1/admin/marketplace', adminMarketplaceChannelRoutes()); // channel list + config (admin UI)
 app.route('/oauth', oauth);
 app.route('', oauth);
 app.route('/', ucp);
@@ -220,6 +228,10 @@ app.get('/docs', swaggerUI({ url: '/openapi.json' }));
 
 export default {
   fetch: app.fetch,
+  // Consumer for MARKETPLACE_SYNC_QUEUE (see wrangler.jsonc "queues.consumers").
+  async queue(batch: MessageBatch<unknown>, env: Env) {
+    await handleMarketplaceQueue(batch, env);
+  },
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const id = env.MERCHANT.idFromName('default');
     const stub = env.MERCHANT.get(id);

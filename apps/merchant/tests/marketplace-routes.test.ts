@@ -225,11 +225,13 @@ describe('marketplace routes: OAuth connect', () => {
 
 describe('marketplace routes: sync jobs', () => {
   it('queues push_products / push_inventory jobs (the CHECK used to reject "pending")', async () => {
-    const { merchant, call } = await setup();
+    const sent: unknown[] = [];
+    const { merchant, call } = await setup({ ...ENV, MARKETPLACE_SYNC_QUEUE: { send: async (m: unknown) => void sent.push(m) } });
     merchant.run(`INSERT INTO marketplace_channels (id, platform, store_id) VALUES ('ch1', 'ebay', 'default')`);
 
-    expect((await call('POST', '/ch1/sync/products')).status).toBe(200);
-    expect((await call('POST', '/ch1/sync/inventory')).status).toBe(200);
+    expect((await call('POST', '/ch1/sync/products')).status).toBe(202);
+    expect((await call('POST', '/ch1/sync/inventory')).status).toBe(202);
+    expect(sent).toHaveLength(2);
     expect(merchant.query<any>(`SELECT job_type, status FROM marketplace_sync_jobs ORDER BY job_type`)).toEqual([
       { job_type: 'push_inventory', status: 'pending' },
       { job_type: 'push_products', status: 'pending' },

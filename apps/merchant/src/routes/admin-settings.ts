@@ -2,7 +2,7 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { getDb } from '../db';
-import { adminOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, HonoEnv } from '../types';
 
 // ─── Encryption helpers ───────────────────────────────────────────────
@@ -28,6 +28,10 @@ async function encryptSecret(plaintext: string, password: string): Promise<strin
 
 // ─── App setup ────────────────────────────────────────────────────────
 const adminApp = new OpenAPIHono<HonoEnv>();
+// Mounted at /v1/admin, so this middleware runs for EVERY /v1/admin/* route
+// (Hono applies a sub-app's use('*') to the whole prefix). adminOnly reads
+// c.get('auth'), so authentication must run first or every request 500s.
+adminApp.use('*', authMiddleware);
 adminApp.use('*', adminOnly);
 
 // ─── GET /v1/admin/settings/payment-gateways ─────────────────────────

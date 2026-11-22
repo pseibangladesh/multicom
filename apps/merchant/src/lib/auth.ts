@@ -16,14 +16,32 @@ export interface AuthEnv {
  * DurableObjectStorage is only reachable from the object itself, not from a
  * stub in the Worker. The Worker forwards /api/auth/* to the DO (see do.ts).
  */
+/** Better Auth signs session cookies with this; short or missing secrets are forgeable. */
+export const MIN_AUTH_SECRET_LENGTH = 32;
+
+/**
+ * Fails closed instead of letting Better Auth fall back to its built-in
+ * development secret, which is public. The message never includes the value.
+ */
+export function assertAuthSecret(secret: string | undefined): string {
+  if (!secret || secret.trim().length < MIN_AUTH_SECRET_LENGTH) {
+    throw new Error(
+      `BETTER_AUTH_SECRET must be set to at least ${MIN_AUTH_SECRET_LENGTH} characters ` +
+        '(generate one with `openssl rand -base64 32`, then `wrangler secret put BETTER_AUTH_SECRET`)'
+    );
+  }
+  return secret;
+}
+
 export function createAuth(env: AuthEnv, storage: DurableObjectStorage) {
+  const secret = assertAuthSecret(env.BETTER_AUTH_SECRET);
   const db = drizzle(storage, { schema });
   const baseURL = env.API_BASE_URL || 'http://127.0.0.1:8787';
 
   return betterAuth({
     baseURL,
     basePath: '/api/auth',
-    secret: env.BETTER_AUTH_SECRET,
+    secret,
     // The storefront runs on another origin; Better Auth rejects sign-in/up
     // requests whose Origin isn't trusted.
     trustedOrigins: allowedOrigins(env),
