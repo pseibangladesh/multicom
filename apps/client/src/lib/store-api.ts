@@ -378,6 +378,28 @@ export async function checkoutCart(
   });
 }
 
+/** Response from POST /v1/carts/:id/checkout/sslcommerz. */
+export interface SslcommerzCheckoutResponse {
+  gateway_url: string;
+}
+
+/**
+ * Start an SSLCommerz payment for a cart. Redirect the shopper to
+ * `gateway_url`; SSLCommerz brings them back via the API's
+ * /v1/webhooks/sslcommerz/return/* redirect, and the IPN marks the order paid.
+ *
+ * @param cartId - Cart identifier.
+ */
+export async function checkoutCartSslcommerz(
+  cartId: string,
+): Promise<SslcommerzCheckoutResponse> {
+  return request<SslcommerzCheckoutResponse>(
+    `/v1/carts/${cartId}/checkout/sslcommerz`,
+    // The route validates a JSON body, so an empty object must be sent.
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
 /**
  * Update the shipping address for a cart.
  *

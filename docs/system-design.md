@@ -565,7 +565,8 @@ See [Section 15](#15-environment-variables) for full configuration guide.
 | Variable | Purpose |
 |----------|---------|
 | `ETSY_CLIENT_ID` | Etsy app keystring |
-| `ETSY_SHARED_SECRET` | Etsy shared secret (for OAuth token refresh) |
+| `ETSY_SHARED_SECRET` | Etsy shared secret; sent with the keystring as `x-api-key: keystring:shared_secret` |
+| `ETSY_REDIRECT_URI` | Registered OAuth callback URL (optional; defaults to `API_BASE_URL` + `/v1/marketplace/connect/etsy/callback`) |
 
 #### eBay
 | Variable | Purpose |

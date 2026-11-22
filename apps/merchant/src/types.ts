@@ -174,10 +174,17 @@ export type Env = {
   CLOUDFLARE_AIG_TOKEN?: string;
 
 
+  /** Etsy app keystring (OAuth client_id). */
   ETSY_CLIENT_ID?: string;
+  /** Etsy app shared secret; sent as x-api-key "keystring:shared_secret". */
+  ETSY_SHARED_SECRET?: string;
+  /** Registered Etsy callback URL. Default: API_BASE_URL + /v1/marketplace/connect/etsy/callback. */
+  ETSY_REDIRECT_URI?: string;
   EBAY_CLIENT_ID?: string;
   EBAY_CLIENT_SECRET?: string;
   EBAY_RU_NAME?: string;
+  /** 'sandbox' targets api.sandbox.ebay.com / auth.sandbox.ebay.com. Default: production. */
+  EBAY_ENVIRONMENT?: string;
   AMAZON_LWA_APP_ID?: string;
   AMAZON_LWA_APP_SECRET?: string;
 };

@@ -921,5 +921,18 @@
   "login-signup-title": "创建账户",
   "login-signup-subtitle": "注册以跟踪订单并保存您的信息",
   "login-create-account-button": "创建账户",
-  "login-have-account": "已有账户？"
+  "login-have-account": "已有账户？",
+  "admin-dashboard-title": "管理后台",
+  "admin-dashboard-products-desc": "创建和编辑商品、规格与价格。",
+  "admin-dashboard-orders-desc": "查看、发货和退款订单。",
+  "admin-dashboard-payments-desc": "配置 Stripe 和 SSLCommerz。",
+  "admin-dashboard-recent-orders": "最近订单",
+  "admin-dashboard-view-all": "查看全部",
+  "admin-dashboard-no-orders": "暂无订单。",
+  "admin-dashboard-load-error": "无法加载订单。",
+  "admin-dashboard-enabled": "已启用",
+  "admin-dashboard-disabled": "已停用",
+  "admin-payment-gateways-title": "支付网关",
+  "checkout-payment-failed": "支付未成功，您未被扣款，请重试。",
+  "checkout-payment-cancelled": "支付已取消，您的购物车仍会保留。"
 }

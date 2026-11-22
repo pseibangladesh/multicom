@@ -921,5 +921,18 @@
   "login-signup-title": "إنشاء حساب",
   "login-signup-subtitle": "سجّل لتتبع طلباتك وحفظ بياناتك",
   "login-create-account-button": "إنشاء الحساب",
-  "login-have-account": "لديك حساب بالفعل؟"
+  "login-have-account": "لديك حساب بالفعل؟",
+  "admin-dashboard-title": "لوحة التحكم",
+  "admin-dashboard-products-desc": "أنشئ المنتجات والمتغيرات والأسعار وعدّلها.",
+  "admin-dashboard-orders-desc": "راجع الطلبات وشحنها واستردادها.",
+  "admin-dashboard-payments-desc": "اضبط Stripe و SSLCommerz.",
+  "admin-dashboard-recent-orders": "أحدث الطلبات",
+  "admin-dashboard-view-all": "عرض الكل",
+  "admin-dashboard-no-orders": "لا توجد طلبات بعد.",
+  "admin-dashboard-load-error": "تعذّر تحميل الطلبات.",
+  "admin-dashboard-enabled": "مفعّل",
+  "admin-dashboard-disabled": "معطّل",
+  "admin-payment-gateways-title": "بوابات الدفع",
+  "checkout-payment-failed": "لم تتم عملية الدفع. لم يتم خصم أي مبلغ؛ يرجى المحاولة مرة أخرى.",
+  "checkout-payment-cancelled": "تم إلغاء الدفع. سلتك ما زالت محفوظة."
 }

@@ -1,131 +1,233 @@
 import { Hono } from 'hono';
 import { getDb } from '../../db';
 import { ApiError, uuid, type HonoEnv } from '../../types';
-import { encrypt } from '../../lib/marketplace/crypto-utils';
+import { allowedOrigins } from '../../lib/session';
+import { CredentialManager } from '../../lib/marketplace/auth-manager';
+import {
+  buildEbayAuthorizeUrl,
+  ebayAppFromEnv,
+  exchangeEbayCode,
+  saveEbayTokens,
+  EbayOAuthError,
+} from '../../lib/marketplace/ebay-oauth';
+import {
+  buildEtsyAuthorizeUrl,
+  createCodeVerifier,
+  etsyAppFromEnv,
+  exchangeEtsyCode,
+  saveEtsyTokens,
+  EtsyOAuthError,
+} from '../../lib/marketplace/etsy-oauth';
+import { fetchEtsyShopId, EtsyApiError } from '../../lib/marketplace/etsy';
+import { parseChannelConfig, type ChannelConfig } from '../../lib/marketplace/channel';
 import type { MarketplacePlatform } from '../../lib/marketplace/types';
-import type { Context } from 'hono';
+
+/**
+ * OAuth connect flow (admin only; mounted behind authMiddleware + adminOnly).
+ *
+ *   POST /connect/:platform          → { authUrl, state }; records a single-use state
+ *   GET  /connect/:platform/callback → consumes the state, exchanges the code,
+ *                                      stores tokens, creates/activates the channel
+ *
+ * The state is the CSRF defence: 256 bits of randomness, bound to the platform,
+ * valid for 10 minutes, and deleted atomically on first use. The channel row is
+ * only created (or re-activated) once tokens have actually been obtained.
+ */
+
+export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+/** Single-merchant DO: every channel belongs to the one store. */
+const DEFAULT_STORE_ID = 'default';
+
+const PLATFORMS: readonly MarketplacePlatform[] = ['etsy', 'ebay', 'amazon'];
+
+function parsePlatform(raw: string): MarketplacePlatform {
+  if (!PLATFORMS.includes(raw as MarketplacePlatform)) {
+    throw ApiError.invalidRequest('Invalid platform. Supported: etsy, ebay, amazon');
+  }
+  return raw as MarketplacePlatform;
+}
+
+function notImplemented(platform: string): ApiError {
+  return new ApiError('not_implemented', 501, `${platform} connection is not implemented yet`);
+}
+
+function randomState(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Only allow redirecting back to our own front-end origins (no open redirect). */
+function safeReturnTo(raw: unknown, origins: string[]): string | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  try {
+    const url = new URL(raw);
+    return origins.includes(url.origin) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function withParams(url: string, params: Record<string, string>): string {
+  const u = new URL(url);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+  return u.toString();
+}
 
 export function connectRoutes(): Hono<HonoEnv> {
   const app = new Hono<HonoEnv>();
 
   app.post('/:platform', async (c) => {
-    const db = getDb(c.var.db);
-    const platform = c.req.param('platform') as MarketplacePlatform;
-    const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+    const platform = parsePlatform(c.req.param('platform'));
 
-    if (!['etsy', 'ebay', 'amazon'].includes(platform)) {
-      throw ApiError.invalidRequest('Invalid platform. Supported: etsy, ebay, amazon');
-    }
-
-    const apiKey = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!apiKey) throw ApiError.unauthorized('API key required');
-
-    const keyHash = await hashKey(apiKey);
-    const keyRow = await db.query<{ id: string; role: string }>(
-      `SELECT id, role FROM api_keys WHERE key_hash = ?`, [keyHash]
-    );
-
-    if (keyRow.length === 0 || keyRow[0].role !== 'admin') {
-      throw ApiError.unauthorized('Invalid or non-admin API key');
-    }
-
-    const configRows = await db.query<{ value: string }>(
-      `SELECT value FROM config WHERE key = 'store_id'`, []
-    );
-    const storeId = configRows.length > 0 ? JSON.parse(configRows[0].value) : null;
-    if (!storeId) throw ApiError.invalidRequest('Store not configured. Complete setup first.');
-
-    const existing = await db.query<{ id: string }>(
-      `SELECT id FROM marketplace_channels WHERE platform = ? AND store_id = ?`, [platform, storeId]
-    );
-
-    let channelId: string;
-    if (existing.length > 0) {
-      channelId = existing[0].id;
+    let authorize: (state: string) => Promise<{ authUrl: string; codeVerifier?: string }>;
+    if (platform === 'ebay') {
+      const ebay = ebayAppFromEnv(c.env);
+      if (!ebay) throw ApiError.invalidRequest('eBay is not configured (EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_RU_NAME)');
+      authorize = async (state) => ({ authUrl: buildEbayAuthorizeUrl(ebay, state) });
+    } else if (platform === 'etsy') {
+      const etsy = etsyAppFromEnv(c.env);
+      if (!etsy) {
+        throw ApiError.invalidRequest('Etsy is not configured (ETSY_CLIENT_ID, ETSY_SHARED_SECRET, and ETSY_REDIRECT_URI or API_BASE_URL)');
+      }
+      // PKCE: the verifier stays server-side with the state; only its hash goes to Etsy.
+      authorize = async (state) => {
+        const codeVerifier = createCodeVerifier();
+        return { authUrl: await buildEtsyAuthorizeUrl(etsy, state, codeVerifier), codeVerifier };
+      };
     } else {
-      channelId = uuid();
-      await db.run(
-        `INSERT INTO marketplace_channels (id, platform, store_id, config_json, status) VALUES (?, ?, ?, '{}', 'active')`,
-        [channelId, platform, storeId]
-      );
+      throw notImplemented(platform);
     }
 
-    const authUrl = await generateAuthUrl(c, platform, channelId, body);
-    return c.json({ ok: true, channelId, authUrl });
+    const body = (await c.req.json().catch(() => ({}))) as { channel_id?: unknown; return_to?: unknown };
+    const db = getDb(c.var.db);
+
+    // Reconnecting an existing channel (e.g. after its refresh token expired).
+    let channelId: string | null = null;
+    if (body.channel_id !== undefined) {
+      const rows = await db.query<{ id: string }>(
+        `SELECT id FROM marketplace_channels WHERE id = ? AND platform = ?`,
+        [String(body.channel_id), platform],
+      );
+      if (rows.length === 0) throw ApiError.notFound('Channel not found');
+      channelId = rows[0].id;
+    }
+
+    const returnTo = body.return_to === undefined ? null : safeReturnTo(body.return_to, allowedOrigins(c.env));
+    if (body.return_to !== undefined && !returnTo) {
+      throw ApiError.invalidRequest('return_to must be a URL on an allowed origin');
+    }
+
+    const now = Date.now();
+    await db.run(`DELETE FROM marketplace_oauth_states WHERE expires_at <= ?`, [new Date(now).toISOString()]);
+
+    const state = randomState();
+    const { authUrl, codeVerifier } = await authorize(state);
+    await db.run(
+      `INSERT INTO marketplace_oauth_states (state, platform, channel_id, code_verifier, return_to, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      [state, platform, channelId, codeVerifier ?? null, returnTo, new Date(now + OAUTH_STATE_TTL_MS).toISOString()],
+    );
+
+    return c.json({ ok: true, authUrl, state });
   });
 
   app.get('/:platform/callback', async (c) => {
-    const platform = c.req.param('platform') as MarketplacePlatform;
-    const params = new URLSearchParams(c.req.url.split('?')[1] ?? '');
-    const code = params.get('code');
-
-    if (!code) throw ApiError.invalidRequest('No authorization code received');
+    const platform = parsePlatform(c.req.param('platform'));
+    const state = c.req.query('state');
+    if (!state) throw ApiError.invalidRequest('Missing OAuth state');
 
     const db = getDb(c.var.db);
-    const configRows = await db.query<{ value: string }>(
-      `SELECT value FROM config WHERE key = 'store_id'`, []
-    );
-    const storeId = configRows.length > 0 ? JSON.parse(configRows[0].value) : null;
-    if (!storeId) throw ApiError.invalidRequest('Store not configured');
 
-    const channelRow = await db.query<{ id: string }>(
-      `SELECT id FROM marketplace_channels WHERE platform = ? AND store_id = ?`, [platform, storeId]
+    // Atomic consume: a replayed or concurrent callback finds nothing.
+    const [row] = await db.query<{ channel_id: string | null; code_verifier: string | null; return_to: string | null; expires_at: string }>(
+      `DELETE FROM marketplace_oauth_states WHERE state = ? AND platform = ?
+       RETURNING channel_id, code_verifier, return_to, expires_at`,
+      [state, platform],
     );
-    if (channelRow.length === 0) throw ApiError.notFound('Channel not found. Connect first.');
+    if (!row) throw ApiError.invalidRequest('Invalid or already used OAuth state');
+    if (new Date(row.expires_at).getTime() <= Date.now()) {
+      throw ApiError.invalidRequest('OAuth state expired; start the connection again');
+    }
 
-    const channelId = channelRow[0].id;
-    await exchangeCodeForTokens(c, platform, channelId, code);
-    return c.json({ ok: true, channelId });
+    const finish = (result: Record<string, string>, status: 200 | 400 | 502 = 200) =>
+      row.return_to
+        ? c.redirect(withParams(row.return_to, { marketplace: platform, ...result }), 303)
+        : c.json({ ok: result.result === 'connected', ...result }, status);
+
+    // Seller declined consent on the marketplace's page.
+    const providerError = c.req.query('error');
+    if (providerError) return finish({ result: 'denied', error: providerError }, 400);
+
+    const code = c.req.query('code');
+    if (!code) throw ApiError.invalidRequest('No authorization code received');
+
+    if (platform !== 'ebay' && platform !== 'etsy') throw notImplemented(platform);
+    if (!c.env.CRYPTOKEN) throw ApiError.internalServerError('CRYPTOKEN is not set; cannot store marketplace credentials');
+
+    // Exchange the code. Nothing is written until this succeeds.
+    let saveTokens: (credentials: CredentialManager, channelId: string) => Promise<void>;
+    let configPatch: Partial<ChannelConfig>;
+    let externalShopId: string | null = null;
+    try {
+      if (platform === 'ebay') {
+        const ebay = ebayAppFromEnv(c.env);
+        if (!ebay) throw ApiError.invalidRequest('eBay is not configured');
+        const tokens = await exchangeEbayCode(ebay, code);
+        saveTokens = (cm, id) => saveEbayTokens(cm, id, tokens);
+        configPatch = { environment: ebay.environment };
+      } else {
+        const etsy = etsyAppFromEnv(c.env);
+        if (!etsy) throw ApiError.invalidRequest('Etsy is not configured');
+        if (!row.code_verifier) throw ApiError.invalidRequest('OAuth state has no PKCE verifier; start the connection again');
+        const tokens = await exchangeEtsyCode(etsy, code, row.code_verifier);
+        externalShopId = await fetchEtsyShopId({ accessToken: tokens.accessToken, apiKey: `${etsy.clientId}:${etsy.sharedSecret}` });
+        saveTokens = (cm, id) => saveEtsyTokens(cm, id, tokens);
+        configPatch = { shop_id: externalShopId };
+      }
+    } catch (err) {
+      if (err instanceof EbayOAuthError || err instanceof EtsyOAuthError || err instanceof EtsyApiError) {
+        console.error(`[marketplace] ${platform} code exchange failed:`, err.message);
+        return finish({ result: 'error', error: 'token_exchange_failed' }, 502);
+      }
+      throw err;
+    }
+
+    // A shop that is already connected keeps its channel (and its order history).
+    let channelId = row.channel_id;
+    if (!channelId && externalShopId) {
+      const [same] = await db.query<{ id: string }>(
+        `SELECT id FROM marketplace_channels WHERE platform = ? AND external_shop_id = ? LIMIT 1`,
+        [platform, externalShopId],
+      );
+      channelId = same?.id ?? null;
+    }
+
+    if (channelId) {
+      const [existing] = await db.query<{ external_shop_id: string | null; config_json: string }>(
+        `SELECT external_shop_id, config_json FROM marketplace_channels WHERE id = ?`,
+        [channelId],
+      );
+      // Reconnecting must not silently re-point a channel at a different shop.
+      if (externalShopId && existing?.external_shop_id && existing.external_shop_id !== externalShopId) {
+        return finish({ result: 'error', error: 'shop_mismatch' }, 400);
+      }
+      await db.run(
+        `UPDATE marketplace_channels SET status = 'active', external_shop_id = COALESCE(?, external_shop_id),
+           config_json = ?, updated_at = datetime('now') WHERE id = ?`,
+        [externalShopId, JSON.stringify({ ...parseChannelConfig(existing?.config_json), ...configPatch }), channelId],
+      );
+    } else {
+      channelId = uuid();
+      await db.run(
+        `INSERT INTO marketplace_channels (id, platform, store_id, external_shop_id, config_json, status)
+         VALUES (?, ?, ?, ?, ?, 'active')`,
+        [channelId, platform, DEFAULT_STORE_ID, externalShopId, JSON.stringify(configPatch)],
+      );
+    }
+
+    await saveTokens(new CredentialManager(db, c.env.CRYPTOKEN), channelId);
+    return finish({ result: 'connected', channelId });
   });
 
   return app;
-}
-
-async function generateAuthUrl(c: Context<HonoEnv>, platform: MarketplacePlatform, channelId: string, body: Record<string, unknown>): Promise<string> {
-  switch (platform) {
-    case 'etsy': {
-      const clientId = c.env.ETSY_CLIENT_ID ?? (body as any)?.client_id ?? '';
-      if (!clientId) throw new Error('Etsy: ETSY_CLIENT_ID environment variable not set');
-      return `https://www.etsy.com/oauth_connect/authorize?client_id=${encodeURIComponent(clientId)}&state=${encodeURIComponent(uuid())}`;
-    }
-    case 'ebay': {
-      const clientId = c.env.EBAY_CLIENT_ID ?? (body as any)?.client_id ?? '';
-      const ruName = c.env.EBAY_RU_NAME;
-      if (!clientId || !ruName) throw new Error('eBay: credentials not set');
-      const scopes = ['https://api.ebay.com/oauth/api_scope/sell.inventory', 'https://api.ebay.com/oauth/api_scope/sell.fulfillment'].join('%20');
-      return `https://signin.ebay.com/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(ruName)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(uuid())}`;
-    }
-    case 'amazon': {
-      const clientId = c.env.AMAZON_LWA_APP_ID ?? (body as any)?.client_id ?? '';
-      if (!clientId) throw new Error('Amazon: AMAZON_LWA_APP_ID environment variable not set');
-      const scopes = ['calls:2021-03-01', 'inventory:2021-03-01', 'orders:2021-01-01'].join('%20');
-      return `https://www.amazon.com/ap/oa?client_id=${encodeURIComponent(clientId)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(uuid())}`;
-    }
-  }
-}
-
-async function exchangeCodeForTokens(c: Context<HonoEnv>, platform: MarketplacePlatform, channelId: string, code: string): Promise<void> {
-  const db = getDb(c.var.db);
-  
-  if (platform === 'ebay') {
-    const clientId = c.env.EBAY_CLIENT_ID ?? '';
-    const clientSecret = c.env.EBAY_CLIENT_SECRET ?? '';
-    const tokenBody = new URLSearchParams({ grant_type: 'authorization_code', code, client_id: clientId, client_secret: clientSecret });
-    const response = await fetch('https://api.ebay.com/identity/v1/oauth2/token', { method: 'POST', body: tokenBody });
-    
-    if (!response.ok) throw new Error(`eBay token exchange failed`);
-    const tokens = await response.json() as any;
-    
-    const encAccess = await encrypt(tokens.access_token, c.env.CRYPTOKEN ?? '');
-    const encRefresh = await encrypt(tokens.refresh_token, c.env.CRYPTOKEN ?? '');
-
-    await db.run(`INSERT INTO marketplace_credentials (id, channel_id, credential_type, encrypted_value, metadata) VALUES (?, ?, 'oauth_token', ?, '{}') ON CONFLICT(channel_id, credential_type) DO UPDATE SET encrypted_value = excluded.encrypted_value`, [uuid(), channelId, encAccess]);
-    await db.run(`INSERT INTO marketplace_credentials (id, channel_id, credential_type, encrypted_value, metadata) VALUES (?, ?, 'refresh_token', ?, '{}') ON CONFLICT(channel_id, credential_type) DO UPDATE SET encrypted_value = excluded.encrypted_value`, [uuid(), channelId, encRefresh]);
-  }
-}
-
-async function hashKey(key: string): Promise<string> {
-  const data = new TextEncoder().encode(key);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }

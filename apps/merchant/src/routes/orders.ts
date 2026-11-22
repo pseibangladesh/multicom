@@ -165,7 +165,7 @@ const updateOrder = createRoute({
 
 adminApp.openapi(updateOrder, async (c) => {
   const { orderId } = c.req.valid('param');
-  const { status, tracking_number, tracking_url } = c.req.valid('json');
+  const { status, tracking_number, tracking_url, tracking_carrier } = c.req.valid('json');
   const db = getDb(c.var.db);
 
   const [order] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
@@ -194,6 +194,11 @@ adminApp.openapi(updateOrder, async (c) => {
     params.push(tracking_url || null);
   }
 
+  if (tracking_carrier !== undefined) {
+    updates.push('tracking_carrier = ?');
+    params.push(tracking_carrier || null);
+  }
+
   if (updates.length === 0) {
     throw ApiError.invalidRequest('No fields to update');
   }
@@ -209,7 +214,7 @@ adminApp.openapi(updateOrder, async (c) => {
     let eventType: WebhookEventType = 'order.updated';
     if (status === 'shipped') eventType = 'order.shipped';
 
-    await dispatchWebhooks(c.var.db, c.executionCtx as any, 'order.refunded', {
+    await dispatchWebhooks(c.var.db, c.executionCtx as any, eventType, {
       order: formattedOrder,
       previous_status: order.status,
     });

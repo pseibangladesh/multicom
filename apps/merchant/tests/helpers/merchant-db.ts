@@ -48,8 +48,11 @@ function fakeSqlStorage(db: DatabaseSync) {
   };
 }
 
-export function createMerchantDb(env: Record<string, unknown> = {}) {
-  const sqlite = new DatabaseSync(':memory:');
+/**
+ * @param sqlite Pass an existing database to boot a second MerchantDO on it
+ *               (simulates a restart / re-running migrations on a deployed DO).
+ */
+export function createMerchantDb(env: Record<string, unknown> = {}, sqlite = new DatabaseSync(':memory:')) {
   const storage = {
     sql: fakeSqlStorage(sqlite),
     transactionSync<T>(fn: () => T): T {

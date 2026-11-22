@@ -29,7 +29,7 @@ import { ApiError, uuid } from '../../types';
 import type { HonoEnv } from '../../types';
 
 /**
- * Sync trigger routes (admin auth required).
+ * Sync trigger routes (admin only: authMiddleware + adminOnly in ./index.ts).
  *
  * POST /v1/marketplace/:channelId/sync/products — Trigger product sync to marketplace.
  * POST /v1/marketplace/:channelId/sync/inventory — Trigger inventory sync.
@@ -44,19 +44,6 @@ export function syncRoutes(): Hono<HonoEnv> {
     const db = getDb(c.var.db);
     const channelId = c.req.param('channelId');
 
-    // Validate API key auth.
-    const apiKey = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!apiKey) throw ApiError.unauthorized('API key required');
-
-    const keyHash = await hashKey(apiKey);
-    const keyRow = await db.query<{ role: string }>(
-      `SELECT role FROM api_keys WHERE key_hash = ?`,
-      [keyHash],
-    );
-
-    if (keyRow.length === 0 || keyRow[0].role !== 'admin') {
-      throw ApiError.unauthorized('Invalid or non-admin API key');
-    }
 
     // Verify channel exists and is active.
     const channel = await db.query<{ platform: string; status: string }>(
@@ -74,7 +61,7 @@ export function syncRoutes(): Hono<HonoEnv> {
     // Create a sync job record.
     const jobId = uuid();
     await db.run(
-      `INSERT INTO marketplace_sync_jobs (id, channel_id, job_type, status) VALUES (?, ?, 'pending', 'pending')`,
+      `INSERT INTO marketplace_sync_jobs (id, channel_id, job_type, status) VALUES (?, ?, 'push_products', 'pending')`,
       [jobId, channelId],
     );
 
@@ -87,18 +74,6 @@ export function syncRoutes(): Hono<HonoEnv> {
     const db = getDb(c.var.db);
     const channelId = c.req.param('channelId');
 
-    const apiKey = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!apiKey) throw ApiError.unauthorized('API key required');
-
-    const keyHash = await hashKey(apiKey);
-    const keyRow = await db.query<{ role: string }>(
-      `SELECT role FROM api_keys WHERE key_hash = ?`,
-      [keyHash],
-    );
-
-    if (keyRow.length === 0 || keyRow[0].role !== 'admin') {
-      throw ApiError.unauthorized('Invalid or non-admin API key');
-    }
 
     const channel = await db.query<{ status: string }>(
       `SELECT status FROM marketplace_channels WHERE id = ?`,
@@ -114,7 +89,7 @@ export function syncRoutes(): Hono<HonoEnv> {
 
     const jobId = uuid();
     await db.run(
-      `INSERT INTO marketplace_sync_jobs (id, channel_id, job_type, status) VALUES (?, ?, 'pending', 'pending')`,
+      `INSERT INTO marketplace_sync_jobs (id, channel_id, job_type, status) VALUES (?, ?, 'push_inventory', 'pending')`,
       [jobId, channelId],
     );
 
@@ -122,14 +97,4 @@ export function syncRoutes(): Hono<HonoEnv> {
   });
 
   return app;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-async function hashKey(key: string): Promise<string> {
-  const data = new TextEncoder().encode(key);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
 }

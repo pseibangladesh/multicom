@@ -99,7 +99,7 @@ async function deriveKey(password: string): Promise<CryptoKey> {
     pwBytes,
     'PBKDF2',
     false,
-    ['deriveBits'],
+    ['deriveKey'],
   );
 
   return crypto.subtle.deriveKey(

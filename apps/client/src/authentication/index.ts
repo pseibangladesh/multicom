@@ -44,3 +44,6 @@ export {
   AuthenticationGuardWithPermission,
   useSecuredApi,
 } from "@/features/auth/components/auth-components";
+
+export { AdminGuard } from "@/features/auth/components/admin-guard";
+export { adminAccess, loginRedirect, type AdminAccess } from "@/features/auth/admin-access";

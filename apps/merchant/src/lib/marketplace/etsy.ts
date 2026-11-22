@@ -26,619 +26,648 @@
 /**
  * Etsy Open API v3 client implementing IMarketplaceClient.
  *
- * Base URL: https://api.etsy.com/v3/application/
- * Auth: x-api-key header (keystring:shared_secret) + OAuth 2.0 Bearer token
+ *   Listings   /v3/application/shops/{shop_id}/listings, /listings/{id}/inventory
+ *   Receipts   /v3/application/shops/{shop_id}/receipts (orders) + /tracking
+ *
+ * Identity: one Etsy listing per variant, holding a single inventory product
+ * whose SKU is ours. The external product ID is the listing_id. Listings made
+ * by hand on Etsy may carry several products (variations); updates only touch
+ * the product whose SKU matches and keep the others as they are.
+ *
+ * Etsy has no SKU lookup endpoint, so the client scans the shop's listings
+ * (the `skus` field) once and caches SKU → listing_id for its lifetime.
+ *
+ * Creating a listing needs channel defaults (taxonomy, shipping profile,
+ * readiness state). Etsy will not activate a listing without a photo, so a new
+ * listing whose product has no imageUrl stays a draft.
+ *
+ * Tokens come from an EtsyTokenProvider (see etsy-oauth.ts). A 401 triggers one
+ * forced refresh and a retry. `fetch` is injectable for tests.
  */
 
-import type {
-  IMarketplaceClient,
-  MarketProduct,
-  MarketInventoryItem,
-  MarketOrder,
-} from './types';
-import { mapMarketplaceToProduct, mapMarketplaceToOrder } from './data-mapper';
+import type { IMarketplaceClient, MarketProduct, MarketInventoryItem, MarketOrder } from './types';
+import type { EtsyTokenProvider } from './etsy-oauth';
+import { resolveBuyerEmail } from './buyer';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+export const ETSY_API_BASE = 'https://api.etsy.com/v3/application';
 
-/** Etsy OAuth access token response. */
-interface EtsyTokenResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  token_type: string;
+/** Etsy's catch-all carrier name; tracking still uploads without a carrier link. */
+export const ETSY_DEFAULT_CARRIER_FALLBACK = 'other';
+
+export interface EtsyListingDefaults {
+  taxonomyId: number;
+  shippingProfileId: number;
+  /** Processing profile; Etsy requires it on new physical listings. */
+  readinessStateId?: number;
+  returnPolicyId?: number;
+  whoMade?: 'i_did' | 'someone_else' | 'collective';
+  /** e.g. made_to_order, 2020_2026. */
+  whenMade?: string;
+  isSupply?: boolean;
 }
 
-/** Etsy listing resource from API. */
-interface EtsyListing {
-  listing_id: number;
-  shop_id: number;
-  title: string;
-  description: string;
-  type: string;
+export interface EtsyClientOptions {
+  tokens: EtsyTokenProvider;
+  /** x-api-key value: "keystring:shared_secret". */
+  apiKey: string;
+  shopId: string;
+  listing?: EtsyListingDefaults;
+  /** carrier_name used by updateShipment (e.g. usps, ups, fedex, royal-mail). */
+  defaultCarrier?: string;
+  /** Used for channelStoreId on mapped orders. */
+  channelId?: string;
+  rateLimiter?: { acquire(platform: string): Promise<boolean> };
+  fetch?: typeof fetch;
+}
+
+export class EtsyApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'EtsyApiError';
+  }
+}
+
+// ─── Etsy wire types (only the fields we read) ───────────────────────────────
+
+export interface EtsyMoney {
+  amount: number;
+  divisor: number;
+  currency_code: string;
+}
+
+interface EtsyPropertyValue {
+  property_id: number;
+  property_name?: string | null;
+  scale_id?: number | null;
+  value_ids: number[];
+  values: string[];
+}
+
+interface EtsyOffering {
+  offering_id?: number;
+  price: EtsyMoney;
   quantity: number;
-  price: string;
-  currency_code: string;
-  images: Array<{ url_raw: string }>;
-  state: string; // 'active' | 'draft' | 'inactive' | 'sold_out' | 'expired'
-  category_id: number | null;
-  who_made: string;
-  is_supply: boolean;
-  when_made: string;
-  material: string[];
-  processing_min: number;
-  processing_max: number;
+  is_enabled: boolean;
+  is_deleted?: boolean;
 }
 
-/** Etsy listing product (inventory item within a listing). */
-interface EtsyListingProduct {
-  product_id: number;
+interface EtsyInventoryProduct {
+  product_id?: number;
   sku: string;
-  property_values: Array<{ name: string; value: string }>;
-  offerings: Array<{
-    price: { amount: string; divisor: number };
-    quantity: number;
-    is_enabled: boolean;
-  }>;
+  is_deleted?: boolean;
+  offerings: EtsyOffering[];
+  property_values: EtsyPropertyValue[];
 }
 
-/** Etsy receipt (order) from API. */
-interface EtsyReceipt {
+export interface EtsyInventory {
+  products: EtsyInventoryProduct[];
+  price_on_property?: number[];
+  quantity_on_property?: number[];
+  sku_on_property?: number[];
+}
+
+export interface EtsyListing {
+  listing_id: number;
+  title?: string;
+  description?: string;
+  state?: string; // active | inactive | sold_out | draft | expired
+  quantity?: number;
+  price?: EtsyMoney;
+  skus?: string[];
+  item_weight?: number | null;
+  item_weight_unit?: string | null;
+  images?: Array<{ url_fullxfull?: string; url_570xN?: string }>;
+  inventory?: EtsyInventory;
+}
+
+export interface EtsyReceipt {
   receipt_id: number;
-  user_id: number;
-  from_customer: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  };
-  line_items: Array<{
-    listing_product_id: number;
-    "product.SKU": string;
-    title: string;
-    quantity: number;
-    price: { amount: string; divisor: number };
+  status?: string; // paid | completed | open | payment processing | canceled | fully refunded | partially refunded
+  is_paid?: boolean;
+  is_shipped?: boolean;
+  buyer_email?: string | null;
+  name?: string | null;
+  first_line?: string | null;
+  second_line?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  country_iso?: string | null;
+  created_timestamp?: number;
+  create_timestamp?: number;
+  subtotal?: EtsyMoney;
+  total_price?: EtsyMoney;
+  grandtotal?: EtsyMoney;
+  total_shipping_cost?: EtsyMoney;
+  total_tax_cost?: EtsyMoney;
+  total_vat_cost?: EtsyMoney;
+  transactions?: Array<{
+    transaction_id: number;
+    title?: string | null;
+    quantity?: number;
+    /** Unit price. */
+    price?: EtsyMoney;
+    sku?: string | null;
   }>;
-  shipping_amount: { amount: string; divisor: number };
-  tax: { amount: string; divisor: number } | null;
-  total_price: { amount: string; divisor: number };
-  currency_code: string;
-  created_timestamp: number;
-  updated_timestamp: number;
-  status: string;
-  shipping?: {
-    first_name: string;
-    last_name: string;
-    address_line1: string;
-    address_line2?: string | null;
-    city: string;
-    state_province?: string;
-    postal_code: string;
-    country_code: string;
-    phone?: string | null;
+}
+
+// ─── Money ───────────────────────────────────────────────────────────────────
+
+/** {amount: 1234, divisor: 100} → 1234. */
+export function etsyMoneyToCents(m: EtsyMoney | undefined | null): number {
+  if (!m || !m.divisor) return 0;
+  return Math.round((m.amount * 100) / m.divisor);
+}
+
+/** Etsy write endpoints take prices as a decimal number in the shop currency. */
+export function centsToEtsyPrice(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
+// ─── Mapping ─────────────────────────────────────────────────────────────────
+
+const PAYMENT_STATUS_BY_RECEIPT_STATUS: Record<string, string> = {
+  'fully refunded': 'FULLY_REFUNDED',
+  'partially refunded': 'PARTIALLY_REFUNDED',
+};
+
+/** Normalizes to the eBay-style values order-import understands (PAID, FULFILLED, …). */
+export function mapEtsyReceipt(r: EtsyReceipt, channelStoreId = ''): MarketOrder {
+  const ext = String(r.receipt_id);
+  const status = (r.status ?? '').toLowerCase();
+
+  const items = (r.transactions ?? []).map((t) => ({
+    sku: t.sku ?? '',
+    title: t.title ?? '',
+    qty: t.quantity ?? 1,
+    unitPriceCents: etsyMoneyToCents(t.price),
+    externalLineItemId: String(t.transaction_id),
+  }));
+
+  const subtotalCents = r.subtotal
+    ? etsyMoneyToCents(r.subtotal)
+    : r.total_price
+      ? etsyMoneyToCents(r.total_price)
+      : items.reduce((s, i) => s + i.unitPriceCents * i.qty, 0);
+  const taxCents = etsyMoneyToCents(r.total_tax_cost) + etsyMoneyToCents(r.total_vat_cost);
+  const shippingCents = etsyMoneyToCents(r.total_shipping_cost);
+
+  const hasAddress = Boolean(r.first_line || r.city || r.zip);
+  const createdSec = r.created_timestamp ?? r.create_timestamp;
+
+  return {
+    externalOrderId: ext,
+    platform: 'etsy',
+    channelStoreId,
+    customerEmail: resolveBuyerEmail(r.buyer_email, ext),
+    items,
+    subtotalCents,
+    taxCents,
+    shippingCents,
+    totalCents: r.grandtotal ? etsyMoneyToCents(r.grandtotal) : subtotalCents + taxCents + shippingCents,
+    currency: r.grandtotal?.currency_code ?? r.subtotal?.currency_code ?? r.total_price?.currency_code ?? 'USD',
+    status: r.is_shipped || status === 'completed' ? 'FULFILLED' : 'NOT_STARTED',
+    paymentStatus: PAYMENT_STATUS_BY_RECEIPT_STATUS[status] ?? (r.is_paid ? 'PAID' : 'PENDING'),
+    cancelled: status === 'canceled' || status === 'cancelled',
+    ...(hasAddress && {
+      shippingAddress: {
+        name: r.name ?? '',
+        line1: r.first_line ?? '',
+        ...(r.second_line && { line2: r.second_line }),
+        city: r.city ?? '',
+        ...(r.state && { state: r.state }),
+        postalCode: r.zip ?? '',
+        country: r.country_iso ?? '',
+      },
+    }),
+    createdAt: createdSec ? new Date(createdSec * 1000).toISOString() : new Date().toISOString(),
   };
-  is_digital: boolean;
 }
 
-/** Etsy shipping object from receipt. */
-interface EtsyShipping {
-  first_name: string;
-  last_name: string;
-  address_line1: string;
-  address_line2: string | null;
-  city: string;
-  state_province: string;
-  postal_code: string;
-  country_code: string;
-  phone: string | null;
+const GRAMS_PER_UNIT: Record<string, number> = { g: 1, kg: 1000, oz: 28.3495, lb: 453.592 };
+
+function listingStatus(state: string | undefined): MarketProduct['status'] {
+  if (state === 'active') return 'active';
+  if (state === 'draft') return 'draft';
+  return 'inactive';
 }
 
-// ─── EtsyClient class ────────────────────────────────────────────────────────
+/** One MarketProduct per live inventory product (variant) of the listing. */
+export function mapEtsyListing(l: EtsyListing): MarketProduct[] {
+  const base = {
+    id: String(l.listing_id),
+    title: l.title ?? '',
+    description: l.description ?? '',
+    imageUrl: l.images?.[0]?.url_fullxfull ?? l.images?.[0]?.url_570xN ?? null,
+    weightG: l.item_weight ? Math.round(l.item_weight * (GRAMS_PER_UNIT[l.item_weight_unit ?? 'g'] ?? 1)) : 0,
+    requiresShipping: true,
+    status: listingStatus(l.state),
+  };
+
+  const products = (l.inventory?.products ?? []).filter((p) => !p.is_deleted);
+  if (products.length === 0) {
+    return [
+      {
+        ...base,
+        sku: l.skus?.[0] ?? '',
+        priceCents: etsyMoneyToCents(l.price),
+        currency: l.price?.currency_code ?? 'USD',
+        quantity: l.quantity ?? 0,
+      },
+    ];
+  }
+  return products.map((p) => {
+    const offer = p.offerings.find((o) => !o.is_deleted) ?? p.offerings[0];
+    return {
+      ...base,
+      sku: p.sku,
+      priceCents: etsyMoneyToCents(offer?.price ?? l.price),
+      currency: offer?.price?.currency_code ?? l.price?.currency_code ?? 'USD',
+      quantity: offer?.is_enabled === false ? 0 : (offer?.quantity ?? 0),
+    };
+  });
+}
 
 /**
- * Etsy API client implementing IMarketplaceClient.
- *
- * Usage:
- *   const client = new EtsyClient(config, credentialManager, rateLimiter);
- *   await client.refreshTokens();
- *   const products = await client.listProducts();
+ * GET inventory → PUT body. Drops read-only fields and converts prices; `patch`
+ * changes the offerings of the product with the given SKU.
  */
+export function inventoryWriteBody(
+  inv: EtsyInventory,
+  patch?: { sku: string; priceCents?: number; quantity?: number },
+): Record<string, unknown> {
+  return {
+    products: inv.products
+      .filter((p) => !p.is_deleted)
+      .map((p) => {
+        const hit = patch && p.sku === patch.sku;
+        return {
+          sku: p.sku,
+          property_values: p.property_values.map((v) => ({
+            property_id: v.property_id,
+            ...(v.property_name != null && { property_name: v.property_name }),
+            ...(v.scale_id != null && { scale_id: v.scale_id }),
+            value_ids: v.value_ids,
+            values: v.values,
+          })),
+          offerings: p.offerings
+            .filter((o) => !o.is_deleted)
+            .map((o) => ({
+              price:
+                hit && patch.priceCents !== undefined ? centsToEtsyPrice(patch.priceCents) : etsyMoneyToCents(o.price) / 100,
+              quantity: hit && patch.quantity !== undefined ? Math.max(0, patch.quantity) : o.quantity,
+              is_enabled: o.is_enabled,
+            })),
+        };
+      }),
+    price_on_property: inv.price_on_property ?? [],
+    quantity_on_property: inv.quantity_on_property ?? [],
+    sku_on_property: inv.sku_on_property ?? [],
+  };
+}
+
+/** GET /users/me with a fresh token: identifies the seller's shop after OAuth. */
+export async function fetchEtsyShopId(opts: { accessToken: string; apiKey: string; fetch?: typeof fetch }): Promise<string> {
+  const res = await (opts.fetch ?? fetch)(`${ETSY_API_BASE}/users/me`, {
+    headers: { Authorization: `Bearer ${opts.accessToken}`, 'x-api-key': opts.apiKey, Accept: 'application/json' },
+  });
+  const data = (await res.json().catch(() => ({}))) as { shop_id?: number | null; error?: string };
+  if (!res.ok) throw new EtsyApiError(`Etsy GET /users/me failed (${res.status})${data.error ? `: ${data.error}` : ''}`, res.status);
+  if (!data.shop_id) throw new EtsyApiError('Etsy account has no shop', 400);
+  return String(data.shop_id);
+}
+
+// ─── Client ──────────────────────────────────────────────────────────────────
+
+type Query = Record<string, string | number | boolean | undefined>;
+type Form = Record<string, string | number | boolean | undefined>;
+
+/** Listing states scanned by listProducts, in order. */
+const LISTING_STATES = ['active', 'draft', 'inactive', 'sold_out', 'expired'] as const;
+const PAGE_MAX = 100;
+
 export class EtsyClient implements IMarketplaceClient {
   readonly platform = 'etsy' as const;
-  config: Record<string, unknown>;
+  /** Non-secret settings (tokens never live here). */
+  readonly config: Record<string, unknown>;
 
-  constructor(
-    config: Record<string, unknown>,
-    private getToken: () => Promise<string>,
-    private getKey: () => Promise<string>,
-    private rateLimiter: { acquire(): Promise<boolean> },
-  ) {
-    this.config = config;
+  private readonly fetchFn: typeof fetch;
+  /** SKU → listing_id, filled by every listing page read. */
+  private readonly skuIndex = new Map<string, string>();
+  private skuIndexComplete = false;
+
+  constructor(private readonly opts: EtsyClientOptions) {
+    this.fetchFn = opts.fetch ?? ((...args) => fetch(...args));
+    this.config = { shopId: opts.shopId, listing: opts.listing ?? null };
+  }
+
+  private get shopPath() {
+    return `/shops/${encodeURIComponent(this.opts.shopId)}`;
+  }
+
+  // ── HTTP ────────────────────────────────────────────────────────────────
+
+  private async request<T>(
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    path: string,
+    init: { query?: Query; json?: unknown; form?: Form; multipart?: FormData; allowStatus?: number[] } = {},
+  ): Promise<{ status: number; data: T | null }> {
+    if (this.opts.rateLimiter && !(await this.opts.rateLimiter.acquire('etsy'))) {
+      throw new EtsyApiError('Etsy: rate limit exceeded (local quota)', 429);
+    }
+
+    const url = new URL(ETSY_API_BASE + path);
+    for (const [k, v] of Object.entries(init.query ?? {})) if (v !== undefined) url.searchParams.set(k, String(v));
+
+    let body: BodyInit | undefined;
+    let contentType: string | undefined;
+    if (init.json !== undefined) {
+      body = JSON.stringify(init.json);
+      contentType = 'application/json';
+    } else if (init.form) {
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(init.form)) if (v !== undefined) params.set(k, String(v));
+      body = params.toString();
+      contentType = 'application/x-www-form-urlencoded';
+    } else if (init.multipart) {
+      body = init.multipart; // fetch sets the multipart boundary
+    }
+
+    const send = (token: string) =>
+      this.fetchFn(url.toString(), {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-api-key': this.opts.apiKey,
+          Accept: 'application/json',
+          ...(contentType && { 'Content-Type': contentType }),
+        },
+        body,
+      });
+
+    let res = await send(await this.opts.tokens.getAccessToken());
+    if (res.status === 401) res = await send(await this.opts.tokens.refresh());
+
+    const text = await res.text();
+    let data: unknown = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok && !init.allowStatus?.includes(res.status)) {
+      const detail = (data as { error?: string } | null)?.error ?? '';
+      throw new EtsyApiError(`Etsy ${method} ${path} failed (${res.status})${detail ? `: ${detail}` : ''}`, res.status);
+    }
+    return { status: res.status, data: res.ok ? (data as T) : null };
   }
 
   // ── Authentication ──────────────────────────────────────────────────────
 
   async refreshTokens(): Promise<void> {
-    const refreshToken = this.config.refresh_token as string | undefined;
-    if (!refreshToken) {
-      throw new Error('Etsy: no refresh token configured');
-    }
-
-    const keystring = this.config.keystring as string;
-    const sharedSecret = this.config.shared_secret as string;
-
-    const body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    });
-
-    const response = await fetch('https://api.etsy.com/v3/public/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'x-api-key': `${keystring}:${sharedSecret}`,
-      },
-      body,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Etsy token refresh failed: ${response.status} ${response.statusText}`);
-    }
-
-    const tokens = await response.json() as EtsyTokenResponse;
-
-    // Update config with new access token and expiry.
-    this.config.access_token = tokens.access_token;
-    this.config.refresh_token = tokens.refresh_token;
-    this.config.token_expires_at = Date.now() + tokens.expires_in * 1000;
+    await this.opts.tokens.refresh();
   }
 
-  async getAccessToken(): Promise<string> {
-    // Check if we need to refresh.
-    const expiresAt = this.config.token_expires_at as number | undefined;
-    if (expiresAt && Date.now() + 300_000 > expiresAt) {
-      await this.refreshTokens();
-    }
-
-    const token = this.config.access_token as string | undefined;
-    if (!token) {
-      throw new Error('Etsy: no access token available');
-    }
-    return token;
+  getAccessToken(): Promise<string> {
+    return this.opts.tokens.getAccessToken();
   }
 
   // ── Products ────────────────────────────────────────────────────────────
 
-  async listProducts(params?: { limit?: number }): Promise<{ items: MarketProduct[]; nextCursor?: string }> {
-    const token = await this.getAccessToken();
-    const shopId = this.config.shop_id as string;
-    if (!shopId) throw new Error('Etsy: shop_id not configured');
+  /**
+   * Walks every listing state. cursor = "<stateIndex>:<offset>". A page may
+   * hold more items than `limit` when listings have several variants.
+   */
+  async listProducts(params: { limit?: number; cursor?: string } = {}) {
+    const limit = Math.min(Math.max(params.limit ?? PAGE_MAX, 1), PAGE_MAX);
+    const [si, off] = (params.cursor ?? '0:0').split(':').map((n) => Number(n) || 0);
+    const state = LISTING_STATES[si];
+    if (!state) return { items: [] };
 
-    // Fetch all listings for the shop.
-    const url = `https://api.etsy.com/v3/application/shops/${shopId}/listings?limit=${params?.limit ?? 100}`;
+    const { data } = await this.request<{ count?: number; results?: EtsyListing[] }>('GET', `${this.shopPath}/listings`, {
+      query: { state, limit, offset: off, includes: 'Images,Inventory' },
+    });
+    const listings = data?.results ?? [];
+    this.indexSkus(listings);
 
-    const items: MarketProduct[] = [];
-    let cursor: string | undefined;
-
-    do {
-      const fullUrl = cursor ? `${url}&cursor=${cursor}` : url;
-      const result = await this.fetchWithRateLimit(url, {
-        headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` },
-      });
-
-      if (!result.ok) {
-        throw new Error(`Etsy listProducts failed: ${result.status} ${result.statusText}`);
-      }
-
-      const data = await result.json() as Record<string, unknown>;
-      const listings = Array.isArray(data.results) ? data.results : [];
-
-      for (const listing of listings) {
-        try {
-          const product = mapEtsyListingToProduct(listing as EtsyListing, this.config);
-          items.push(product);
-        } catch {
-          // Skip malformed listings.
-        }
-      }
-
-      // Pagination via cursor in pagination.next_url.
-      const pagination = data.pagination as { next_url?: string } | undefined;
-      if (pagination?.next_url) {
-        const nextUrl = new URL(pagination.next_url);
-        cursor = nextUrl.searchParams.get('cursor') ?? undefined;
-      } else {
-        cursor = undefined;
-      }
-    } while (cursor && !params?.limit);
-
-    return { items, nextCursor: cursor };
+    const nextOffset = off + listings.length;
+    const moreInState = listings.length > 0 && nextOffset < (data?.count ?? 0);
+    const nextCursor = moreInState ? `${si}:${nextOffset}` : si + 1 < LISTING_STATES.length ? `${si + 1}:0` : undefined;
+    return { items: listings.flatMap(mapEtsyListing), ...(nextCursor && { nextCursor }) };
   }
 
+  /** `id` is the listing_id; returns its first variant. */
   async getProduct(id: string): Promise<MarketProduct> {
-    const token = await this.getAccessToken();
-    const listingId = parseInt(id, 10);
-
-    const url = `https://api.etsy.com/v3/application/listings/${listingId}`;
-    const result = await this.fetchWithRateLimit(url, {
-      headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` },
-    });
-
-    if (!result.ok) {
-      throw new Error(`Etsy getProduct failed: ${result.status}`);
-    }
-
-    const data = await result.json() as EtsyListing;
-    return mapEtsyListingToProduct(data, this.config);
+    const listing = await this.getListing(id);
+    return mapEtsyListing(listing)[0];
   }
 
+  /** Creates or updates the listing carrying this SKU. Returns the listing_id. */
   async upsertProduct(product: MarketProduct): Promise<string> {
-    const token = await this.getAccessToken();
-    const shopId = this.config.shop_id as string;
-    if (!shopId) throw new Error('Etsy: shop_id not configured');
-
-    // Check if listing already exists by external_sku.
-    const existingListingId = await this.findListingBySku(product.sku, token);
-
-    let listingId: number;
-
-    if (existingListingId) {
-      // Update existing listing.
-      listingId = existingListingId;
-      await this.updateListing(listingId, product, token);
-      await this.updateListingInventory(listingId, product, token);
-    } else {
-      // Create new draft listing.
-      const createResult = await this.createDraftListing(product, token);
-      listingId = createResult.listing_id;
-
-      // Activate the listing.
-      await this.activateListing(listingId, token);
-
-      // Set inventory.
-      await this.updateListingInventory(listingId, product, token);
-    }
-
-    return String(listingId);
+    const existing = await this.findListingIdBySku(product.sku);
+    return existing ? this.updateListing(existing, product) : this.createListing(product);
   }
 
-  async deleteProduct(externalId: string): Promise<void> {
-    const token = await this.getAccessToken();
-    const listingId = parseInt(externalId, 10);
+  async deleteProduct(listingId: string): Promise<void> {
+    await this.request('DELETE', `/listings/${encodeURIComponent(listingId)}`, { allowStatus: [404] });
+    for (const [sku, id] of this.skuIndex) if (id === listingId) this.skuIndex.delete(sku);
+  }
 
-    const url = `https://api.etsy.com/v3/application/listings/${listingId}`;
-    await fetch(url, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` },
+  private async getListing(listingId: string): Promise<EtsyListing> {
+    const { data } = await this.request<EtsyListing>('GET', `/listings/${encodeURIComponent(listingId)}`, {
+      query: { includes: 'Images,Inventory' },
     });
+    return data!;
+  }
+
+  private async createListing(product: MarketProduct): Promise<string> {
+    const d = this.opts.listing;
+    if (!d) {
+      throw new Error('Etsy: set listing defaults (taxonomy_id, shipping_profile_id) on the channel before creating listings');
+    }
+
+    const { data } = await this.request<EtsyListing>('POST', `${this.shopPath}/listings`, {
+      form: {
+        // Etsy rejects quantity 0 on create; the inventory PUT below sets the real figure.
+        quantity: Math.max(1, product.quantity),
+        title: product.title.slice(0, 140), // Etsy's title limit
+        description: product.description || product.title,
+        price: centsToEtsyPrice(product.priceCents),
+        who_made: d.whoMade ?? 'i_did',
+        when_made: d.whenMade ?? 'made_to_order',
+        is_supply: d.isSupply ?? false,
+        taxonomy_id: d.taxonomyId,
+        shipping_profile_id: d.shippingProfileId,
+        readiness_state_id: d.readinessStateId,
+        return_policy_id: d.returnPolicyId,
+        type: 'physical',
+        ...(product.weightG > 0 && { item_weight: product.weightG, item_weight_unit: 'g' }),
+      },
+    });
+    const listingId = String(data!.listing_id);
+    this.skuIndex.set(product.sku, listingId);
+
+    await this.request('PUT', `/listings/${listingId}/inventory`, {
+      json: {
+        products: [
+          {
+            sku: product.sku,
+            property_values: [],
+            offerings: [{ price: centsToEtsyPrice(product.priceCents), quantity: Math.max(0, product.quantity), is_enabled: true }],
+          },
+        ],
+      },
+    });
+
+    if (product.imageUrl) {
+      await this.uploadImage(listingId, product.imageUrl);
+      if (product.status === 'active') {
+        await this.request('PATCH', `${this.shopPath}/listings/${listingId}`, { form: { state: 'active' } });
+      }
+    }
+    return listingId;
+  }
+
+  private async updateListing(listingId: string, product: MarketProduct): Promise<string> {
+    const listing = await this.getListing(listingId);
+    const products = (listing.inventory?.products ?? []).filter((p) => !p.is_deleted);
+
+    // Title/description belong to the whole listing: only overwrite them when
+    // this variant is the listing's only product.
+    const ownsListing = products.length <= 1;
+    const state =
+      product.status === 'active' && (listing.state === 'draft' || listing.state === 'inactive')
+        ? 'active'
+        : product.status !== 'active' && listing.state === 'active'
+          ? 'inactive'
+          : undefined;
+
+    const form: Form = {
+      ...(ownsListing && { title: product.title.slice(0, 140), description: product.description || product.title }),
+      ...(state && { state }),
+    };
+    if (Object.keys(form).length > 0) {
+      await this.request('PATCH', `${this.shopPath}/listings/${listingId}`, { form });
+    }
+
+    if (listing.inventory) {
+      await this.request('PUT', `/listings/${listingId}/inventory`, {
+        json: inventoryWriteBody(listing.inventory, { sku: product.sku, priceCents: product.priceCents, quantity: product.quantity }),
+      });
+    }
+    return listingId;
+  }
+
+  private async uploadImage(listingId: string, imageUrl: string): Promise<void> {
+    const img = await this.fetchFn(imageUrl);
+    if (!img.ok) throw new EtsyApiError(`Etsy: could not download product image ${imageUrl} (${img.status})`, 502);
+    const blob = await img.blob();
+    const form = new FormData();
+    form.append('image', blob, imageUrl.split('/').pop()?.split('?')[0] || 'image.jpg');
+    form.append('rank', '1');
+    await this.request('POST', `${this.shopPath}/listings/${listingId}/images`, { multipart: form });
+  }
+
+  private indexSkus(listings: EtsyListing[]) {
+    for (const l of listings) {
+      const skus = l.inventory?.products.filter((p) => !p.is_deleted).map((p) => p.sku) ?? l.skus ?? [];
+      for (const sku of skus) if (sku) this.skuIndex.set(sku, String(l.listing_id));
+    }
+  }
+
+  /** SKU → listing_id, scanning the shop once per client. */
+  async findListingIdBySku(sku: string): Promise<string | null> {
+    const hit = this.skuIndex.get(sku);
+    if (hit || this.skuIndexComplete) return hit ?? null;
+    let cursor: string | undefined;
+    do {
+      cursor = (await this.listProducts({ cursor })).nextCursor;
+    } while (cursor);
+    this.skuIndexComplete = true;
+    return this.skuIndex.get(sku) ?? null;
   }
 
   // ── Inventory ───────────────────────────────────────────────────────────
 
-  async listInventory(params?: { limit?: number }): Promise<MarketInventoryItem[]> {
-    const token = await this.getAccessToken();
-    const shopId = this.config.shop_id as string;
-    if (!shopId) throw new Error('Etsy: shop_id not configured');
-
-    const url = `https://api.etsy.com/v3/application/shops/${shopId}/listings?limit=${params?.limit ?? 100}`;
-    const result = await this.fetchWithRateLimit(url, {
-      headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` },
-    });
-
-    if (!result.ok) throw new Error(`Etsy listInventory failed: ${result.status}`);
-
-    const data = await result.json() as { results?: unknown[] };
-    const listings = Array.isArray(data.results) ? data.results : [];
-
-    const items: MarketInventoryItem[] = [];
-    for (const listing of listings as unknown as EtsyListing[]) {
-      try {
-        const inv = await this.getListingInventory(listing.listing_id, token);
-        for (const product of inv.products ?? []) {
-          if (product.sku) {
-            items.push({ sku: product.sku, quantity: product.offerings?.[0]?.quantity ?? 0 });
-          }
-        }
-      } catch {
-        // Skip products with errors.
-      }
-    }
-
-    return items;
+  async listInventory(params: { limit?: number } = {}): Promise<MarketInventoryItem[]> {
+    const max = params.limit ?? Infinity;
+    const out: MarketInventoryItem[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.listProducts({ cursor });
+      out.push(...page.items.filter((p) => p.sku).map((p) => ({ sku: p.sku, quantity: p.quantity })));
+      cursor = page.nextCursor;
+    } while (cursor && out.length < max);
+    return out.slice(0, max === Infinity ? undefined : max);
   }
 
+  /** Changes only this SKU's quantity; other variants and prices stay as they are. */
   async updateInventory(sku: string, quantity: number): Promise<void> {
-    const token = await this.getAccessToken();
-
-    // Find the listing that contains this SKU.
-    const shopId = this.config.shop_id as string;
-    if (!shopId) throw new Error('Etsy: shop_id not configured');
-
-    const listingsResult = await fetch(
-      `https://api.etsy.com/v3/application/shops/${shopId}/listings?limit=100`,
-      { headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` } },
-    );
-
-    if (!listingsResult.ok) throw new Error(`Etsy updateInventory failed: ${listingsResult.status}`);
-    const listingsData = await listingsResult.json() as { results?: unknown[] };
-    const listings = Array.isArray(listingsData.results) ? listingsData.results : [];
-
-    for (const listing of listings as unknown as EtsyListing[]) {
-      const inv = await this.getListingInventory(listing.listing_id, token);
-      const prod = inv.products?.find((p: EtsyListingProduct) => p.sku === sku);
-      if (prod) {
-        await this.updateListingInventory(listing.listing_id, {
-          id: '',
-          sku,
-          title: '',
-          description: '',
-          priceCents: 0,
-          currency: 'USD',
-          quantity,
-          weightG: 0,
-          requiresShipping: true,
-          status: 'active',
-        } as MarketProduct, token);
-        return;
-      }
-    }
-
-    throw new Error(`Etsy: SKU ${sku} not found in any listing`);
+    const listingId = await this.findListingIdBySku(sku);
+    if (!listingId) throw new EtsyApiError(`Etsy: no listing has SKU ${sku}`, 404);
+    const { data } = await this.request<EtsyInventory>('GET', `/listings/${listingId}/inventory`);
+    await this.request('PUT', `/listings/${listingId}/inventory`, { json: inventoryWriteBody(data!, { sku, quantity }) });
   }
 
   // ── Orders ──────────────────────────────────────────────────────────────
 
-  async listOrders(params?: { from?: Date; to?: Date; limit?: number }): Promise<MarketOrder[]> {
-    const token = await this.getAccessToken();
-    const shopId = this.config.shop_id as string;
-    if (!shopId) throw new Error('Etsy: shop_id not configured');
+  /** Receipts in a created/modified window (Etsy filters on epoch seconds). */
+  async listOrders(params: { from?: Date; to?: Date; limit?: number; by?: 'created' | 'modified' } = {}): Promise<MarketOrder[]> {
+    const max = Math.min(params.limit ?? 1000, 1000);
+    const sec = (d?: Date) => (d ? Math.floor(d.getTime() / 1000) : undefined);
+    const [minKey, maxKey] = params.by === 'modified' ? ['min_last_modified', 'max_last_modified'] : ['min_created', 'max_created'];
 
-    const url = `https://api.etsy.com/v3/application/shops/${shopId}/receipts?limit=${params?.limit ?? 25}`;
-    const result = await this.fetchWithRateLimit(url, {
-      headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` },
-    });
-
-    if (!result.ok) throw new Error(`Etsy listOrders failed: ${result.status}`);
-    const data = await result.json() as { results?: unknown[] };
-    const receipts = Array.isArray(data.results) ? data.results : [];
-
-    return (receipts as unknown as EtsyReceipt[]).map((r) => mapEtsyReceiptToOrder(r, this.config));
+    const out: MarketOrder[] = [];
+    let offset = 0;
+    while (out.length < max) {
+      const { data } = await this.request<{ count?: number; results?: EtsyReceipt[] }>('GET', `${this.shopPath}/receipts`, {
+        query: { [minKey]: sec(params.from), [maxKey]: sec(params.to), limit: Math.min(PAGE_MAX, max - out.length), offset },
+      });
+      const receipts = data?.results ?? [];
+      out.push(...receipts.map((r) => mapEtsyReceipt(r, this.opts.channelId)));
+      offset += receipts.length;
+      if (receipts.length === 0 || offset >= (data?.count ?? 0)) break;
+    }
+    return out;
   }
 
   async getOrder(externalOrderId: string): Promise<MarketOrder> {
-    const token = await this.getAccessToken();
-    const receiptId = parseInt(externalOrderId, 10);
+    const { data } = await this.request<EtsyReceipt>('GET', `${this.shopPath}/receipts/${encodeURIComponent(externalOrderId)}`);
+    return mapEtsyReceipt(data!, this.opts.channelId);
+  }
 
-    const url = `https://api.etsy.com/v3/application/shops/${this.config.shop_id}/receipts/${receiptId}`;
-    const result = await this.fetchWithRateLimit(url, {
-      headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` },
+  /**
+   * Same shape as EbayClient.createShippingFulfillment so lib/marketplace/fulfillment.ts
+   * can drive either. Etsy confirms shipment per receipt, so `lineItems` is ignored.
+   */
+  async createShippingFulfillment(input: {
+    orderId: string;
+    trackingNumber: string;
+    shippingCarrierCode: string;
+    lineItems?: Array<{ lineItemId: string; quantity: number }>;
+  }): Promise<void> {
+    await this.request('POST', `${this.shopPath}/receipts/${encodeURIComponent(input.orderId)}/tracking`, {
+      form: { tracking_code: input.trackingNumber, carrier_name: input.shippingCarrierCode.toLowerCase() },
     });
-
-    if (!result.ok) throw new Error(`Etsy getOrder failed: ${result.status}`);
-    const data = await result.json() as EtsyReceipt;
-    return mapEtsyReceiptToOrder(data, this.config);
   }
 
   async updateShipment(externalOrderId: string, trackingNumber: string, _trackingUrl?: string): Promise<void> {
-    const token = await this.getAccessToken();
-    const receiptId = parseInt(externalOrderId, 10);
-
-    // Etsy doesn't have a direct "mark shipped" API for all order types.
-    // For physical orders with shipping profiles, we update the receipt status.
-    console.log(`[Etsy] Marking receipt ${receiptId} as shipped (tracking: ${trackingNumber})`);
-    // TODO: Implement Etsy shipping update via receipts endpoint or external fulfillment API.
+    await this.createShippingFulfillment({
+      orderId: externalOrderId,
+      trackingNumber,
+      shippingCarrierCode: this.opts.defaultCarrier ?? ETSY_DEFAULT_CARRIER_FALLBACK,
+    });
   }
 
   // ── Health ──────────────────────────────────────────────────────────────
 
   async healthCheck(): Promise<boolean> {
     try {
-      const shopId = this.config.shop_id as string;
-      if (!shopId) return false;
-
-      const result = await fetch(
-        `https://api.etsy.com/v3/application/shops/${shopId}/info`,
-        { headers: { 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` } },
-      );
-
-      return result.ok;
+      await this.request('GET', this.shopPath);
+      return true;
     } catch {
       return false;
     }
   }
-
-  // ─── Private helpers ─────────────────────────────────────────────────────
-
-  private async fetchWithRateLimit(url: string, init?: RequestInit): Promise<Response> {
-    const allowed = await this.rateLimiter.acquire();
-    if (!allowed) {
-      throw new Error('Etsy: rate limit exceeded');
-    }
-    return fetch(url, init);
-  }
-
-  private async findListingBySku(sku: string, token: string): Promise<number | null> {
-    const shopId = this.config.shop_id as string;
-    if (!shopId) return null;
-
-    const result = await fetch(
-      `https://api.etsy.com/v3/application/shops/${shopId}/listings?limit=100`,
-      { headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` } },
-    );
-
-    if (!result.ok) return null;
-    const data = await result.json() as { results?: unknown[] };
-    const listings = Array.isArray(data.results) ? data.results : [];
-
-    for (const listing of listings as unknown as EtsyListing[]) {
-      try {
-        const inv = await this.getListingInventory(listing.listing_id, token);
-        if (inv.products?.some((p: EtsyListingProduct) => p.sku === sku)) {
-          return listing.listing_id;
-        }
-      } catch { /* skip */ }
-    }
-
-    return null;
-  }
-
-  private async createDraftListing(product: MarketProduct, token: string): Promise<EtsyListing> {
-    const shopId = this.config.shop_id as string;
-    const response = await fetch(
-      `https://api.etsy.com/v3/application/shops/${shopId}/listings`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'x-api-key': `${this.config.keystring}:${this.config.shared_secret}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: product.title,
-          description: product.description,
-          type: 'physical',
-          category_id: null,
-          who_made: 'i_did',
-          is_supply: false,
-          when_made: '2020_or_later',
-          state: 'draft',
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error(`Etsy createDraftListing failed: ${response.status}`);
-    }
-
-    return response.json() as Promise<EtsyListing>;
-  }
-
-  private async activateListing(listingId: number, token: string): Promise<void> {
-    await fetch(
-      `https://api.etsy.com/v3/application/shops/${this.config.shop_id}/listings/${listingId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'x-api-key': `${this.config.keystring}:${this.config.shared_secret}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ state: 'active' }),
-      },
-    );
-  }
-
-  private async updateListing(listingId: number, product: MarketProduct, token: string): Promise<void> {
-    await fetch(
-      `https://api.etsy.com/v3/application/shops/${this.config.shop_id}/listings/${listingId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'x-api-key': `${this.config.keystring}:${this.config.shared_secret}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: product.title,
-          description: product.description,
-        }),
-      },
-    );
-  }
-
-  private async updateListingInventory(listingId: number, product: MarketProduct, token: string): Promise<void> {
-    await fetch(
-      `https://api.etsy.com/v3/application/listings/${listingId}/inventory`,
-      {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'x-api-key': `${this.config.keystring}:${this.config.shared_secret}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          products: [
-            {
-              sku: product.sku,
-              property_values: [],
-              offerings: [
-                {
-                  price: { amount: (product.priceCents / 100).toString(), divisor: 1 },
-                  quantity: product.quantity,
-                  is_enabled: true,
-                  readiness_state_id: null,
-                },
-              ],
-            },
-          ],
-        }),
-      },
-    );
-  }
-
-  private async getListingInventory(listingId: number, token: string): Promise<{ products: EtsyListingProduct[] }> {
-    const result = await fetch(
-      `https://api.etsy.com/v3/application/listings/${listingId}/inventory`,
-      { headers: { Authorization: `Bearer ${token}`, 'x-api-key': `${this.config.keystring}:${this.config.shared_secret}` } },
-    );
-
-    if (!result.ok) throw new Error(`Etsy getListingInventory failed: ${result.status}`);
-    return result.json() as Promise<{ products: EtsyListingProduct[] }>;
-  }
-}
-
-// ─── Mapping helpers ─────────────────────────────────────────────────────────
-
-function mapEtsyListingToProduct(listing: EtsyListing, config: Record<string, unknown>): MarketProduct {
-  const priceCents = Math.round(parseFloat(listing.price) * 100);
-  const imageUrl = listing.images?.[0]?.url_raw ?? null;
-
-  return mapMarketplaceToProduct(
-    {
-      id: listing.listing_id,
-      title: listing.title,
-      description: listing.description,
-      price_cents: priceCents,
-      currency: listing.currency_code ?? 'USD',
-      quantity: listing.quantity ?? 0,
-      image_url: imageUrl,
-      status: listing.state === 'active' ? 'active' : 'draft',
-    },
-    { id: String(listing.listing_id), currency: listing.currency_code },
-  );
-}
-
-function mapEtsyReceiptToOrder(receipt: EtsyReceipt, config: Record<string, unknown>): MarketOrder {
-  const items = (receipt.line_items ?? []).map((item) => ({
-    sku: item["product.SKU"] ?? '',
-    title: item.title,
-    qty: item.quantity,
-    unitPriceCents: Math.round(parseFloat(item.price.amount) * 100),
-  }));
-
-  const shipping = receipt.shipping as EtsyShipping | undefined;
-
-  return mapMarketplaceToOrder(
-    {
-      order_id: receipt.receipt_id,
-      customer_email: receipt.from_customer?.email ?? '',
-      line_items: items,
-      subtotal_cents: items.reduce((s, i) => s + i.unitPriceCents * i.qty, 0),
-      tax_cents: receipt.tax ? Math.round(parseFloat(receipt.tax.amount) * 100) : 0,
-      shipping_cents: receipt.shipping_amount ? Math.round(parseFloat(receipt.shipping_amount.amount) * 100) : 0,
-      total_cents: Math.round(parseFloat(receipt.total_price.amount) * 100),
-      currency: receipt.currency_code ?? 'USD',
-      status: receipt.status,
-      shipping_address: shipping ? {
-        name: `${shipping.first_name} ${shipping.last_name}`,
-        line1: shipping.address_line1,
-        line2: shipping.address_line2 ?? undefined,
-        city: shipping.city,
-        state: shipping.state_province || undefined,
-        postalCode: shipping.postal_code,
-        country: shipping.country_code,
-        phone: shipping.phone ?? undefined,
-      } : undefined,
-      created_at: new Date(receipt.created_timestamp * 1000).toISOString(),
-    },
-    { platform: 'etsy', channelStoreId: String(config.shop_id) },
-  );
 }

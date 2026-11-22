@@ -21,7 +21,7 @@ import { Suspense } from "react";
 
 import { SiteLoading } from "@/shared/ui/feedback/site-loading";
 import { PageNotFound } from "./pages/404";
-import { AuthenticationGuard, AuthenticationGuardWithPermission, useAuth } from "./authentication";
+import { AdminGuard, AuthenticationGuard, useAuth } from "./authentication";
 
 import IndexPage from "@/pages/index";
 import IndexLuxuryPage from "@/pages/index-luxury";
@@ -60,6 +60,7 @@ import CategoriesPage from "./pages/admin/categories";
 import AnalyticsPage from "@/pages/admin/analytics";
 import AdminReviewsPage from "@/pages/admin/reviews";
 import PaymentGatewaysPage from "@/pages/admin/payment-gateways";
+import AdminDashboardPage from "@/pages/admin/index";
 
 function App() {
   const { isLoading } = useAuth();
@@ -111,75 +112,79 @@ function App() {
         />
         <Route element={<AboutPage />} path="/about" />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_AUTH0_PERMISSION}><UsersAndPermissionsPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><AdminDashboardPage /></AdminGuard>}
+          path="/admin"
+        />
+        <Route
+          element={<AdminGuard><UsersAndPermissionsPage /></AdminGuard>}
           path="/admin/users"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_AUTH0_PERMISSION}><CategoriesPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><CategoriesPage /></AdminGuard>}
           path="/admin/categories"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><ProductsPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><ProductsPage /></AdminGuard>}
           path="/admin/products"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><CustomersPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><CustomersPage /></AdminGuard>}
           path="/admin/customers"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><InventoryPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><InventoryPage /></AdminGuard>}
           path="/admin/inventory"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><OrdersPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><OrdersPage /></AdminGuard>}
           path="/admin/orders"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><WebhooksPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><WebhooksPage /></AdminGuard>}
           path="/admin/webhooks"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><EmailTemplatesPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><EmailTemplatesPage /></AdminGuard>}
           path="/admin/email-templates"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><RegionsPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><RegionsPage /></AdminGuard>}
           path="/admin/regions"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><CurrenciesPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><CurrenciesPage /></AdminGuard>}
           path="/admin/currencies"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><CountriesPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><CountriesPage /></AdminGuard>}
           path="/admin/countries"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><WarehousesPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><WarehousesPage /></AdminGuard>}
           path="/admin/warehouses"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><ShippingRatesPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><ShippingRatesPage /></AdminGuard>}
           path="/admin/shipping-rates"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><ShippingClassesPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><ShippingClassesPage /></AdminGuard>}
           path="/admin/shipping-classes"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><TaxRatesPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><TaxRatesPage /></AdminGuard>}
           path="/admin/tax-rates"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><AnalyticsPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><AnalyticsPage /></AdminGuard>}
           path="/admin/analytics"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><AdminReviewsPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><AdminReviewsPage /></AdminGuard>}
           path="/admin/reviews"
         />
         <Route
-          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><PaymentGatewaysPage /></AuthenticationGuardWithPermission>}
+          element={<AdminGuard><PaymentGatewaysPage /></AdminGuard>}
           path="/admin/payment-gateways"
         />
         <Route

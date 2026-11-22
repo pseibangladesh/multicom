@@ -916,5 +916,18 @@
   "login-signup-title": "Create Account",
   "login-signup-subtitle": "Sign up to track orders and save your details",
   "login-create-account-button": "Create Account",
-  "login-have-account": "Already have an account?"
+  "login-have-account": "Already have an account?",
+  "admin-dashboard-title": "Admin Dashboard",
+  "admin-dashboard-products-desc": "Create and edit products, variants and prices.",
+  "admin-dashboard-orders-desc": "Review, fulfil and refund orders.",
+  "admin-dashboard-payments-desc": "Configure Stripe and SSLCommerz.",
+  "admin-dashboard-recent-orders": "Recent orders",
+  "admin-dashboard-view-all": "View all",
+  "admin-dashboard-no-orders": "No orders yet.",
+  "admin-dashboard-load-error": "Could not load orders.",
+  "admin-dashboard-enabled": "enabled",
+  "admin-dashboard-disabled": "disabled",
+  "admin-payment-gateways-title": "Payment Gateways",
+  "checkout-payment-failed": "Your payment didn't go through. You haven't been charged; please try again.",
+  "checkout-payment-cancelled": "Payment was cancelled. Your cart is still here when you're ready."
 }

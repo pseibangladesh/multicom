@@ -921,5 +921,18 @@
   "login-signup-title": "יצירת חשבון",
   "login-signup-subtitle": "הירשמו כדי לעקוב אחר הזמנות ולשמור את הפרטים שלכם",
   "login-create-account-button": "צור חשבון",
-  "login-have-account": "כבר יש לך חשבון?"
+  "login-have-account": "כבר יש לך חשבון?",
+  "admin-dashboard-title": "לוח ניהול",
+  "admin-dashboard-products-desc": "יצירה ועריכה של מוצרים, וריאנטים ומחירים.",
+  "admin-dashboard-orders-desc": "צפייה, משלוח והחזר של הזמנות.",
+  "admin-dashboard-payments-desc": "הגדרת Stripe ו-SSLCommerz.",
+  "admin-dashboard-recent-orders": "הזמנות אחרונות",
+  "admin-dashboard-view-all": "הצג הכל",
+  "admin-dashboard-no-orders": "אין עדיין הזמנות.",
+  "admin-dashboard-load-error": "לא ניתן לטעון הזמנות.",
+  "admin-dashboard-enabled": "פעיל",
+  "admin-dashboard-disabled": "מושבת",
+  "admin-payment-gateways-title": "שערי תשלום",
+  "checkout-payment-failed": "התשלום לא עבר. לא חויבת; נסה שוב.",
+  "checkout-payment-cancelled": "התשלום בוטל. העגלה שלך עדיין כאן."
 }

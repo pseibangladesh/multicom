@@ -541,6 +541,7 @@ export const UpdateOrderBody = z.object({
   status: OrderStatus.optional(),
   tracking_number: z.string().nullable().optional(),
   tracking_url: z.string().url().nullable().optional(),
+  tracking_carrier: z.string().max(64).nullable().optional().openapi({ description: 'Carrier code, e.g. USPS, UPS, FEDEX. Used when confirming marketplace shipments.' }),
 }).openapi('UpdateOrder');
 
 /** Request body for POST /v1/orders/:id/refund. Omit `amount_cents` for a full refund. */

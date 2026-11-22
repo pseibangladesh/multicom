@@ -36,6 +36,7 @@ npx vitest run -t "test name"                  # single test
 # Client (cd apps/client)
 npm run type-check
 npm run lint                         # eslint --fix
+npm test                             # vitest unit tests, src/**/*.test.ts (node env, no DOM)
 
 # E2E (cd e2e)
 npm run test:dev                     # against local dev (PLAYWRIGHT_ENV=local)

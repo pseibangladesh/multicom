@@ -102,6 +102,8 @@ export interface MarketOrder {
     title: string;
     qty: number;
     unitPriceCents: number;
+    /** Marketplace line item ID (needed to confirm shipment per line). */
+    externalLineItemId?: string;
   }>;
   /** Subtotal before tax/shipping/discount (minor units). */
   subtotalCents: number;
@@ -115,6 +117,10 @@ export interface MarketOrder {
   currency: string;
   /** Current order status on the marketplace. */
   status: string;
+  /** Payment state on the marketplace (eBay: PAID, PENDING, FAILED, FULLY_REFUNDED, PARTIALLY_REFUNDED). */
+  paymentStatus?: string;
+  /** True when the order was cancelled on the marketplace. */
+  cancelled?: boolean;
   /** Shipping address, if available. */
   shippingAddress?: {
     name: string;
@@ -233,6 +239,8 @@ export interface IMarketplaceClient {
     from?: Date;
     to?: Date;
     limit?: number;
+    /** Which timestamp from/to apply to. Default 'created'. */
+    by?: 'created' | 'modified';
   }): Promise<MarketOrder[]>;
 
   getOrder(externalOrderId: string): Promise<MarketOrder>;
@@ -250,6 +258,21 @@ export interface IMarketplaceClient {
    * Quick health check — returns true if the client can reach the API.
    */
   healthCheck(): Promise<boolean>;
+}
+
+// ─── Shipment confirmation ───────────────────────────────────────────────────
+
+/**
+ * Pushes tracking back to the marketplace. eBay confirms per line item; Etsy
+ * confirms per receipt and ignores `lineItems`.
+ */
+export interface ShipmentClient {
+  createShippingFulfillment(input: {
+    orderId: string;
+    trackingNumber: string;
+    shippingCarrierCode: string;
+    lineItems?: Array<{ lineItemId: string; quantity: number }>;
+  }): Promise<void>;
 }
 
 // ─── Credential types ────────────────────────────────────────────────────────

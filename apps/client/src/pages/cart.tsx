@@ -19,9 +19,17 @@
 import { useTranslation } from "react-i18next";
 import DefaultLayout from "@/layouts/default";
 import { useCart } from "@/hooks/use-cart";
-import { createCart, addItemsToCart, checkoutCart, getAvailableShippingRates } from "@/lib/store-api";
+import {
+  createCart,
+  addItemsToCart,
+  checkoutCart,
+  checkoutCartSslcommerz,
+  getAvailableShippingRates,
+} from "@/lib/store-api";
 import { Button, Card, Input, RadioGroup, Radio } from "@heroui/react";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { paymentReturnMessageKey } from "@/lib/payment-return";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitleWithVariant } from "@/utils/description";
 import ShippingAddressForm from "@/components/shipping-address-form";
@@ -45,6 +53,15 @@ export default function CartPage() {
   const [email, setEmail] = useState("");
   const [currentCart, setCurrentCart] = useState<any>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+
+  // Back from SSLCommerz after a failed/cancelled payment: the order was
+  // cancelled and the cart reopened by the IPN, so explain and let them retry.
+  useEffect(() => {
+    const key = paymentReturnMessageKey(searchParams.get("payment"));
+
+    if (key) setCheckoutError(t(key));
+  }, [searchParams, t]);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   // true = show manual ShippingAddressForm; false = show SavedAddressesSelector (if authenticated)
   const [showManualAddressForm, setShowManualAddressForm] = useState(false);
@@ -123,19 +140,9 @@ export default function CartPage() {
     setStep("processing");
     try {
       if (paymentMethod === "sslcommerz") {
-        // SSLCommerz checkout — calls the new endpoint and redirects
-        const resp: any = await fetch(
-          `${import.meta.env.VITE_API_BASE || ""}/v1/carts/${cartId}/checkout/sslcommerz`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-        const data = await resp.json();
-        if (!resp.ok) {
-          throw new Error(data.error?.message || "SSLCommerz checkout failed");
-        }
-        window.location.href = data.gateway_url;
+        const { gateway_url } = await checkoutCartSslcommerz(cartId);
+
+        window.location.href = gateway_url;
       } else {
         // Stripe checkout (existing flow)
         const storeUrl = (import.meta.env.STORE_URL || "").replace(/\/$/, "");

@@ -185,7 +185,6 @@ sslcommerzCheckoutApp.openapi(sslCheckoutRoute, async (c) => {
       );
     }
 
-    const storeUrl = c.env.STORE_URL || 'http://localhost:5173';
     const apiUrl = new URL(c.req.url).origin;
 
     const payload = new URLSearchParams({
@@ -194,9 +193,11 @@ sslcommerzCheckoutApp.openapi(sslCheckoutRoute, async (c) => {
       total_amount: toGatewayAmount(totalCents),
       currency,
       tran_id: tranId,
-      success_url: `${storeUrl}/success?gateway=sslcommerz&tran_id=${encodeURIComponent(tranId)}`,
-      fail_url: `${storeUrl}/cart?payment=failed`,
-      cancel_url: `${storeUrl}/cart?payment=cancelled`,
+      // SSLCommerz sends the shopper back with a POST, which a static SPA host
+      // (GitHub Pages) can't accept, so it returns to the API, which redirects.
+      success_url: `${apiUrl}/v1/webhooks/sslcommerz/return/success`,
+      fail_url: `${apiUrl}/v1/webhooks/sslcommerz/return/fail`,
+      cancel_url: `${apiUrl}/v1/webhooks/sslcommerz/return/cancel`,
       ipn_url: `${apiUrl}/v1/webhooks/sslcommerz/ipn`,
       cus_name: cart.shipping_name || cart.customer_email.split('@')[0] || 'Customer',
       cus_email: cart.customer_email,
@@ -238,6 +239,30 @@ sslcommerzCheckoutApp.openapi(sslCheckoutRoute, async (c) => {
 
 // ─── IPN App (mounted at /v1/webhooks/sslcommerz) ────────────────────
 export const sslcommerzIpnApp = new OpenAPIHono<HonoEnv>();
+
+/**
+ * Where the shopper's browser lands after paying, failing or cancelling.
+ * This is navigation only: the order is marked paid by the IPN after
+ * server-side validation, never here. The target is always STORE_URL, so this
+ * can't be used as an open redirect.
+ */
+export function sslcommerzReturnLocation(storeUrl: string, result: string, tranId: string | null): string {
+  const base = storeUrl.replace(/\/+$/, '');
+  if (result === 'success') {
+    return `${base}/success?gateway=sslcommerz${tranId ? `&tran_id=${encodeURIComponent(tranId)}` : ''}`;
+  }
+  return `${base}/cart?payment=${result === 'cancel' ? 'cancelled' : 'failed'}`;
+}
+
+sslcommerzIpnApp.on(['GET', 'POST'], '/return/:result', async (c) => {
+  let tranId = c.req.query('tran_id') ?? null;
+  if (c.req.method === 'POST') {
+    const form = new URLSearchParams(await c.req.text());
+    tranId = form.get('tran_id') ?? tranId;
+  }
+  const storeUrl = c.env.STORE_URL || 'http://localhost:5173';
+  return c.redirect(sslcommerzReturnLocation(storeUrl, c.req.param('result'), tranId), 303);
+});
 
 const ipnRoute = createRoute({
   method: 'post',

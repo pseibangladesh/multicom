@@ -16,25 +16,7 @@ import {
 } from "./auth-provider";
 
 import { getBaseURL } from "@/utils/base-url";
-import { getApiBase } from "@/lib/api-base";
-
-/** Better Auth lives on the merchant worker, not on the SPA's origin. */
-const authUrl = (path: string) => `${getApiBase()}/api/auth${path}`;
-
-async function authPost(path: string, body: unknown): Promise<void> {
-  const resp = await fetch(authUrl(path), {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => null);
-
-    throw new Error(data?.message || `HTTP ${resp.status}`);
-  }
-}
+import { authPost, authUrl } from "./better-auth-api";
 
 export const useLocalProvider = (): AuthProvider => {
   const [user, setUser] = useState<AuthUser | null>(null);

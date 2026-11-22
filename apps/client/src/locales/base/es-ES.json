@@ -921,5 +921,18 @@
   "login-signup-title": "Crear cuenta",
   "login-signup-subtitle": "Regístrate para seguir tus pedidos y guardar tus datos",
   "login-create-account-button": "Crear cuenta",
-  "login-have-account": "¿Ya tienes una cuenta?"
+  "login-have-account": "¿Ya tienes una cuenta?",
+  "admin-dashboard-title": "Panel de administración",
+  "admin-dashboard-products-desc": "Crea y edita productos, variantes y precios.",
+  "admin-dashboard-orders-desc": "Revisa, envía y reembolsa pedidos.",
+  "admin-dashboard-payments-desc": "Configura Stripe y SSLCommerz.",
+  "admin-dashboard-recent-orders": "Pedidos recientes",
+  "admin-dashboard-view-all": "Ver todo",
+  "admin-dashboard-no-orders": "Aún no hay pedidos.",
+  "admin-dashboard-load-error": "No se pudieron cargar los pedidos.",
+  "admin-dashboard-enabled": "activado",
+  "admin-dashboard-disabled": "desactivado",
+  "admin-payment-gateways-title": "Pasarelas de pago",
+  "checkout-payment-failed": "El pago no se completó. No se te ha cobrado; inténtalo de nuevo.",
+  "checkout-payment-cancelled": "El pago se canceló. Tu carrito sigue aquí cuando estés listo."
 }

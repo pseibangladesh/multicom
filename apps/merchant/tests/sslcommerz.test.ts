@@ -7,7 +7,7 @@ import {
   isValidatedPayment,
   toGatewayAmount,
 } from '../src/lib/sslcommerz';
-import { sslcommerzCheckoutApp, sslcommerzIpnApp } from '../src/routes/sslcommerz-ipn';
+import { sslcommerzCheckoutApp, sslcommerzIpnApp, sslcommerzReturnLocation } from '../src/routes/sslcommerz-ipn';
 import { ApiError, type HonoEnv } from '../src/types';
 import { createMerchantDb } from './helpers/merchant-db';
 
@@ -131,7 +131,9 @@ async function setup(opts: { currency?: string; onHand?: number } = {}) {
       body: new URLSearchParams(fields).toString(),
     }, env as never);
 
-  return { q, checkout, ipn };
+  const raw = (path: string, init?: RequestInit) => app.request(`https://api.test${path}`, init, env as never);
+
+  return { q, checkout, ipn, raw };
 }
 
 const fetchMock = vi.fn();
@@ -172,6 +174,9 @@ describe('POST /v1/carts/:id/checkout/sslcommerz', () => {
     expect(sent.get('currency')).toBe('BDT');
     expect(sent.get('tran_id')).toBe(order.sslcommerz_tran_id);
     expect(sent.get('ipn_url')).toBe('https://api.test/v1/webhooks/sslcommerz/ipn');
+    expect(sent.get('success_url')).toBe('https://api.test/v1/webhooks/sslcommerz/return/success');
+    expect(sent.get('fail_url')).toBe('https://api.test/v1/webhooks/sslcommerz/return/fail');
+    expect(sent.get('cancel_url')).toBe('https://api.test/v1/webhooks/sslcommerz/return/cancel');
   });
 
   it('passes non-BDT currencies through without a hardcoded exchange rate', async () => {
@@ -278,5 +283,28 @@ describe('POST /v1/webhooks/sslcommerz/ipn', () => {
     const res = await ipn({ tran_id: 'TXN-unknown', status: 'FAILED' });
     expect(res.status).toBe(200);
     expect(q(`SELECT status FROM orders`)[0].status).toBe('pending');
+  });
+});
+
+describe('SSLCommerz return redirect', () => {
+  it('builds store URLs and never redirects off STORE_URL', () => {
+    expect(sslcommerzReturnLocation('https://shop.test/', 'success', 'TXN-1')).toBe('https://shop.test/success?gateway=sslcommerz&tran_id=TXN-1');
+    expect(sslcommerzReturnLocation('https://shop.test', 'fail', null)).toBe('https://shop.test/cart?payment=failed');
+    expect(sslcommerzReturnLocation('https://shop.test', 'cancel', null)).toBe('https://shop.test/cart?payment=cancelled');
+    expect(sslcommerzReturnLocation('https://shop.test', '//evil.example', null)).toBe('https://shop.test/cart?payment=failed');
+  });
+
+  it('accepts the POST from SSLCommerz and 303-redirects to the store, without touching the order', async () => {
+    const { raw, q, order } = await checkedOut();
+    const res = await raw('/v1/webhooks/sslcommerz/return/success', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ tran_id: order.sslcommerz_tran_id, status: 'VALID' }).toString(),
+    });
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe(
+      `https://shop.test/success?gateway=sslcommerz&tran_id=${encodeURIComponent(order.sslcommerz_tran_id)}`
+    );
+    expect(q(`SELECT status FROM orders`)[0].status).toBe('pending'); // only the IPN marks paid
   });
 });

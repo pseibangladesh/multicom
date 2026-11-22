@@ -921,5 +921,18 @@
   "login-signup-title": "Créer un compte",
   "login-signup-subtitle": "Inscrivez-vous pour suivre vos commandes et enregistrer vos informations",
   "login-create-account-button": "Créer le compte",
-  "login-have-account": "Vous avez déjà un compte ?"
+  "login-have-account": "Vous avez déjà un compte ?",
+  "admin-dashboard-title": "Tableau de bord",
+  "admin-dashboard-products-desc": "Créez et modifiez produits, variantes et prix.",
+  "admin-dashboard-orders-desc": "Consultez, expédiez et remboursez les commandes.",
+  "admin-dashboard-payments-desc": "Configurez Stripe et SSLCommerz.",
+  "admin-dashboard-recent-orders": "Commandes récentes",
+  "admin-dashboard-view-all": "Tout voir",
+  "admin-dashboard-no-orders": "Aucune commande pour l'instant.",
+  "admin-dashboard-load-error": "Impossible de charger les commandes.",
+  "admin-dashboard-enabled": "activé",
+  "admin-dashboard-disabled": "désactivé",
+  "admin-payment-gateways-title": "Passerelles de paiement",
+  "checkout-payment-failed": "Le paiement n'a pas abouti. Vous n'avez pas été débité ; veuillez réessayer.",
+  "checkout-payment-cancelled": "Le paiement a été annulé. Votre panier vous attend."
 }
