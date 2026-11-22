@@ -13,26 +13,58 @@ function toSqlValue(v: unknown): Value {
   return v as Value;
 }
 
+/** Mimics the DO SqlStorageCursor API used by MerchantDO and drizzle-orm/durable-sqlite. */
+function cursor(columns: string[], arrays: unknown[][]) {
+  const objects = arrays.map((a) => Object.fromEntries(columns.map((c, i) => [c, a[i]])));
+  let i = 0;
+  return {
+    columnNames: columns,
+    toArray: () => objects,
+    one: () => objects[0],
+    next: () => (i < objects.length ? { done: false, value: objects[i++] } : { done: true, value: undefined }),
+    raw: () => ({ toArray: () => arrays }),
+    [Symbol.iterator]: () => objects[Symbol.iterator](),
+  };
+}
+
 function fakeSqlStorage(db: DatabaseSync) {
   return {
     exec(sql: string, ...params: unknown[]) {
-      let rows: unknown[] = [];
       if (params.length === 0 && !/^\s*(select|with|pragma)\b/i.test(sql)) {
         db.exec(sql); // may contain several statements, like DO SqlStorage.exec
-      } else {
-        const stmt = db.prepare(sql);
-        const args = params.map(toSqlValue);
-        if (stmt.columns().length > 0) rows = stmt.all(...args);
-        else stmt.run(...args);
+        return cursor([], []);
       }
-      return { toArray: () => rows.map((r) => ({ ...(r as object) })) };
+      const stmt = db.prepare(sql);
+      const args = params.map(toSqlValue);
+      const columns = stmt.columns().map((c) => c.name);
+      if (columns.length === 0) {
+        stmt.run(...args);
+        return cursor([], []);
+      }
+      // Execute once (RETURNING must not run twice), as arrays to keep duplicate column names.
+      stmt.setReturnArrays(true);
+      return cursor(columns, stmt.all(...args) as unknown as unknown[][]);
     },
   };
 }
 
 export function createMerchantDb(env: Record<string, unknown> = {}) {
   const sqlite = new DatabaseSync(':memory:');
-  const ctx = { storage: { sql: fakeSqlStorage(sqlite) }, acceptWebSocket() {} };
+  const storage = {
+    sql: fakeSqlStorage(sqlite),
+    transactionSync<T>(fn: () => T): T {
+      sqlite.exec('BEGIN');
+      try {
+        const result = fn();
+        sqlite.exec('COMMIT');
+        return result;
+      } catch (err) {
+        sqlite.exec('ROLLBACK');
+        throw err;
+      }
+    },
+  };
+  const ctx = { storage, acceptWebSocket() {} };
   const merchant = new MerchantDO(ctx as never, env as never);
   merchant.query('SELECT 1'); // runs SCHEMA + migrations
   return { merchant, sqlite };

@@ -59,3 +59,14 @@ export function isAdminEmail(email: string, adminEmails: string | undefined): bo
     .filter(Boolean)
     .includes(target);
 }
+
+/**
+ * Browser origins allowed to send credentialed (cookie) requests:
+ * CORS_ORIGIN (comma-separated), falling back to STORE_URL.
+ */
+export function allowedOrigins(env: { CORS_ORIGIN?: string; STORE_URL?: string }): string[] {
+  return (env.CORS_ORIGIN || env.STORE_URL || '')
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}

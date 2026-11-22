@@ -20,16 +20,15 @@ import type React from "react";
 
 import { Link } from "@heroui/react";
 import { Trans, useTranslation } from "react-i18next";
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
-import { getBaseURL } from "@/utils/base-url";
 import { Navbar } from "@/components/navbar";
 import { CartDrawer } from "@/components/cart-drawer";
 import { useCartDrawer } from "@/contexts/cart-drawer-context";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { UserTechnicalInfoModal } from "@/shared/ui/user-technical-info";
-import { LoginLogoutLink } from "@/authentication";
+import { LoginLogoutLink, useAuth } from "@/authentication";
 import { siteConfig } from "@/config/site";
 import {
   TwitterIcon,
@@ -47,34 +46,9 @@ export default function DefaultLayout({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { isOpen: isCartOpen, open: openCart, close: closeCart } = useCartDrawer();
 
-  // Fetch session data from Better Auth backend
-  const [user, setUser] = useState<any>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-
-  const checkSession = useCallback(async () => {
-    try {
-      const apiBase = getBaseURL() || "";
-      const resp = await fetch(`${apiBase}/api/auth/session`);
-      const data = await resp.json();
-
-      if (data.session?.user) {
-        setUser(data.session.user);
-        // Store a placeholder token for the modal
-        setAccessToken("session");
-      } else {
-        setUser(null);
-        setAccessToken(null);
-      }
-    } catch (err) {
-      console.error("[Auth] Session check failed:", err);
-      setUser(null);
-      setAccessToken(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkSession();
-  }, [checkSession]);
+  // Session comes from the shared Better Auth provider (local-provider.tsx).
+  const { user, isAuthenticated, refreshAccessToken } = useAuth();
+  const accessToken = isAuthenticated ? "session" : null;
 
   return (
     <div className="relative flex flex-col h-screen">
@@ -297,8 +271,7 @@ export default function DefaultLayout({
           user={user}
           onClose={() => setIsModalOpen(false)}
           onTokenRefreshed={async () => {
-            setAccessToken("session");
-            await checkSession();
+            await refreshAccessToken();
           }}
         />
       ) : (

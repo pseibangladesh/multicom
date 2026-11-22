@@ -910,5 +910,16 @@
   "admin-products-variant-type-ai-tokens": "אסימוני AI (וירטואלי)",
   "admin-products-field-ai-token-units": "יחידות אסימון לכל רכישה",
   "admin-products-field-ai-token-units-placeholder": "לדוגמה: 100",
-  "admin-products-field-currency": "מטבע בסיס"
+  "admin-products-field-currency": "מטבע בסיס",
+  "login-name": "שם",
+  "login-enter-name": "השם שלך",
+  "login-password": "סיסמה",
+  "login-enter-password": "הזן את הסיסמה שלך",
+  "login-password-required": "נדרשת סיסמה",
+  "login-password-min": "הסיסמה חייבת להכיל לפחות {{count}} תווים",
+  "login-sign-in": "התחברות",
+  "login-signup-title": "יצירת חשבון",
+  "login-signup-subtitle": "הירשמו כדי לעקוב אחר הזמנות ולשמור את הפרטים שלכם",
+  "login-create-account-button": "צור חשבון",
+  "login-have-account": "כבר יש לך חשבון?"
 }

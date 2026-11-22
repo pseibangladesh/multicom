@@ -905,5 +905,16 @@
   "admin-products-variant-type-ai-tokens": "AI Tokens (virtual)",
   "admin-products-field-ai-token-units": "Token units per purchase",
   "admin-products-field-ai-token-units-placeholder": "e.g. 100",
-  "admin-products-field-currency": "Base currency"
+  "admin-products-field-currency": "Base currency",
+  "login-name": "Name",
+  "login-enter-name": "Your name",
+  "login-password": "Password",
+  "login-enter-password": "Enter your password",
+  "login-password-required": "Password is required",
+  "login-password-min": "Password must be at least {{count}} characters",
+  "login-sign-in": "Sign In",
+  "login-signup-title": "Create Account",
+  "login-signup-subtitle": "Sign up to track orders and save your details",
+  "login-create-account-button": "Create Account",
+  "login-have-account": "Already have an account?"
 }

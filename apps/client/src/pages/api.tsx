@@ -22,7 +22,7 @@ import { Button, Tooltip } from "@heroui/react";
 
 import { title } from "@/shared/ui/primitives";
 import DefaultLayout from "@/layouts/default";
-import { getBaseURL } from "@/utils/base-url";
+import { getApiBase } from "@/lib/api-base";
 
 export default function ApiPage() {
   const { t } = useTranslation();
@@ -32,8 +32,9 @@ export default function ApiPage() {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const apiBase = getBaseURL() || "";
-        const response = await fetch(`${apiBase}/api/auth/session`);
+        const response = await fetch(`${getApiBase()}/api/auth/session`, {
+          credentials: "include",
+        });
         const data = await response.json();
         setSessionData(data);
       } catch (error) {

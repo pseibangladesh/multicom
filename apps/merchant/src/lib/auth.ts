@@ -2,10 +2,13 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/durable-sqlite';
 import * as schema from '../db/schema';
+import { allowedOrigins } from './session';
 
 export interface AuthEnv {
   BETTER_AUTH_SECRET: string;
   API_BASE_URL?: string;
+  CORS_ORIGIN?: string;
+  STORE_URL?: string;
 }
 
 /**
@@ -15,11 +18,15 @@ export interface AuthEnv {
  */
 export function createAuth(env: AuthEnv, storage: DurableObjectStorage) {
   const db = drizzle(storage, { schema });
+  const baseURL = env.API_BASE_URL || 'http://127.0.0.1:8787';
 
   return betterAuth({
-    baseURL: env.API_BASE_URL || 'http://127.0.0.1:8787',
+    baseURL,
     basePath: '/api/auth',
     secret: env.BETTER_AUTH_SECRET,
+    // The storefront runs on another origin; Better Auth rejects sign-in/up
+    // requests whose Origin isn't trusted.
+    trustedOrigins: allowedOrigins(env),
     database: drizzleAdapter(db, { provider: 'sqlite', schema }),
     emailAndPassword: {
       enabled: true,
@@ -43,6 +50,15 @@ export function createAuth(env: AuthEnv, storage: DurableObjectStorage) {
       max: 10,
     },
     advanced: {
+      // Always enforce the Origin (CSRF) check; Better Auth otherwise turns it
+      // off when it detects a test environment.
+      disableOriginCheck: false,
+      // In production the store (e.g. GitHub Pages) and API are different sites,
+      // so the cookie must be SameSite=None; Secure. Locally (http://localhost
+      // on both ports) the default Lax cookie is same-site and works.
+      ...(baseURL.startsWith('https://') && {
+        defaultCookieAttributes: { sameSite: 'none' as const, secure: true },
+      }),
       ipAddress: {
         ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'],
       },

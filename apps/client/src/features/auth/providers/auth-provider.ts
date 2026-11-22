@@ -58,6 +58,11 @@ export interface AuthProvider {
   getAccessToken(options?: TokenOptions): Promise<string | null>;
   refreshAccessToken(options?: TokenOptions): Promise<string | null>;
 
+  // Better Auth email/password. Both resolve on success (session cookie set)
+  // and throw an Error with the server's message on failure.
+  signInEmail(email: string, password: string): Promise<void>;
+  signUpEmail(name: string, email: string, password: string): Promise<void>;
+
   // Permission handling
   hasPermission(permission: string): Promise<boolean>;
 

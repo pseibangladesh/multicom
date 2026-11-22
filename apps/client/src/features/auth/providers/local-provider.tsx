@@ -6,26 +6,50 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { getBaseURL } from "@/utils/base-url";
-import { AuthProvider, AuthUser, TokenOptions, LogoutOptions, LoginOptions } from "./auth-provider";
 
-/**
- * Local provider that works with Better Auth session cookies.
- */
+import {
+  AuthProvider,
+  AuthUser,
+  TokenOptions,
+  LogoutOptions,
+  LoginOptions,
+} from "./auth-provider";
+
+import { getBaseURL } from "@/utils/base-url";
+import { getApiBase } from "@/lib/api-base";
+
+/** Better Auth lives on the merchant worker, not on the SPA's origin. */
+const authUrl = (path: string) => `${getApiBase()}/api/auth${path}`;
+
+async function authPost(path: string, body: unknown): Promise<void> {
+  const resp = await fetch(authUrl(path), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => null);
+
+    throw new Error(data?.message || `HTTP ${resp.status}`);
+  }
+}
+
 export const useLocalProvider = (): AuthProvider => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check session status on mount and after navigation
   const checkSession = useCallback(async () => {
     try {
-      const apiBase = getBaseURL() || "";
-      const resp = await fetch(`${apiBase}/api/auth/session`);
-      const data = await resp.json();
+      const resp = await fetch(authUrl("/session"), { credentials: "include" });
+      const data = resp.ok ? await resp.json() : null;
 
-      if (data.session) {
-        setUser(data.session.user);
+      if (data?.session?.user) {
+        const u = data.session.user;
+
+        setUser({ ...u, sub: u.id });
         setIsAuthenticated(true);
       } else {
         setUser(null);
@@ -44,46 +68,86 @@ export const useLocalProvider = (): AuthProvider => {
     checkSession();
   }, [checkSession]);
 
-  const login = async (_options?: LoginOptions): Promise<void> => {
-    // Redirect to the backend's /api/auth/sign-in/email or show a login form
-    window.location.href = `${getBaseURL() || ""}/login`;
+  /**
+   * Sends the user to the /login page. Accepts the old Auth0-style options so
+   * existing callers keep working: appState.returnTo, authorizationParams.login_hint
+   * and authorizationParams.screen_hint === "signup".
+   */
+  const login = async (options?: LoginOptions): Promise<void> => {
+    const params = new URLSearchParams();
+    const returnTo = options?.appState?.returnTo ?? options?.returnTo;
+
+    if (returnTo) params.set("returnTo", returnTo);
+    if (options?.authorizationParams?.login_hint)
+      params.set("email", options.authorizationParams.login_hint);
+    if (options?.authorizationParams?.screen_hint === "signup")
+      params.set("mode", "signup");
+    const query = params.toString();
+
+    window.location.href = `${getBaseURL()}/login${query ? `?${query}` : ""}`;
   };
 
-  const logout = async (_options?: LogoutOptions): Promise<void> => {
+  const signInEmail = async (
+    email: string,
+    password: string,
+  ): Promise<void> => {
+    await authPost("/sign-in/email", { email, password });
+    await checkSession();
+  };
+
+  const signUpEmail = async (
+    name: string,
+    email: string,
+    password: string,
+  ): Promise<void> => {
+    await authPost("/sign-up/email", { name, email, password });
+    await checkSession();
+  };
+
+  const logout = async (options?: LogoutOptions): Promise<void> => {
     try {
-      const apiBase = getBaseURL() || "";
-      await fetch(`${apiBase}/api/auth/sign-out`, { method: "POST" });
+      await authPost("/sign-out", {});
     } catch (err) {
       console.error("[Local Auth] Signout failed:", err);
     }
     setUser(null);
     setIsAuthenticated(false);
 
-    const returnTo = _options?.logoutParams?.returnTo || window.location.origin;
-    window.location.href = returnTo;
+    window.location.href =
+      options?.logoutParams?.returnTo || window.location.origin;
   };
 
-  const getAccessToken = async (_options?: TokenOptions): Promise<string | null> => {
-    // Better Auth uses session cookies — no explicit access token needed
-    // Return a placeholder so existing code doesn't break
-    return "session";
+  const getAccessToken = async (
+    _options?: TokenOptions,
+  ): Promise<string | null> => {
+    // Better Auth uses an HttpOnly session cookie; there is no bearer token.
+    // Kept for interface compatibility.
+    return isAuthenticated ? "session" : null;
   };
 
-  const refreshAccessToken = async (_options?: TokenOptions): Promise<string | null> => {
+  const refreshAccessToken = async (
+    _options?: TokenOptions,
+  ): Promise<string | null> => {
     await checkSession();
+
     return "session";
   };
 
-  const hasPermission = useCallback(async (_permission: string): Promise<boolean> => {
-    // Better Auth permissions are handled server-side via role checks
-    // For now, authenticated users have full access
-    return isAuthenticated;
-  }, [isAuthenticated]);
+  const hasPermission = useCallback(
+    async (_permission: string): Promise<boolean> => {
+      // Only ADMIN_EMAILS sessions have admin access server-side; is_admin
+      // mirrors that so customers aren't shown admin-only UI.
+      return isAuthenticated && user?.is_admin === true;
+    },
+    [isAuthenticated, user],
+  );
 
   // API helpers that automatically include session cookies
   const getJson = async (url: string): Promise<any> => {
     const resp = await fetch(url, { credentials: "include" });
+
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
     return resp.json();
   };
 
@@ -94,7 +158,9 @@ export const useLocalProvider = (): AuthProvider => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
+
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
     return resp.json();
   };
 
@@ -104,7 +170,9 @@ export const useLocalProvider = (): AuthProvider => {
       credentials: "include",
       body: formData,
     });
+
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
     return resp.json();
   };
 
@@ -113,7 +181,9 @@ export const useLocalProvider = (): AuthProvider => {
       method: "DELETE",
       credentials: "include",
     });
+
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
     return resp.json();
   };
 
@@ -124,7 +194,9 @@ export const useLocalProvider = (): AuthProvider => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
+
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
     return resp.json();
   };
 
@@ -135,7 +207,9 @@ export const useLocalProvider = (): AuthProvider => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
+
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
     return resp.json();
   };
 
@@ -145,6 +219,8 @@ export const useLocalProvider = (): AuthProvider => {
     user,
     login,
     logout,
+    signInEmail,
+    signUpEmail,
     getAccessToken,
     refreshAccessToken,
     hasPermission,

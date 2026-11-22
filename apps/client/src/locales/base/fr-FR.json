@@ -910,5 +910,16 @@
   "admin-products-variant-type-ai-tokens": "Jetons IA (virtuel)",
   "admin-products-field-ai-token-units": "Unités de jetons par achat",
   "admin-products-field-ai-token-units-placeholder": "ex. 100",
-  "admin-products-field-currency": "Devise de base"
+  "admin-products-field-currency": "Devise de base",
+  "login-name": "Nom",
+  "login-enter-name": "Votre nom",
+  "login-password": "Mot de passe",
+  "login-enter-password": "Saisissez votre mot de passe",
+  "login-password-required": "Le mot de passe est requis",
+  "login-password-min": "Le mot de passe doit contenir au moins {{count}} caractères",
+  "login-sign-in": "Se connecter",
+  "login-signup-title": "Créer un compte",
+  "login-signup-subtitle": "Inscrivez-vous pour suivre vos commandes et enregistrer vos informations",
+  "login-create-account-button": "Créer le compte",
+  "login-have-account": "Vous avez déjà un compte ?"
 }

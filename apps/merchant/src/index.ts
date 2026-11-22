@@ -25,6 +25,7 @@
 
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
+import { allowedOrigins } from './lib/session';
 import { swaggerUI } from '@hono/swagger-ui';
 import { adminSetup } from './routes/setup';
 import { adminCatalog } from './routes/catalog';
@@ -78,7 +79,16 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
   scheme: 'bearer',
 });
 
-app.use('*', cors());
+// Allowed browser origins (CORS_ORIGIN / STORE_URL) get credentialed CORS so
+// the Better Auth session cookie is sent. Everyone else keeps '*', which still
+// works for pk_/sk_ Bearer requests from other headless frontends.
+app.use('*', (c, next) => {
+  const allowed = allowedOrigins(c.env);
+  return cors({
+    origin: (origin) => (origin && allowed.includes(origin) ? origin : '*'),
+    credentials: true,
+  })(c, next);
+});
 
 app.use('*', async (c, next) => {
   const id = c.env.MERCHANT.idFromName('default');

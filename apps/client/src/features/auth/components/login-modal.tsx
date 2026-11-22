@@ -52,6 +52,11 @@ const SOCIAL_PROVIDERS = [
   { id: 'microsoftlive', label: 'Microsoft Account' },
 ];
 
+// Social sign-in needs Better Auth `socialProviders` configured on the merchant
+// worker (src/lib/auth.ts). None are yet, so the buttons stay hidden; add ids
+// from SOCIAL_PROVIDERS here once a provider is set up server-side.
+const ENABLED_SOCIAL_PROVIDERS: typeof SOCIAL_PROVIDERS = [];
+
 /**
  * Renders a trusted hardcoded SVG string as an inline icon.
  * Only used with internal, compile-time-constant SVG strings — not user input.
@@ -241,32 +246,36 @@ export function LoginModal({ isOpen: _isOpen, onClose: _onClose, returnTo, pendi
                     </button>
                   </p>
 
-                  {/* Divider with "ou" */}
-                  <div className="flex w-full items-center gap-3">
-                    <Separator className="flex-1" />
-                    <span className="text-xs text-default-400 shrink-0">
-                      {t('or')}
-                    </span>
-                    <Separator className="flex-1" />
-                  </div>
+                  {ENABLED_SOCIAL_PROVIDERS.length > 0 && (
+                    <>
+                      {/* Divider with "ou" */}
+                      <div className="flex w-full items-center gap-3">
+                        <Separator className="flex-1" />
+                        <span className="text-xs text-default-400 shrink-0">
+                          {t('or')}
+                        </span>
+                        <Separator className="flex-1" />
+                      </div>
 
-                  {/* Social provider buttons */}
-                  <div className="flex flex-col gap-2 w-full">
-                    {SOCIAL_PROVIDERS.map(({ id, label }) => (
-                      <Button
-                        key={id}
-                        variant="outline"
-                        className="w-full justify-start gap-3"
-                        isPending={isLoading}
-                        onPress={() => handleSocialLogin(id)}
-                      >
-                        <SvgIcon svg={PROVIDER_ICONS[id]} />
-                        {t('login-with', {
-                          provider: label,
-                        })}
-                      </Button>
-                    ))}
-                  </div>
+                      {/* Social provider buttons */}
+                      <div className="flex flex-col gap-2 w-full">
+                        {ENABLED_SOCIAL_PROVIDERS.map(({ id, label }) => (
+                          <Button
+                            key={id}
+                            variant="outline"
+                            className="w-full justify-start gap-3"
+                            isPending={isLoading}
+                            onPress={() => handleSocialLogin(id)}
+                          >
+                            <SvgIcon svg={PROVIDER_ICONS[id]} />
+                            {t('login-with', {
+                              provider: label,
+                            })}
+                          </Button>
+                        ))}
+                      </div>
+                    </>
+                  )}
 
                 </Modal.Body>
               </>

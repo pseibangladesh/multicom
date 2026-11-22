@@ -67,6 +67,9 @@ export type Env = {
    */
   ADMIN_EMAILS?: string;
 
+  /** Comma-separated browser origins allowed to send the session cookie. Falls back to STORE_URL. */
+  CORS_ORIGIN?: string;
+
   /** Database permission string. Defaults to `admin:database`. */
   DATABASE_PERMISSION?: string;
 

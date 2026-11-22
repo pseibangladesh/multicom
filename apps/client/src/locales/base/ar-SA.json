@@ -910,5 +910,16 @@
   "admin-products-variant-type-ai-tokens": "رموز ذكاء اصطناعي (افتراضي)",
   "admin-products-field-ai-token-units": "وحدات الرموز لكل عملية شراء",
   "admin-products-field-ai-token-units-placeholder": "مثال: 100",
-  "admin-products-field-currency": "العملة الأساسية"
+  "admin-products-field-currency": "العملة الأساسية",
+  "login-name": "الاسم",
+  "login-enter-name": "اسمك",
+  "login-password": "كلمة المرور",
+  "login-enter-password": "أدخل كلمة المرور",
+  "login-password-required": "كلمة المرور مطلوبة",
+  "login-password-min": "يجب أن تتكون كلمة المرور من {{count}} أحرف على الأقل",
+  "login-sign-in": "تسجيل الدخول",
+  "login-signup-title": "إنشاء حساب",
+  "login-signup-subtitle": "سجّل لتتبع طلباتك وحفظ بياناتك",
+  "login-create-account-button": "إنشاء الحساب",
+  "login-have-account": "لديك حساب بالفعل؟"
 }

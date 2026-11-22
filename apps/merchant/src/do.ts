@@ -25,6 +25,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import { createAuth, type BetterAuthInstance } from './lib/auth';
+import { isAdminEmail } from './lib/session';
 
 export interface MerchantEnv {
   MERCHANT: DurableObjectNamespace<MerchantDO>;
@@ -35,6 +36,9 @@ export interface MerchantEnv {
   STRIPE_WEBHOOK_SECRET?: string;
   BETTER_AUTH_SECRET: string;
   API_BASE_URL?: string;
+  CORS_ORIGIN?: string;
+  STORE_URL?: string;
+  ADMIN_EMAILS?: string;
 }
 
 export type WSEventType =
@@ -1545,6 +1549,8 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
             email: result.user.email,
             name: result.user.name,
             image: result.user.image,
+            // UI hint only; the server enforces admin access in authMiddleware.
+            is_admin: isAdminEmail(result.user.email, this.env.ADMIN_EMAILS),
           },
         },
       });

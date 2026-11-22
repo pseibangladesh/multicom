@@ -910,5 +910,16 @@
   "admin-products-variant-type-ai-tokens": "Tokens IA (virtual)",
   "admin-products-field-ai-token-units": "Unidades de tokens por compra",
   "admin-products-field-ai-token-units-placeholder": "ej. 100",
-  "admin-products-field-currency": "Divisa base"
+  "admin-products-field-currency": "Divisa base",
+  "login-name": "Nombre",
+  "login-enter-name": "Tu nombre",
+  "login-password": "Contraseña",
+  "login-enter-password": "Introduce tu contraseña",
+  "login-password-required": "La contraseña es obligatoria",
+  "login-password-min": "La contraseña debe tener al menos {{count}} caracteres",
+  "login-sign-in": "Iniciar sesión",
+  "login-signup-title": "Crear cuenta",
+  "login-signup-subtitle": "Regístrate para seguir tus pedidos y guardar tus datos",
+  "login-create-account-button": "Crear cuenta",
+  "login-have-account": "¿Ya tienes una cuenta?"
 }
