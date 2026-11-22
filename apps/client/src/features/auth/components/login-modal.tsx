@@ -28,7 +28,7 @@ import {
 } from '@heroui/react';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import FufuniLogo from '@/assets/fufuni_logo_02.svg';
+import BengalExchangeLogo from '@/assets/bengal_exchange_logo_02.svg';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -71,7 +71,7 @@ function SvgIcon({ svg }: { svg: string }) {
 }
 
 /**
- * LoginModal provides a centered login experience matching the Fufuni design:
+ * LoginModal provides a centered login experience matching the Bengal Exchange design:
  * - Email passwordless login (magic link) as primary flow
  * - Social login providers (Google, Apple, GitHub, Microsoft) below a divider
  *
@@ -185,17 +185,17 @@ export function LoginModal({ isOpen: _isOpen, onClose: _onClose, returnTo, pendi
                 <Modal.CloseTrigger onPress={close} />
                 <Modal.Body className="flex flex-col items-center gap-4 px-6 pt-8 pb-7">
 
-                  {/* Fufuni logo + name */}
+                  {/* Bengal Exchange logo + name */}
                   <div className="flex flex-col items-center gap-1.5 mb-1">
                     <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shadow-sm">
                       <img
-                        src={FufuniLogo}
-                        alt="Fufuni"
+                        src={BengalExchangeLogo}
+                        alt="Bengal Exchange"
                         className="w-full h-full object-cover"
                       />
                     </div>
                     <span className="text-xs text-default-400 font-medium tracking-wide">
-                      {import.meta.env.STORE_NAME || 'fufuni'}
+                      {import.meta.env.STORE_NAME || 'bengal-exchange'}
                     </span>
                   </div>
 
@@ -206,7 +206,7 @@ export function LoginModal({ isOpen: _isOpen, onClose: _onClose, returnTo, pendi
                     </h2>
                     <p className="text-sm text-default-500 leading-snug max-w-67.5">
                       {t('login-modal-subtitle', {
-                        storeName: import.meta.env.STORE_NAME || 'Fufuni',
+                        storeName: import.meta.env.STORE_NAME || 'Bengal Exchange',
                       })}
                     </p>
                   </div>

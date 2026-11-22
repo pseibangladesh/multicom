@@ -30,11 +30,16 @@
  * or test environment with realistic sample data sets (regions, tax rates,
  * categories, products, inventory, orders, and reviews).
  *
- * The script is intentionally idempotent for rerun safety where possible.
+ * Idempotent: every record is looked up by a natural key first (handle, SKU,
+ * display name, tax code, customer email) and only created when missing, so a
+ * run that failed halfway can simply be started again.
  *
  * Usage:
- *   npx tsx scripts/seed.ts <api_url> <admin_key>
+ *   npx tsx scripts/seed.ts <api_url> <admin_key> [--force]
  *   npx tsx scripts/seed.ts http://localhost:8787 sk_...
+ *
+ *   --force  wipe the demo data first (local workers only, see
+ *            POST /v1/setup/demo-reset), then seed from scratch.
  *
  * This file has two main responsibilities:
  *  1. structural organization of data (PRODUCT_CATALOG, SEED_ADDRESSES, etc.)
@@ -62,24 +67,42 @@ import { decode as decodeJpeg } from 'jpeg-js';
 // Derive __dirname for ESM context (tsx/Node ESM do not expose __dirname natively)
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const API_URL = process.argv[2] || 'http://localhost:8787';
-const API_KEY = process.argv[3];
+const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const FORCE = process.argv.includes('--force');
+const API_URL = positional[0] || 'http://localhost:8787';
+const API_KEY = positional[1];
 
 if (!API_KEY) {
   console.log(`
 🌱 Seed Script - Create demo data
 
 Usage:
-  npx tsx scripts/seed.ts <api_url> <admin_key>
+  npx tsx scripts/seed.ts <api_url> <admin_key> [--force]
 
 Example:
   npx tsx scripts/seed.ts http://localhost:8787 sk_abc123...
+  npx tsx scripts/seed.ts http://localhost:8787 sk_abc123... --force   # wipe demo data, reseed
 
 First, start the API and create a store:
   npm run dev
   # Then in browser or curl, the first request will prompt you to set up
 `);
   process.exit(1);
+}
+
+/**
+ * fetch() that waits out 429s (Retry-After) instead of failing. The API allows
+ * 100 requests/min per key unless the key has the `sk_` admin prefix (2000/min),
+ * and a full seed makes several hundred requests.
+ */
+async function fetchRetrying(url: string, init: RequestInit, maxRetries = 10): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url, init);
+    if (res.status !== 429 || attempt > maxRetries) return res;
+    const waitSec = Math.max(1, Number(res.headers.get('Retry-After')) || 2 ** attempt);
+    console.log(`   ⏳ Rate limited, waiting ${waitSec}s (retry ${attempt}/${maxRetries})...`);
+    await new Promise((resolve) => setTimeout(resolve, waitSec * 1000));
+  }
 }
 
 /**
@@ -91,7 +114,7 @@ First, start the API and create a store:
  * @throws if the request fails or returns non-2xx status.
  */
 async function api(path: string, body?: any) {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetchRetrying(`${API_URL}${path}`, {
     method: body ? 'POST' : 'GET',
     headers: {
       Authorization: `Bearer ${API_KEY}`,
@@ -108,42 +131,58 @@ async function api(path: string, body?: any) {
   return res.json();
 }
 
-/**
- * Retry wrapper around `api` for transient failures like rate limiting.
- *
- * @param path API path.
- * @param body Optional request body for POST requests.
- * @param maxRetries Maximum number of retry attempts (defaults to 5).
- * @returns Response JSON as is from `api`.
- * @throws last failure after retry exhaustion.
- */
-async function apiWithRetry(path: string, body?: any, maxRetries = 5): Promise<any> {
-  let attempt = 0;
-
-  while (attempt < maxRetries) {
-    try {
-      return await api(path, body);
-    } catch (error: any) {
-      const message = error.message;
-
-      // Check if it's a rate limit error
-      if (message.includes('Rate limit exceeded')) {
-        // Extract wait time from message or use exponential backoff
-        const match = message.match(/Try again in (\d+) seconds/);
-        const waitTime = match ? parseInt(match[1]) * 1000 : Math.pow(2, attempt) * 1000;
-
-        attempt++;
-        console.log(`   ⏳ Rate limited. Waiting ${waitTime}ms before retry (attempt ${attempt}/${maxRetries})...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        continue;
-      }
-
-      // For other errors, throw immediately
-      throw error;
-    }
+/** GET that returns null on 404 instead of throwing. */
+async function apiGetOrNull(path: string): Promise<any | null> {
+  const res = await fetchRetrying(`${API_URL}${path}`, { headers: { Authorization: `Bearer ${API_KEY}` } });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`${path}: ${(err as any).error?.message || res.statusText}`);
   }
+  return res.json();
+}
 
-  throw new Error(`Max retries exceeded for ${path}`);
+/**
+ * The API stores a product handle as per-locale JSON ({"en-US":"classic-tee"});
+ * older rows may hold a plain string. Returns every handle value it contains.
+ */
+function handleValues(raw: unknown): string[] {
+  if (typeof raw !== 'string' || raw === '') return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') return Object.values(parsed).filter((v): v is string => typeof v === 'string');
+  } catch {
+    // not JSON: a plain handle
+  }
+  return [raw];
+}
+
+/** Logs whether a record was reused or created, for a readable re-run. */
+function logEnsure(created: boolean, label: string) {
+  console.log(created ? `   ✅ ${label}` : `   ↩  ${label} (already exists)`);
+}
+
+/**
+ * Find-or-create on a list endpoint: returns the first item matching `match`,
+ * otherwise POSTs `body` to `path`. The list endpoints used here cap at 500
+ * rows, far more than the demo data needs.
+ */
+async function ensureListed(
+  path: string,
+  match: (item: any) => boolean,
+  body: Record<string, unknown>,
+  label: string,
+): Promise<any> {
+  const sep = path.includes('?') ? '&' : '?';
+  const { items } = await api(`${path}${sep}limit=500`);
+  const existing = (items as any[]).find(match);
+  if (existing) {
+    logEnsure(false, label);
+    return existing;
+  }
+  const created = await api(path, body);
+  logEnsure(true, label);
+  return created;
 }
 
 /**
@@ -266,7 +305,7 @@ async function toWebpDataUri(
  * @returns Parsed JSON response.
  */
 async function apiPatch(path: string, body: any): Promise<any> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetchRetrying(`${API_URL}${path}`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${API_KEY}`,
@@ -298,17 +337,20 @@ async function seedTaxes() {
     'he-IL': 'מע"מ',
   });
 
-  const tax20 = await api('/v1/tax-rates', {
+  const sameRate = (code: string, pct: number) => (t: any) =>
+    t.tax_code === code && Number(t.rate_percentage) === pct;
+
+  const tax20 = await ensureListed('/v1/tax-rates', sameRate('txcd_99999999', 20), {
     display_name: vatNames,
     tax_code: 'txcd_99999999',
     rate_percentage: 20.0,
-  });
+  }, 'VAT 20%');
 
-  const tax5 = await api('/v1/tax-rates', {
+  const tax5 = await ensureListed('/v1/tax-rates', sameRate('txcd_20010000', 5.5), {
     display_name: vatNames,
     tax_code: 'txcd_20010000', // Reduced VAT for food in France
     rate_percentage: 5.5,
-  });
+  }, 'VAT 5.5%');
 
   return { tax20, tax5 };
 }
@@ -322,8 +364,19 @@ async function seedTaxes() {
 async function seedCategories() {
   console.log('📁 Creating categories...');
 
-  // Helper: create a category with WebP image_url and thumbnail_url
+  // Existing categories by handle (UNIQUE), so re-runs reuse them and skip
+  // the image conversion.
+  const { items: existingCats } = await api('/v1/categories');
+  const catByHandle = new Map<string, any>((existingCats as any[]).map((c) => [c.handle, c]));
+
+  // Helper: find a category by handle, or create it with WebP image_url and thumbnail_url
   async function createCat(data: Record<string, any>, imageFile: string) {
+    const existing = catByHandle.get(data.handle);
+    if (existing) {
+      logEnsure(false, `category ${data.handle}`);
+      return existing;
+    }
+    logEnsure(true, `category ${data.handle}`);
     const imageUrl = await toWebpDataUri(imageFile, 1200, 80);
     const thumbUrl  = await toWebpDataUri(imageFile, 300, 80);
     return api('/v1/categories', {
@@ -689,28 +742,28 @@ const PRODUCT_CATALOG = [
 
   // ── Bags & Carry ───────────────────────────────────────────────────────────
   {
-    key: 'backpack', file: 'backpack.png', handle: 'backpack', vendor: 'Fufuni',
+    key: 'backpack', file: 'backpack.png', handle: 'backpack', vendor: 'Bengal Exchange',
     categories: ['bags-carry'],
     title:       { 'en-US': 'Backpack',           'fr-FR': 'Sac à dos',                'es-ES': 'Mochila',                  'zh-CN': '双肩背包',     'ar-SA': 'حقيبة ظهر',          'he-IL': 'תיק גב' },
     description: { 'en-US': 'Packaged backpack with front compartment and full-color logo print, suitable for everyday carry.', 'fr-FR': "Sac à dos emballé avec compartiment avant et marquage logo en couleur, adapté à un usage quotidien.", 'es-ES': 'Mochila empaquetada con compartimento frontal e impresión del logotipo a color, adecuada para uso diario.', 'ar-SA': 'حقيبة ظهر معبأة مع جيب أمامي وطباعة شعار بالألوان الكاملة، مناسبة للاستخدام اليومي.', 'zh-CN': '带前袋和彩色标志印刷的包装双肩背包，适合日常使用。', 'he-IL': 'תיק גב ארוז עם תא קדמי והדפסת לוגו צבעונית, מתאים לשימוש יומיומי。' },
     variants: [{ sku: 'BACKPACK', title: 'Standard', price_cents: 2990, weight_g: 700, stock: 40 }],
   },
   {
-    key: 'duffle-bag', file: 'large-bag.png', handle: 'duffle-bag', vendor: 'Fufuni',
+    key: 'duffle-bag', file: 'large-bag.png', handle: 'duffle-bag', vendor: 'Bengal Exchange',
     categories: ['bags-carry'],
     title:       { 'en-US': 'Duffle Bag',         'fr-FR': 'Grand sac de voyage',      'es-ES': 'Bolsa de viaje grande',    'zh-CN': '大号旅行袋',   'ar-SA': 'حقيبة سفر كبيرة',    'he-IL': 'תיק נסיעות גדול' },
     description: { 'en-US': 'Packaged duffle bag with shoulder strap, zip pockets and side logo placement.', 'fr-FR': 'Grand sac de voyage emballé avec bandoulière, poches zippées et logo sur le côté.', 'es-ES': 'Bolsa de viaje grande empaquetada con correa de hombro, bolsillos con cremallera y logotipo lateral.', 'ar-SA': 'حقيبة سفر كبيرة معبأة مع حزام كتف وجيوب بسحاب وشعار جانبي.', 'zh-CN': '带肩带、拉链口袋和侧面标志位置的包装旅行袋。', 'he-IL': 'תיק נסיעות גדול ארוז עם רצועת כתף, כיסי רוכסן ומיקום לוגו בצד。' },
     variants: [{ sku: 'LARGE_BAG', title: 'Standard', price_cents: 3990, weight_g: 900, stock: 35 }],
   },
   {
-    key: 'tote-bag', file: 'tote-bag.png', handle: 'tote-bag', vendor: 'Fufuni',
+    key: 'tote-bag', file: 'tote-bag.png', handle: 'tote-bag', vendor: 'Bengal Exchange',
     categories: ['bags-carry'],
     title:       { 'en-US': 'Tote Bag',           'fr-FR': 'Tote bag',                 'es-ES': 'Bolsa tote',               'zh-CN': '帆布手提袋',   'ar-SA': 'حقيبة قماش',         'he-IL': 'תיק טוט' },
     description: { 'en-US': 'Packaged fabric tote bag with long handles and large centered logo print.', 'fr-FR': 'Tote bag en tissu emballé avec longues anses et grand logo centré.', 'es-ES': 'Bolsa tote de tela empaquetada con asas largas y gran logotipo centrado.', 'ar-SA': 'حقيبة قماش معبأة بمقابض طويلة وشعار كبير في المنتصف.', 'zh-CN': '带长提手和中央大幅标志印刷的包装布质手提袋。', 'he-IL': 'תיק טוט מבד ארוז עם ידיות ארוכות ולוגו גדול במרכז。' },
     variants: [{ sku: 'TOTE_BAG', title: 'Standard', price_cents: 1290, weight_g: 140, stock: 50 }],
   },
   {
-    key: 'golf-bag', file: 'golf-bag.png', handle: 'golf-bag', vendor: 'Fufuni',
+    key: 'golf-bag', file: 'golf-bag.png', handle: 'golf-bag', vendor: 'Bengal Exchange',
     categories: ['bags-carry', 'sports-outdoor'],
     title:       { 'en-US': 'Golf Bag',           'fr-FR': 'Sac de golf',              'es-ES': 'Bolsa de golf',            'zh-CN': '高尔夫球包',   'ar-SA': 'حقيبة غولف',         'he-IL': 'תיק גולף' },
     description: { 'en-US': 'Packaged golf bag with club compartments and logo panel, intended for full-course transport.', 'fr-FR': 'Sac de golf emballé avec compartiments pour clubs et panneau logo, destiné au transport sur parcours.', 'es-ES': 'Bolsa de golf empaquetada con compartimentos para palos y panel con logotipo, destinada al transporte en el campo.', 'ar-SA': 'حقيبة غولف معبأة مع أقسام للمضارب ولوحة شعار، مخصصة للنقل في الملعب.', 'zh-CN': '带球杆分仓和标志面板的包装高尔夫球包，适合全场携带。', 'he-IL': 'תיק גולף ארוז עם תאים למקלות ופאנל לוגו, מיועד לנשיאה במגרש。' },
@@ -719,14 +772,14 @@ const PRODUCT_CATALOG = [
 
   // ── Drinkware ──────────────────────────────────────────────────────────────
   {
-    key: 'aluminium-bottle', file: 'bottle-aluminium.png', handle: 'aluminium-bottle', vendor: 'Fufuni',
+    key: 'aluminium-bottle', file: 'bottle-aluminium.png', handle: 'aluminium-bottle', vendor: 'Bengal Exchange',
     categories: ['drinkware', 'sports-outdoor'],
     title:       { 'en-US': 'Aluminium Bottle',   'fr-FR': 'Gourde aluminium',         'es-ES': 'Botella de aluminio',      'zh-CN': '铝制水壶',     'ar-SA': 'قارورة ألمنيوم',      'he-IL': 'בקבוק אלומיניום' },
     description: { 'en-US': 'Packaged aluminium bottle with screw cap or sports top and front logo print.', 'fr-FR': 'Gourde aluminium emballée avec bouchon vissé ou sport et logo imprimé en face avant.', 'es-ES': 'Botella de aluminio empaquetada con tapón de rosca o deportivo y logotipo impreso en la parte frontal.', 'ar-SA': 'قارورة ألمنيوم معبأة بغطاء لولبي أو رياضي مع شعار مطبوع في الواجهة الأمامية.', 'zh-CN': '带螺旋盖或运动盖并正面印有标志的包装铝制水壶。', 'he-IL': 'בקבוק אלומיניום ארוז עם פקק הברגה או ספורט ולוגו מודפס בחזית。' },
     variants: [{ sku: 'BOTTLE_ALUMINIUM', title: 'Standard', price_cents: 1990, weight_g: 320, stock: 60 }],
   },
   {
-    key: 'ceramic-mug', file: 'mug.png', handle: 'ceramic-mug', vendor: 'Fufuni',
+    key: 'ceramic-mug', file: 'mug.png', handle: 'ceramic-mug', vendor: 'Bengal Exchange',
     categories: ['drinkware', 'home-living'],
     title:       { 'en-US': 'Ceramic Mug',        'fr-FR': 'Mug en céramique',         'es-ES': 'Taza de cerámica',         'zh-CN': '陶瓷马克杯',   'ar-SA': 'كوب سيراميك',        'he-IL': 'ספל קרמי' },
     description: { 'en-US': 'Packaged ceramic mug with printed front logo, suitable for office or home beverage use.', 'fr-FR': "Mug en céramique emballé avec logo imprimé en face avant, adapté à un usage bureau ou maison.", 'es-ES': 'Taza de cerámica empaquetada con logotipo impreso en la parte frontal, adecuada para oficina o hogar.', 'ar-SA': 'كوب سيراميك معبأ مع شعار مطبوع في الواجهة الأمامية، مناسب للمكتب أو المنزل.', 'zh-CN': '带正面标志印刷的包装陶瓷马克杯，适合办公室或家用。', 'he-IL': 'ספל קרמי ארוז עם לוגו מודפס בחזית, מתאים למשרד או לבית。' },
@@ -735,49 +788,49 @@ const PRODUCT_CATALOG = [
 
   // ── Accessories & Tech ─────────────────────────────────────────────────────
   {
-    key: 'iphone-case', file: 'iphone-case.png', handle: 'iphone-17-case', vendor: 'Fufuni',
+    key: 'iphone-case', file: 'iphone-case.png', handle: 'iphone-17-case', vendor: 'Bengal Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'iPhone 17 Case',     'fr-FR': 'Coque iPhone 17',          'es-ES': 'Funda para iPhone 17',     'zh-CN': 'iPhone 17 手机壳', 'ar-SA': 'غطاء iPhone 17',  'he-IL': 'כיסוי iPhone 17' },
     description: { 'en-US': 'Packaged protective case for iPhone 17 with centered logo print and slim everyday profile.', 'fr-FR': 'Coque de protection emballée pour iPhone 17 avec logo centré et profil fin pour un usage quotidien.', 'es-ES': 'Funda protectora empaquetada para iPhone 17 con logotipo centrado y perfil fino para uso diario.', 'ar-SA': 'غطاء حماية معبأ لهاتف iPhone 17 مع شعار في الوسط وتصميم نحيف للاستخدام اليومي.', 'zh-CN': '适用于 iPhone 17 的包装保护壳，中央带标志印刷，日常使用轻薄。', 'he-IL': 'כיסוי מגן ארוז ל‑iPhone 17 עם לוגו ממורכז ופרופיל דק לשימוש יומיומי。' },
     variants: [{ sku: 'IPHONE_CASE', title: 'Standard', price_cents: 2490, weight_g: 55, stock: 80 }],
   },
   {
-    key: 'acrylic-keychain', file: 'key-holder.png', handle: 'acrylic-keychain', vendor: 'Fufuni',
+    key: 'acrylic-keychain', file: 'key-holder.png', handle: 'acrylic-keychain', vendor: 'Bengal Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'Acrylic Keychain',   'fr-FR': 'Porte-clés acrylique',     'es-ES': 'Llavero acrílico',         'zh-CN': '亚克力钥匙扣', 'ar-SA': 'سلسلة مفاتيح أكريليك', 'he-IL': 'מחזיק מפתחות אקרילי' },
     description: { 'en-US': 'Packaged acrylic keychain with metal ring and full-color insert featuring the product logo.', 'fr-FR': 'Porte-clés acrylique emballé avec anneau métallique et insert couleur au logo du produit.', 'es-ES': 'Llavero acrílico empaquetado con anilla metálica e inserto a color con el logotipo del producto.', 'ar-SA': 'سلسلة مفاتيح أكريليك معبأة مع حلقة معدنية وإدخال ملون يحمل شعار المنتج.', 'zh-CN': '带金属环和彩色内芯标志图案的包装亚克力钥匙扣。', 'he-IL': 'מחזיק מפתחות אקרילי ארוז עם טבעת מתכת והדפסה צבעונית של הלוגו。' },
     variants: [{ sku: 'KEY_HOLDER', title: 'Standard', price_cents: 690, weight_g: 35, stock: 120 }],
   },
   {
-    key: 'lux-pen', file: 'lux-pen.png', handle: 'luxury-metal-pen', vendor: 'Fufuni',
+    key: 'lux-pen', file: 'lux-pen.png', handle: 'luxury-metal-pen', vendor: 'Bengal Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'Luxury Metal Pen',   'fr-FR': 'Stylo métal premium',      'es-ES': 'Bolígrafo metálico premium', 'zh-CN': '高端金属笔', 'ar-SA': 'قلم معدني فاخر',      'he-IL': 'עט מתכת יוקרתי' },
     description: { 'en-US': 'Packaged premium metal pen with glossy finish and discreet logo branding.', 'fr-FR': 'Stylo métal premium emballé avec finition brillante et marquage logo discret.', 'es-ES': 'Bolígrafo metálico premium empaquetado con acabado brillante y marcado de logotipo discreto.', 'ar-SA': 'قلم معدني فاخر معبأ بلمسة لامعة وعلامة شعار أنيقة.', 'zh-CN': '带亮面处理和低调标志的包装高端金属笔。', 'he-IL': 'עט מתכת יוקרתי ארוז עם גימור מבריק ומיתוג לוגו עדין。' },
     variants: [{ sku: 'LUX_PEN', title: 'Standard', price_cents: 1490, weight_g: 80, stock: 100 }],
   },
   {
-    key: 'mouse-pad', file: 'mouse-pad.png', handle: 'mouse-pad', vendor: 'Fufuni',
+    key: 'mouse-pad', file: 'mouse-pad.png', handle: 'mouse-pad', vendor: 'Bengal Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'Mouse Pad',          'fr-FR': 'Tapis de souris',          'es-ES': 'Alfombrilla de ratón',     'zh-CN': '鼠标垫',       'ar-SA': 'لوحة فأرة',          'he-IL': 'משטח עכבר' },
     description: { 'en-US': 'Packaged mouse pad with smooth top surface and centered full-color logo print.', 'fr-FR': 'Tapis de souris emballé avec surface supérieure lisse et logo couleur centré.', 'es-ES': 'Alfombrilla de ratón empaquetada con superficie lisa y logotipo a color centrado.', 'ar-SA': 'لوحة فأرة معبأة بسطح علوي أملس وشعار ملون في المنتصف.', 'zh-CN': '带顺滑表面和中央彩色标志印刷的包装鼠标垫。', 'he-IL': 'משטח עכבר ארוז עם משטח עליון חלק ולוגו צבעוני במרכז。' },
     variants: [{ sku: 'MOUSE_PAD', title: 'Standard', price_cents: 1290, weight_g: 140, stock: 75 }],
   },
   {
-    key: 'pen-4-colors', file: 'pen-4-colors.png', handle: 'pen-4-colors', vendor: 'Fufuni',
+    key: 'pen-4-colors', file: 'pen-4-colors.png', handle: 'pen-4-colors', vendor: 'Bengal Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': '4-Color Pen',        'fr-FR': 'Stylo 4 couleurs',         'es-ES': 'Bolígrafo de 4 colores',   'zh-CN': '四色圆珠笔',   'ar-SA': 'قلم بأربعة ألوان',    'he-IL': 'עט 4 צבעים' },
     description: { 'en-US': 'Packaged multi-ink pen with four writing colors and compact logo print area.', 'fr-FR': 'Stylo multi-encre emballé avec quatre couleurs d\'écriture et zone de logo compacte.', 'es-ES': 'Bolígrafo multitinta empaquetado con cuatro colores de escritura y zona compacta para logotipo.', 'ar-SA': 'قلم متعدد الأحبار معبأ بأربعة ألوان كتابة ومساحة مدمجة للشعار.', 'zh-CN': '带四种书写颜色和紧凑标志印刷区的包装多色圆珠笔。', 'he-IL': 'עט רב-דיו ארוז עם ארבעה צבעי כתיבה ואזור לוגו קומפקטי。' },
     variants: [{ sku: 'PEN_4_COLORS', title: 'Standard', price_cents: 490, weight_g: 35, stock: 150 }],
   },
   {
-    key: 'badge-pins', file: 'pins.png', handle: 'badge-pins-set', vendor: 'Fufuni',
+    key: 'badge-pins', file: 'pins.png', handle: 'badge-pins-set', vendor: 'Bengal Exchange',
     categories: ['accessories-tech', 'events-signage'],
     title:       { 'en-US': 'Badge Pins Set',     'fr-FR': 'Lot de badges',            'es-ES': 'Lote de badges',           'zh-CN': '徽章套装',     'ar-SA': 'مجموعة شارات',       'he-IL': 'סט סיכות תג' },
     description: { 'en-US': 'Packaged set of round badge pins with logo artwork for events, giveaways and accessories.', 'fr-FR': 'Lot emballé de badges ronds avec visuel logo pour événements, giveaways et accessoires.', 'es-ES': 'Lote empaquetado de chapas redondas con arte del logotipo para eventos, regalos y accesorios.', 'ar-SA': 'مجموعة معبأة من الشارات الدائرية برسومات الشعار للفعاليات والهدايا والإكسسوارات.', 'zh-CN': '带标志图案的圆形徽章套装包装，适用于活动、赠品和配饰。', 'he-IL': 'סט ארוז של סיכות תג עגולות עם גרפיקת לוגו לאירועים, מתנות ואביזרים。' },
     variants: [{ sku: 'PINS', title: 'Standard', price_cents: 990, weight_g: 40, stock: 100 }],
   },
   {
-    key: 'usb-key', file: 'usb-key.png', handle: 'usb-flash-drive', vendor: 'Fufuni',
+    key: 'usb-key', file: 'usb-key.png', handle: 'usb-flash-drive', vendor: 'Bengal Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'USB Flash Drive',    'fr-FR': 'Clé USB',                  'es-ES': 'Memoria USB',              'zh-CN': 'U盘',          'ar-SA': 'ذاكرة USB',           'he-IL': 'דיסק און קי' },
     description: { 'en-US': 'Packaged USB flash drive with logo print, suitable for data transfer or promotional bundles.', 'fr-FR': 'Clé USB emballée avec logo imprimé, adaptée au transfert de données ou aux bundles promotionnels.', 'es-ES': 'Memoria USB empaquetada con logotipo impreso, adecuada para transferencia de datos o packs promocionales.', 'ar-SA': 'ذاكرة USB معبأة مع شعار مطبوع، مناسبة لنقل البيانات أو الباقات الترويجية.', 'zh-CN': '带标志印刷的包装U盘，适合数据传输或促销套装。', 'he-IL': 'דיסק און קי ארוז עם לוגו מודפס, מתאים להעברת נתונים או למארזים שיווקיים。' },
@@ -786,28 +839,28 @@ const PRODUCT_CATALOG = [
 
   // ── Home & Living ──────────────────────────────────────────────────────────
   {
-    key: 'beach-towel', file: 'beach-towel.png', handle: 'beach-towel', vendor: 'Fufuni',
+    key: 'beach-towel', file: 'beach-towel.png', handle: 'beach-towel', vendor: 'Bengal Exchange',
     categories: ['home-living', 'sports-outdoor'],
     title:       { 'en-US': 'Beach Towel',        'fr-FR': 'Serviette de plage',       'es-ES': 'Toalla de playa',          'zh-CN': '沙滩巾',       'ar-SA': 'منشفة شاطئ',         'he-IL': 'מגבת חוף' },
     description: { 'en-US': 'Folded beach towel in retail packaging with large central logo print for leisure and travel use.', 'fr-FR': "Serviette de plage pliée en emballage retail avec grand logo centré, idéale pour les loisirs et le voyage.", 'es-ES': 'Toalla de playa plegada en embalaje retail con gran logotipo centrado, ideal para ocio y viaje.', 'ar-SA': 'منشفة شاطئ مطوية في عبوة بيع مع شعار كبير في الوسط، مناسبة للترفيه والسفر.', 'zh-CN': '零售包装折叠沙滩巾，中央大幅标志印刷，适合休闲与旅行。', 'he-IL': 'מגבת חוף מקופלת באריזת קמעונאות עם לוגו גדול במרכז, מתאימה לפנאי ולטיולים。' },
     variants: [{ sku: 'BEACH_TOWEL', title: 'Standard', price_cents: 2490, weight_g: 650, stock: 50 }],
   },
   {
-    key: 'bean-bag', file: 'beanbag.png', handle: 'bean-bag', vendor: 'Fufuni',
+    key: 'bean-bag', file: 'beanbag.png', handle: 'bean-bag', vendor: 'Bengal Exchange',
     categories: ['home-living'],
     title:       { 'en-US': 'Bean Bag',           'fr-FR': 'Pouf poire',               'es-ES': 'Puf tipo pera',            'zh-CN': '懒人沙发',     'ar-SA': 'بين باغ',             'he-IL': 'פוף' },
     description: { 'en-US': 'Packaged bean bag seat with printed upper panel, intended for indoor lounge and event spaces.', 'fr-FR': 'Pouf emballé avec panneau supérieur imprimé, destiné aux espaces lounge et événementiels.', 'es-ES': 'Puf empaquetado con panel superior impreso, destinado a zonas lounge y eventos.', 'ar-SA': 'مقعد بين باغ معبأ مع لوحة علوية مطبوعة، مناسب لمساحات الاستراحة والفعاليات.', 'zh-CN': '带印花上表面的包装懒人沙发，适用于室内休闲和活动空间。', 'he-IL': 'פוף ארוז עם חלק עליון מודפס, מיועד לחללי ישיבה ואירועים。' },
     variants: [{ sku: 'BEANBAG', title: 'Standard', price_cents: 7900, weight_g: 3500, stock: 10 }],
   },
   {
-    key: 'coir-doormat', file: 'entry-carpet-hard.png', handle: 'coir-doormat', vendor: 'Fufuni',
+    key: 'coir-doormat', file: 'entry-carpet-hard.png', handle: 'coir-doormat', vendor: 'Bengal Exchange',
     categories: ['events-signage', 'home-living'],
     title:       { 'en-US': 'Coir Doormat',       'fr-FR': 'Paillasson coco',          'es-ES': 'Felpudo de coco',          'zh-CN': '椰棕门垫',     'ar-SA': 'ممسحة باب من ألياف جوز الهند', 'he-IL': 'שטיח כניסה קוקוס' },
     description: { 'en-US': 'Packaged coir doormat with printed center area, made for durable entryway use.', 'fr-FR': 'Paillasson coco emballé avec zone centrale imprimée, conçu pour un usage d\'entrée durable.', 'es-ES': 'Felpudo de coco empaquetado con zona central impresa, pensado para un uso duradero en la entrada.', 'ar-SA': 'ممسحة باب من ألياف جوز الهند معبأة مع منطقة مركزية مطبوعة، مصممة للاستخدام المتين عند المدخل.', 'zh-CN': '带中央印刷区域的包装椰棕门垫，适合耐用型入口使用。', 'he-IL': 'שטיח כניסה מקוקוס ארוז עם אזור מרכזי מודפס, מיועד לשימוש עמיד בפתח הבית。' },
     variants: [{ sku: 'ENTRY_CARPET_HARD', title: 'Standard', price_cents: 2490, weight_g: 2600, stock: 15 }],
   },
   {
-    key: 'entry-mat', file: 'entry-carpet.png', handle: 'entry-mat', vendor: 'Fufuni',
+    key: 'entry-mat', file: 'entry-carpet.png', handle: 'entry-mat', vendor: 'Bengal Exchange',
     categories: ['events-signage', 'home-living'],
     title:       { 'en-US': 'Entry Mat',          'fr-FR': "Tapis d'entrée",           'es-ES': 'Alfombra de entrada',      'zh-CN': '入门地垫',     'ar-SA': 'سجادة مدخل',         'he-IL': 'שטיח כניסה' },
     description: { 'en-US': 'Packaged entry mat with printed logo area and non-slip backing for indoor or covered entry use.', 'fr-FR': 'Tapis d\'entrée emballé avec zone logo imprimée et sous-couche antidérapante pour usage intérieur ou abrité.', 'es-ES': 'Alfombra de entrada empaquetada con zona de logotipo impresa y base antideslizante para interior o zonas cubiertas.', 'ar-SA': 'سجادة مدخل معبأة مع مساحة شعار مطبوعة وظهر مانع للانزلاق للاستخدام الداخلي أو في الأماكن المغطاة.', 'zh-CN': '带印刷标志区域和防滑底面的包装入门地垫，适用于室内或遮蔽入口。', 'he-IL': 'שטיח כניסה ארוז עם אזור לוגו מודפס ותחתית מונעת החלקה לשימוש פנימי או בכניסה מקורה。' },
@@ -816,28 +869,28 @@ const PRODUCT_CATALOG = [
 
   // ── Events & Signage ───────────────────────────────────────────────────────
   {
-    key: 'beach-flag', file: 'beachflag.png', handle: 'beach-flag', vendor: 'Fufuni',
+    key: 'beach-flag', file: 'beachflag.png', handle: 'beach-flag', vendor: 'Bengal Exchange',
     categories: ['events-signage', 'sports-outdoor'],
     title:       { 'en-US': 'Beach Flag',         'fr-FR': 'Drapeau publicitaire plume', 'es-ES': 'Bandera publicitaria tipo pluma', 'zh-CN': '沙滩旗', 'ar-SA': 'علم شاطئي إعلاني', 'he-IL': 'דגל חוף פרסומי' },
     description: { 'en-US': 'Packaged feather beach flag with pole set and printed textile, designed for outdoor promotion.', 'fr-FR': 'Drapeau plume emballé avec mât et textile imprimé, conçu pour la communication extérieure.', 'es-ES': 'Bandera pluma empaquetada con mástil y textil impreso, diseñada para promoción exterior.', 'ar-SA': 'علم شاطئي من نوع الريشة معبأ مع عمود ونسيج مطبوع، مخصص للدعاية الخارجية.', 'zh-CN': '含旗杆组件和印花旗面的包装沙滩旗，适用于户外宣传。', 'he-IL': 'דגל חוף מסוג נוצה ארוז עם מוט ובד מודפס, מיועד לפרסום חוץ。' },
     variants: [{ sku: 'BEACHFLAG', title: 'Standard', price_cents: 8900, weight_g: 3200, stock: 15 }],
   },
   {
-    key: 'flag', file: 'flag.png', handle: 'flag', vendor: 'Fufuni',
+    key: 'flag', file: 'flag.png', handle: 'flag', vendor: 'Bengal Exchange',
     categories: ['events-signage'],
     title:       { 'en-US': 'Flag',               'fr-FR': 'Drapeau',                  'es-ES': 'Bandera',                  'zh-CN': '旗帜',         'ar-SA': 'علم',                 'he-IL': 'דגל' },
     description: { 'en-US': 'Packaged printed flag for indoor or outdoor display, folded for compact shipping.', 'fr-FR': 'Drapeau imprimé emballé pour affichage intérieur ou extérieur, plié pour un transport compact.', 'es-ES': 'Bandera impresa empaquetada para exhibición interior o exterior, plegada para un envío compacto.', 'ar-SA': 'علم مطبوع معبأ للعرض الداخلي أو الخارجي، مطوي لشحن مدمج.', 'zh-CN': '适用于室内或室外展示的包装印刷旗帜，折叠后便于运输。', 'he-IL': 'דגל מודפס ארוז לתצוגה פנימית או חיצונית, מקופל למשלוח קומפקטי。' },
     variants: [{ sku: 'FLAG', title: 'Standard', price_cents: 1490, weight_g: 180, stock: 50 }],
   },
   {
-    key: 'totem', file: 'totem.png', handle: 'roll-up-banner', vendor: 'Fufuni',
+    key: 'totem', file: 'totem.png', handle: 'roll-up-banner', vendor: 'Bengal Exchange',
     categories: ['events-signage'],
     title:       { 'en-US': 'Roll-up Banner',     'fr-FR': 'Kakemono roll-up',         'es-ES': 'Roll-up publicitario',     'zh-CN': '易拉宝展架',   'ar-SA': 'حامل رول أب إعلاني', 'he-IL': 'רול-אפ פרסומי' },
     description: { 'en-US': 'Packaged roll-up banner stand with printed graphic panel for trade shows and retail display.', 'fr-FR': 'Kakemono roll-up emballé avec visuel imprimé pour salons, événements et présentation retail.', 'es-ES': 'Roll-up publicitario empaquetado con panel gráfico impreso para ferias y exposición retail.', 'ar-SA': 'حامل رول أب إعلاني معبأ مع لوحة مطبوعة للمعارض والعرض داخل المتاجر.', 'zh-CN': '带印刷画面的包装易拉宝展架，适用于展会和零售展示。', 'he-IL': 'רול-אפ פרסומי ארוז עם גרפיקה מודפסת לתערוכות ולתצוגה בחנות。' },
     variants: [{ sku: 'TOTEM', title: 'Standard', price_cents: 9900, weight_g: 3200, stock: 10 }],
   },
   {
-    key: 'paragliding-windsock', file: 'paragliding-windsock.png', handle: 'paragliding-windsock', vendor: 'Fufuni',
+    key: 'paragliding-windsock', file: 'paragliding-windsock.png', handle: 'paragliding-windsock', vendor: 'Bengal Exchange',
     categories: ['events-signage', 'sports-outdoor'],
     title:       { 'en-US': 'Paragliding Windsock', 'fr-FR': 'Manche à air de parapente', 'es-ES': 'Manga de viento para parapente', 'zh-CN': '滑翔伞风向袋', 'ar-SA': 'كيس رياح للطيران الشراعي', 'he-IL': 'שרוול רוח לרחיפה' },
     description: { 'en-US': 'Packaged paragliding windsock for wind direction indication on launch or landing areas.', 'fr-FR': "Manche à air de parapente emballée pour l'indication du vent sur zone de décollage ou d'atterrissage.", 'es-ES': 'Manga de viento para parapente empaquetada para indicar la dirección del viento en despegue o aterrizaje.', 'ar-SA': 'كيس رياح للطيران الشراعي معبأ لبيان اتجاه الرياح في مناطق الإقلاع أو الهبوط.', 'zh-CN': '用于起飞或降落区域风向指示的包装滑翔伞风向袋。', 'he-IL': 'שרוול רוח לרחיפה ארוז לציון כיוון הרוח באזורי המראה או נחיתה。' },
@@ -846,49 +899,49 @@ const PRODUCT_CATALOG = [
 
   // ── Sports & Outdoor ───────────────────────────────────────────────────────
   {
-    key: 'golf-ball-x1', file: 'golf-ball-x1.png', handle: 'golf-ball-x1', vendor: 'Fufuni',
+    key: 'golf-ball-x1', file: 'golf-ball-x1.png', handle: 'golf-ball-x1', vendor: 'Bengal Exchange',
     categories: ['sports-outdoor'],
     title:       { 'en-US': 'Golf Ball',          'fr-FR': 'Balle de golf',            'es-ES': 'Pelota de golf',           'zh-CN': '高尔夫球',     'ar-SA': 'كرة غولف',            'he-IL': 'כדור גולף' },
     description: { 'en-US': 'Single packaged golf ball with printed logo, suitable for play or promotional gifting.', 'fr-FR': 'Balle de golf emballée à l\'unité avec logo imprimé, adaptée au jeu ou au cadeau promotionnel.', 'es-ES': 'Pelota de golf empaquetada individualmente con logotipo impreso, apta para juego o regalo promocional.', 'ar-SA': 'كرة غولف معبأة بشكل فردي مع شعار مطبوع، مناسبة للعب أو للهدايا الترويجية.', 'zh-CN': '单颗包装高尔夫球，带印刷标志，适合打球或促销赠品。', 'he-IL': 'כדור גולף ארוז בנפרד עם לוגו מודפס, מתאים למשחק או כמתנה שיווקית。' },
     variants: [{ sku: 'GOLF_BALL_X1', title: 'Standard', price_cents: 490, weight_g: 52, stock: 150 }],
   },
   {
-    key: 'golf-balls-x12-box', file: 'golf-balls-x12-box.png', handle: 'golf-balls-x12-box', vendor: 'Fufuni',
+    key: 'golf-balls-x12-box', file: 'golf-balls-x12-box.png', handle: 'golf-balls-x12-box', vendor: 'Bengal Exchange',
     categories: ['sports-outdoor'],
     title:       { 'en-US': 'Box of 12 Golf Balls', 'fr-FR': 'Boîte de 12 balles de golf', 'es-ES': 'Caja de 12 pelotas de golf', 'zh-CN': '12只装高尔夫球盒', 'ar-SA': 'علبة 12 كرة غولف', 'he-IL': 'קופסת 12 כדורי גולף' },
     description: { 'en-US': 'Retail box of twelve logo-printed golf balls, packaged for sale or premium events.', 'fr-FR': 'Boîte retail de douze balles de golf imprimées au logo, emballée pour la vente ou les événements premium.', 'es-ES': 'Caja retail de doce pelotas de golf con logotipo impreso, empaquetada para venta o eventos premium.', 'ar-SA': 'علبة بيع تحتوي على اثنتي عشرة كرة غولف مطبوعة بالشعار، مناسبة للبيع أو للفعاليات المميزة.', 'zh-CN': '零售盒装十二只印有标志的高尔夫球，适合销售或高端活动。', 'he-IL': 'קופסת קמעונאות עם שנים-עשר כדורי גולף מודפסי לוגו, מתאימה למכירה או לאירועי פרימיום。' },
     variants: [{ sku: 'GOLF_BALLS_X12_BOX', title: 'Standard', price_cents: 3990, weight_g: 700, stock: 30 }],
   },
   {
-    key: 'golf-club-protectors', file: 'golf-club-protectors-3-set.png', handle: 'golf-club-protectors-3-set', vendor: 'Fufuni',
+    key: 'golf-club-protectors', file: 'golf-club-protectors-3-set.png', handle: 'golf-club-protectors-3-set', vendor: 'Bengal Exchange',
     categories: ['sports-outdoor'],
     title:       { 'en-US': 'Set of 3 Golf Club Headcovers', 'fr-FR': 'Jeu de 3 protège-têtes de clubs de golf', 'es-ES': 'Set de 3 protectores para palos de golf', 'zh-CN': '3件套高尔夫球杆头套', 'ar-SA': 'مجموعة من 3 أغطية رؤوس مضارب الغولف', 'he-IL': 'סט 3 כיסויי ראש למקלות גולף' },
     description: { 'en-US': 'Packaged set of three padded golf club headcovers with logo print for driver and woods protection.', 'fr-FR': 'Jeu emballé de trois protège-têtes rembourrés pour clubs de golf avec logo imprimé, pour driver et bois.', 'es-ES': 'Set empaquetado de tres fundas acolchadas para palos de golf con logotipo impreso, para driver y maderas.', 'ar-SA': 'مجموعة معبأة من ثلاثة أغطية مبطنة لرؤوس مضارب الغولف مع شعار مطبوع، لحماية الدرايفر والأخشاب.', 'zh-CN': '三件套包装高尔夫球杆头套，带标志印刷，用于一号木和球道木保护。', 'he-IL': 'סט ארוז של שלושה כיסויי ראש מרופדים למקלות גולף עם לוגו מודפס, להגנת דרייבר ועצים。' },
     variants: [{ sku: 'GOLF_CLUB_PROTECTORS_3_SET', title: 'Standard', price_cents: 2490, weight_g: 450, stock: 25 }],
   },
   {
-    key: 'golf-tees', file: 'golf-tees.png', handle: 'golf-tees', vendor: 'Fufuni',
+    key: 'golf-tees', file: 'golf-tees.png', handle: 'golf-tees', vendor: 'Bengal Exchange',
     categories: ['sports-outdoor'],
     title:       { 'en-US': 'Pack of Golf Tees',  'fr-FR': 'Sachet de tees de golf',   'es-ES': 'Bolsa de tees de golf',    'zh-CN': '高尔夫球钉套装', 'ar-SA': 'عبوة تيز غولف',     'he-IL': 'חבילת טיז לגולף' },
     description: { 'en-US': 'Packaged golf tees in a transparent bag, intended for promotional resale or course accessories.', 'fr-FR': 'Tees de golf emballés en sachet transparent, destinés à la revente promotionnelle ou aux accessoires de parcours.', 'es-ES': 'Tees de golf empaquetados en bolsa transparente, destinados a reventa promocional o accesorios de campo.', 'ar-SA': 'تيز غولف معبأة في كيس شفاف، مناسبة للبيع الترويجي أو كملحقات للملاعب.', 'zh-CN': '透明袋包装高尔夫球钉，适合促销零售或球场配件。', 'he-IL': 'טיז לגולף ארוזים בשקית שקופה, מתאימים למכירה שיווקית או כאביזרי מגרש。' },
     variants: [{ sku: 'GOLF_TEES', title: 'Standard', price_cents: 890, weight_g: 120, stock: 150 }],
   },
   {
-    key: 'golf-umbrella', file: 'golf-umbrella.png', handle: 'golf-umbrella', vendor: 'Fufuni',
+    key: 'golf-umbrella', file: 'golf-umbrella.png', handle: 'golf-umbrella', vendor: 'Bengal Exchange',
     categories: ['sports-outdoor'],
     title:       { 'en-US': 'Golf Umbrella',      'fr-FR': 'Parapluie de golf',        'es-ES': 'Paraguas de golf',         'zh-CN': '高尔夫伞',     'ar-SA': 'مظلة غولف',          'he-IL': 'מטריית גולף' },
     description: { 'en-US': 'Packaged oversized golf umbrella with alternating panels and large printed logo section.', 'fr-FR': 'Parapluie de golf oversize emballé avec panneaux alternés et grande zone logo imprimée.', 'es-ES': 'Paraguas de golf de gran tamaño empaquetado con paneles alternos y gran zona de logotipo impresa.', 'ar-SA': 'مظلة غولف كبيرة معبأة بألواح متناوبة ومساحة شعار مطبوعة كبيرة.', 'zh-CN': '超大号包装高尔夫伞，带拼色伞面和大面积标志印刷区域。', 'he-IL': 'מטריית גולף גדולה ארוזה עם פאנלים מתחלפים ואזור לוגו מודפס גדול。' },
     variants: [{ sku: 'GOLF_UMBRELLA', title: 'Standard', price_cents: 3990, weight_g: 850, stock: 25 }],
   },
   {
-    key: 'tennis-protector', file: 'tennis-protector.png', handle: 'tennis-racket-cover', vendor: 'Fufuni',
+    key: 'tennis-protector', file: 'tennis-protector.png', handle: 'tennis-racket-cover', vendor: 'Bengal Exchange',
     categories: ['sports-outdoor'],
     title:       { 'en-US': 'Tennis Racket Cover', 'fr-FR': 'Housse de raquette de tennis', 'es-ES': 'Funda para raqueta de tenis', 'zh-CN': '网球拍套', 'ar-SA': 'غطاء مضرب تنس', 'he-IL': 'כיסוי למחבט טניס' },
     description: { 'en-US': 'Packaged tennis racket cover with zipper closure and centered logo placement.', 'fr-FR': 'Housse de raquette de tennis emballée avec fermeture zippée et logo centré.', 'es-ES': 'Funda para raqueta de tenis empaquetada con cierre de cremallera y logotipo centrado.', 'ar-SA': 'غطاء مضرب تنس معبأ بسحاب وإظهار للشعار في الوسط.', 'zh-CN': '带拉链封口和中央标志位置的包装网球拍套。', 'he-IL': 'כיסוי למחבט טניס ארוז עם רוכסן ומיקום לוגו ממורכז。' },
     variants: [{ sku: 'TENNIS_PROTECTOR', title: 'Standard', price_cents: 1490, weight_g: 220, stock: 30 }],
   },
   {
-    key: 'paraglider', file: 'paraglider.png', handle: 'paraglider-wing', vendor: 'Fufuni',
+    key: 'paraglider', file: 'paraglider.png', handle: 'paraglider-wing', vendor: 'Bengal Exchange',
     categories: ['sports-outdoor'],
     title:       { 'en-US': 'Paraglider Wing EN-D',    'fr-FR': 'Voile de parapente EN-D',       'es-ES': 'Ala de parapente EN-D',         'zh-CN': '滑翔伞翼 EN-D',     'ar-SA': 'EN-D جناح طيران شراعي',    'he-IL': 'כנף מצנח רחיפה EN-D' },
     description: { 'en-US': 'Packed paraglider wing with branded canopy panel, delivered folded in transport configuration.', 'fr-FR': 'Voile de parapente emballée avec panneau de voile cousu, livrée pliée en configuration de transport.', 'es-ES': 'Ala de parapente embalada con panel de vela personalizado, entregada plegada para transporte.', 'ar-SA': 'جناح طيران شراعي معبأ مع جزء قماش يحمل العلامة، يُسلم مطوياً بوضعية النقل.', 'zh-CN': '带品牌伞翼面板的打包滑翔伞翼，折叠后按运输状态交付。', 'he-IL': 'כנף מצנח רחיפה ארוזה עם פאנל ממותג, מסופקת מקופלת לתצורת הובלה。' },
@@ -968,38 +1021,38 @@ async function seedRegions() {
   }
 
   console.log('🏢 Creating warehouses...');
-  const warehouse_fr = await api('/v1/regions/warehouses', {
+  const warehouse_fr = await ensureListed('/v1/regions/warehouses', (w) => w.display_name === 'France Distribution Center', {
     display_name: 'France Distribution Center',
     address_line1: '218 route Notre Dame de la Gorge',
     city: 'Les Contamines-Montjoie',
     postal_code: '74170',
     country_code: 'FR',
     priority: 1,
-  });
+  }, 'warehouse France');
 
-  const warehouse_it = await api('/v1/regions/warehouses', {
+  const warehouse_it = await ensureListed('/v1/regions/warehouses', (w) => w.display_name === 'Italy Distribution Center', {
     display_name: 'Italy Distribution Center',
     address_line1: '17 piazza San Marco',
     city: 'Venezia',
     postal_code: '30124',
     country_code: 'IT',
     priority: 2,
-  });
+  }, 'warehouse Italy');
 
   console.log('💰 Seeding taxes...');
   await seedTaxes();
 
   console.log('📦 Creating shipping rates...');
-  const shippingRate = await api('/v1/regions/shipping-rates', {
+  const shippingRate = await ensureListed('/v1/regions/shipping-rates', (r) => r.display_name === 'Standard Shipping', {
     display_name: 'Standard Shipping',
     description: 'Standard international shipping',
     min_delivery_days: 5,
     max_delivery_days: 10,
     tax_code: 'txcd_99999999',
     tax_inclusive: true,
-  });
+  }, 'shipping rate Standard Shipping');
 
-  // Add shipping rate prices for each currency
+  // Add shipping rate prices (upserted per currency by the API) for each currency
   await api(`/v1/regions/shipping-rates/${shippingRate.id}/prices`, {
     currency_id: currencyMap.EUR,
     amount_cents: 999, // €9.99
@@ -1015,15 +1068,17 @@ async function seedRegions() {
     amount_cents: 1299, // $12.99
   });
 
+  // Country, warehouse and shipping-rate links below use INSERT OR IGNORE on the
+  // server, so re-adding them is harmless.
   console.log('🗺️ Creating regions...');
 
   // Europe region
-  const region_eu = await api('/v1/regions', {
+  const region_eu = await ensureListed('/v1/regions', (r) => r.display_name === 'Europe', {
     display_name: 'Europe',
     currency_id: currencyMap.EUR,
     is_default: true,
     tax_inclusive: true,
-  });
+  }, 'region Europe');
 
   // Add countries to Europe
   for (const country of EUROPEAN_COUNTRIES) {
@@ -1045,12 +1100,12 @@ async function seedRegions() {
   await api(`/v1/regions/${region_eu.id}/shipping-rates`, { shipping_rate_id: shippingRate.id });
 
   // UK region
-  const region_uk = await api('/v1/regions', {
+  const region_uk = await ensureListed('/v1/regions', (r) => r.display_name === 'United Kingdom', {
     display_name: 'United Kingdom',
     currency_id: currencyMap.GBP,
     is_default: false,
     tax_inclusive: true,
-  });
+  }, 'region United Kingdom');
 
   for (const country of UK_COUNTRIES) {
     const countryId = countryMap[country.code];
@@ -1067,12 +1122,12 @@ async function seedRegions() {
   await api(`/v1/regions/${region_uk.id}/shipping-rates`, { shipping_rate_id: shippingRate.id });
 
   // US region
-  const region_us = await api('/v1/regions', {
+  const region_us = await ensureListed('/v1/regions', (r) => r.display_name === 'North America', {
     display_name: 'North America',
     currency_id: currencyMap.USD,
     is_default: false,
     tax_inclusive: true,
-  });
+  }, 'region North America');
 
   for (const country of US_COUNTRIES) {
     const countryId = countryMap[country.code];
@@ -1090,12 +1145,12 @@ async function seedRegions() {
   await api(`/v1/regions/${region_us.id}/shipping-rates`, { shipping_rate_id: shippingRate.id });
 
   // World region
-  const region_world = await api('/v1/regions', {
+  const region_world = await ensureListed('/v1/regions', (r) => r.display_name === 'Rest of World', {
     display_name: 'Rest of World',
     currency_id: currencyMap.EUR,
     is_default: false,
     tax_inclusive: true,
-  });
+  }, 'region Rest of World');
 
   for (const country of OTHER_COUNTRIES) {
     const countryId = countryMap[country.code];
@@ -1229,17 +1284,58 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
     'ai-tokens':        categoryData.aiTokens,
   };
 
+  /**
+   * Prices are upserted by the API (one row per variant + currency). Stock is
+   * only added to a warehouse that has no row for the SKU yet: warehouse-adjust
+   * takes a delta, so re-adding would double the stock on every run.
+   */
+  async function seedVariantPricesAndStock(productId: string, variantId: string, v: any, stock: number) {
+    const pricePath = `/v1/products/${productId}/variants/${variantId}/prices`;
+    if (eurId) await api(pricePath, { currency_id: eurId, price_cents: v.price_cents });
+    if (usdId) await api(pricePath, { currency_id: usdId, price_cents: convertCents(v.price_cents, EUR_TO_USD) });
+    if (gbpId) await api(pricePath, { currency_id: gbpId, price_cents: convertCents(v.price_cents, EUR_TO_GBP) });
+
+    if ((v.variant_type ?? 'physical') !== 'physical') return;
+
+    // Special mock distribution: TEE-BLK-S is split between IT/FR warehouses
+    // for regional stock testing; all other SKUs are stocked in FR.
+    const targets: Array<[string, number]> = v.sku === 'TEE-BLK-S'
+      ? [[regionData.warehouses.it, 10], [regionData.warehouses.fr, stock - 10]]
+      : [[regionData.warehouses.fr, stock]];
+
+    const level = await apiGetOrNull(`/v1/inventory?sku=${encodeURIComponent(v.sku)}`);
+    const stocked = new Set<string>((level?.items?.[0]?.warehouses ?? []).map((w: any) => w.warehouse_id));
+    for (const [warehouseId, qty] of targets) {
+      if (stocked.has(warehouseId)) continue;
+      await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: warehouseId, delta: qty, reason: 'restock' });
+    }
+  }
+
+  // Existing products by handle, each with its variants by SKU (both UNIQUE).
+  const existingProducts = new Map<string, { id: string; variants: Map<string, any> }>();
+  let cursor: string | null = null;
+  do {
+    const page: any = await api(`/v1/products?limit=100&noimage=true${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+    for (const p of page.items) {
+      const entry = { id: p.id, variants: new Map<string, any>((p.variants ?? []).map((v: any) => [v.sku, v])) };
+      for (const handle of handleValues(p.handle)) existingProducts.set(handle, entry);
+    }
+    cursor = page.pagination?.has_more ? page.pagination.next_cursor : null;
+  } while (cursor);
+
   for (const prod of PRODUCT_CATALOG) {
     // Preserve localized vendor name for all defined locales.
     const i18nVendor = { 'en-US': prod.vendor, 'fr-FR': prod.vendor, 'es-ES': prod.vendor, 'zh-CN': prod.vendor, 'ar-SA': prod.vendor, 'he-IL': prod.vendor };
 
-    console.log(`📦 Creating ${prod.title['en-US']}...`);
-    const product = await api('/v1/products', {
+    const found = existingProducts.get(prod.handle);
+    console.log(found ? `📦 ${prod.title['en-US']} (already exists)` : `📦 Creating ${prod.title['en-US']}...`);
+    const product = found ?? await api('/v1/products', {
       handle: prod.handle,
       title: JSON.stringify(prod.title),
       description: JSON.stringify(prod.description),
       vendor: JSON.stringify(i18nVendor),
     });
+    const existingVariants: Map<string, any> = found?.variants ?? new Map();
 
     productIds[prod.key] = product.id;
 
@@ -1250,6 +1346,13 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
 
     for (const v of prod.variants) {
       const { stock, imageFile, ...variantBase } = v as any;
+      const existingVariant = existingVariants.get(v.sku);
+      if (existingVariant) {
+        console.log(`   └─ ${v.sku} (already exists)`);
+        await seedVariantPricesAndStock(product.id, existingVariant.id, v, stock);
+        continue;
+      }
+
       const imgFile: string = imageFile ?? prod.file;
       const variantPayload: any = { ...variantBase, currency: 'EUR', tax_code: 'txcd_99999999' };
       const rawSrc: string = imageMap[imgFile] ?? imgFile;
@@ -1260,22 +1363,7 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
 
       console.log(`   └─ ${v.sku}`);
       const created = await api(`/v1/products/${product.id}/variants`, variantPayload);
-
-      if (eurId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: eurId, price_cents: v.price_cents });
-      if (usdId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: usdId, price_cents: convertCents(v.price_cents, EUR_TO_USD) });
-      if (gbpId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: gbpId, price_cents: convertCents(v.price_cents, EUR_TO_GBP) });
-
-      const variantType = (v as any).variant_type ?? 'physical';
-      if (variantType === 'physical') {
-        // Special mock distribution: TEE-BLK-S is split between IT/FR warehouses
-        // for regional stock testing; all other SKUs are stocked in FR.
-        if (v.sku === 'TEE-BLK-S') {
-          await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.it, delta: 10,         reason: 'restock' });
-          await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock - 10, reason: 'restock' });
-        } else {
-          await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock, reason: 'restock' });
-        }
-      }
+      await seedVariantPricesAndStock(product.id, created.id, v, stock);
     }
   }
 
@@ -1298,6 +1386,18 @@ async function seedOrders(regionData: any): Promise<void> {
     const shippingCents = shippingCentsByRegion[regionKey] ?? 999;
 
     for (const order of orders) {
+      // Each demo customer has exactly one order; reuse it on re-runs.
+      const { items: previous } = await api(`/v1/orders?limit=1&email=${encodeURIComponent(order.customer_email)}`);
+      if (previous.length > 0) {
+        const existing = previous[0];
+        console.log(`   ↩  [${regionKey.toUpperCase()}] ${existing.number}: ${order.customer_email} (already exists)`);
+        if (REVIEW_CUSTOMERS.has(order.customer_email) && existing.status !== 'delivered') {
+          await apiPatch(`/v1/orders/${existing.id}`, { status: 'delivered' });
+          console.log(`      ✓ marked delivered (review-eligible)`);
+        }
+        continue;
+      }
+
       const address = SEED_ADDRESSES[regionKey]?.[order.customer_email];
       const result = await api('/v1/orders/test', {
         ...order,
@@ -1360,6 +1460,12 @@ async function seedReviews(productIds: Record<string, string>): Promise<void> {
 async function seed() {
   console.log('🌱 Seeding demo data...\n');
 
+  if (FORCE) {
+    console.log('🧹 --force: wiping demo data (currencies, countries, API keys and settings are kept)...');
+    const result = await api('/v1/setup/demo-reset', {});
+    console.log(`   ✅ ${result.deleted} rows deleted\n`);
+  }
+
   // Step 1: Regions, tax, shipping, and warehouses.
   const regionData   = await seedRegions();
 
@@ -1375,10 +1481,10 @@ async function seed() {
   // Step 5: Seed review entries for delivered orders.
   await seedReviews(productIds);
 
-  console.log('\n✅ Done! Demo data created.\n');
+  console.log('\n✅ Done! Demo data is in place (safe to run again).\n');
 
-  const { items: allProducts } = await api('/v1/products');
-  const { items: allOrders }   = await api('/v1/orders');
+  const { items: allProducts } = await api('/v1/products?limit=100&noimage=true');
+  const { items: allOrders }   = await api('/v1/orders?limit=100');
   console.log(`Products : ${allProducts.length}`);
   console.log(`Variants : ${allProducts.reduce((sum: number, p: any) => sum + p.variants.length, 0)}`);
   console.log(`Orders   : ${allOrders.length}`);

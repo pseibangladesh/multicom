@@ -47,7 +47,7 @@ export interface UseSavedCartsReturn {
   getSavedCart: (cartId: string) => SavedCartSnapshot | undefined;
 }
 
-const SAVED_CARTS_UPDATED_EVENT = "fufuni:saved-carts-updated";
+const SAVED_CARTS_UPDATED_EVENT = "bengal-exchange:saved-carts-updated";
 
 /**
  * Lightweight token parser function.

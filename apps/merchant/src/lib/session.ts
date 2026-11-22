@@ -13,8 +13,16 @@ export interface VerifiedSession {
 }
 
 /** Anything that can serve a fetch, e.g. a DurableObjectStub. */
-export interface FetchTarget {
-  fetch(request: Request): Promise<Response>;
+/**
+ * What verifySession needs from MerchantDO (an RPC method on the stub).
+ *
+ * It must NOT go through Better Auth's HTTP handler (/api/auth/get-session):
+ * that endpoint is rate limited, and an internal request carries no client IP,
+ * so every user shared one 10-per-minute bucket and the 11th authenticated API
+ * request in a minute, site-wide, failed with 401.
+ */
+export interface SessionVerifier {
+  getSessionForCookie(cookieHeader: string): Promise<VerifiedSession | null>;
 }
 
 const SESSION_COOKIE = /(?:^|;\s*)(?:__Secure-)?better-auth\.session_token=/;
@@ -24,32 +32,14 @@ export function hasSessionCookie(cookieHeader: string | null | undefined): boole
 }
 
 export async function verifySession(
-  target: FetchTarget,
+  target: SessionVerifier,
   cookieHeader: string | null | undefined
 ): Promise<VerifiedSession | null> {
   if (!hasSessionCookie(cookieHeader)) return null;
-
-  const res = await target.fetch(
-    new Request('https://merchant-do/api/auth/get-session', {
-      headers: { cookie: cookieHeader as string },
-    })
-  );
-  if (!res.ok) return null;
-
-  const body = (await res.json().catch(() => null)) as {
-    user?: { id?: string; email?: string; name?: string | null };
-  } | null;
-  const user = body?.user;
-  if (!user?.id || !user.email) return null;
-
-  return { userId: user.id, email: user.email, name: user.name ?? null };
+  const session = await target.getSessionForCookie(cookieHeader as string);
+  return session?.userId && session.email ? session : null;
 }
 
-/**
- * A session only grants admin when its email is listed in ADMIN_EMAILS
- * (comma-separated). Customers sign up through the same Better Auth instance,
- * so "has a session" must never mean "is an admin".
- */
 export function isAdminEmail(email: string, adminEmails: string | undefined): boolean {
   if (!adminEmails) return false;
   const target = email.trim().toLowerCase();

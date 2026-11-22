@@ -60,12 +60,12 @@ function formatCurrency(cents: number, currency: string): string {
  * Runs entirely client-side — no Worker call required.
  *
  * @param order - The order data to include in the invoice
- * @param storeName - Display name of the store (e.g., 'Fufuni Shop')
+ * @param storeName - Display name of the store (e.g., 'Bengal Exchange Shop')
  * @param locale - Locale for date and number formatting (e.g., 'fr-FR')
  */
 export function downloadInvoicePdf(
   order: OrderForPdf,
-  storeName: string = "Fufuni Store",
+  storeName: string = "Bengal Exchange Store",
   locale: string = "en-US",
 ): void {
   const doc = new jsPDF({
@@ -221,7 +221,7 @@ export function downloadInvoicePdf(
  */
 export function openInvoicePdf(
   order: OrderForPdf,
-  storeName: string = "Fufuni Store",
+  storeName: string = "Bengal Exchange Store",
   locale: string = "en-US",
 ): void {
   const doc = new jsPDF({

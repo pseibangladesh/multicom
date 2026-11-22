@@ -68,10 +68,37 @@ const ETSY_CONFIG_PATCH = z
   .partial()
   .strict();
 
-const PATCH_SCHEMAS = { ebay: EBAY_CONFIG_PATCH, etsy: ETSY_CONFIG_PATCH } as const;
+const AMAZON_CONDITIONS = [
+  'new_new', 'new_open_box', 'new_oem', 'refurbished_refurbished',
+  'used_like_new', 'used_very_good', 'used_good', 'used_acceptable',
+  'collectible_like_new', 'collectible_very_good', 'collectible_good', 'collectible_acceptable',
+] as const;
+
+const AMAZON_CONFIG_PATCH = z
+  .object({
+    // Must be one of the seller's marketplaces.
+    marketplace_id: z.string().regex(/^[A-Z0-9]{9,14}$/, 'e.g. ATVPDKIKX0DER').nullable(),
+    default_carrier: carrier.nullable(),
+    import_fba_orders: z.boolean().nullable(),
+    amazon_listing: z
+      .object({
+        // Amazon product type, e.g. SHIRT, HOME, PRODUCT.
+        product_type: z.string().trim().regex(/^[A-Z0-9_]{2,64}$/, 'e.g. SHIRT').nullable(),
+        condition_type: z.enum(AMAZON_CONDITIONS).nullable(),
+        brand: z.string().trim().min(1).max(100).nullable(),
+        language_tag: z.string().regex(/^[a-z]{2}_[A-Z]{2}$/, 'e.g. en_US').nullable(),
+      })
+      .partial()
+      .strict()
+      .nullable(),
+  })
+  .partial()
+  .strict();
+
+const PATCH_SCHEMAS = { ebay: EBAY_CONFIG_PATCH, etsy: ETSY_CONFIG_PATCH, amazon: AMAZON_CONFIG_PATCH } as const;
 
 /** Nested objects whose keys are merged rather than replaced. */
-const NESTED_KEYS = new Set(['listing', 'listing_defaults']);
+const NESTED_KEYS = new Set(['listing', 'listing_defaults', 'amazon_listing']);
 
 type Json = Record<string, unknown>;
 
@@ -118,8 +145,14 @@ const CHANNEL_SELECT = `
 
 function toSummary(row: ChannelRowDb) {
   const config: ChannelConfig = parseChannelConfig(row.config_json);
+  // Amazon can always offer SKUs whose barcode is in its catalog; a product
+  // type is what lets it create new products too.
   const listingReady =
-    row.platform === 'ebay' ? resolveListingConfig(config) !== null : row.platform === 'etsy' ? resolveEtsyListingDefaults(config) !== null : false;
+    row.platform === 'ebay'
+      ? resolveListingConfig(config) !== null
+      : row.platform === 'etsy'
+        ? resolveEtsyListingDefaults(config) !== null
+        : Boolean(config.amazon_listing?.product_type);
   return {
     id: row.id,
     platform: row.platform,

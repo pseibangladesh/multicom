@@ -101,12 +101,12 @@ const WEBHOOK_EVENTS = [
 const EXAMPLE_HTTP_HEADERS: [string, string][] = [
   ["Content-Type", "application/json"],
   [
-    "X-Fufuni-Signature",
+    "X-Bengal-Exchange-Signature",
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
   ],
-  ["X-Fufuni-Timestamp", "1748000000"],
-  ["X-Fufuni-Delivery-Id", "550e8400-e29b-41d4-a716-446655440000"],
-  ["User-Agent", "Fufuni-Webhook/1.0"],
+  ["X-Bengal-Exchange-Timestamp", "1748000000"],
+  ["X-Bengal-Exchange-Delivery-Id", "550e8400-e29b-41d4-a716-446655440000"],
+  ["User-Agent", "Bengal-Exchange-Webhook/1.0"],
 ];
 
 const _BASE_ORDER = {

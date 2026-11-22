@@ -281,7 +281,7 @@ export function serve404() {
 
 <body>
     <!-- GitHub Corner -->
-    <a href="https://github.com/sctg-development/fufuni" class="github-corner" title="View source on GitHub" target="_blank"
+    <a href="https://github.com/pseibangladesh/multicom" class="github-corner" title="View source on GitHub" target="_blank"
         rel="noopener noreferrer" aria-label="View source on GitHub">
         <svg viewBox="0 0 250 250" width="80" height="80" aria-hidden="true">
             <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z" />

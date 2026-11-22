@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
-multicom (package name `fufuni`) is a headless e-commerce framework that runs on Cloudflare Workers. It is an npm-workspaces monorepo orchestrated by Turborepo (`packageManager: npm@11`). Do not use pnpm or yarn.
+multicom (package name `bengal-exchange`) is a headless e-commerce framework that runs on Cloudflare Workers. It is an npm-workspaces monorepo orchestrated by Turborepo (`packageManager: npm@11`). Do not use pnpm or yarn.
 
 | Workspace | What it is |
 |---|---|

@@ -23,7 +23,7 @@ export interface UseWishlistReturn {
   isFavorite: (productId: string) => boolean;
 }
 
-const WISHLIST_UPDATED_EVENT = "fufuni:wishlist-updated";
+const WISHLIST_UPDATED_EVENT = "bengal-exchange:wishlist-updated";
 
 /**
  * Lightweight token parser function.

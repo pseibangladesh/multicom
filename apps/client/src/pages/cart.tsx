@@ -24,7 +24,10 @@ import {
   addItemsToCart,
   checkoutCart,
   checkoutCartSslcommerz,
+  enabledPaymentMethods,
   getAvailableShippingRates,
+  getPaymentMethods,
+  type PaymentMethodId,
 } from "@/lib/store-api";
 import { Button, Card, Input, RadioGroup, Radio } from "@heroui/react";
 import { useState, useEffect } from "react";
@@ -67,7 +70,31 @@ export default function CartPage() {
   const [showManualAddressForm, setShowManualAddressForm] = useState(false);
 
   // Payment method selection
-  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "sslcommerz">("stripe");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("stripe");
+  // null while loading; then only the gateways switched on in Admin → Payment Gateways.
+  const [availableMethods, setAvailableMethods] = useState<PaymentMethodId[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getPaymentMethods()
+      .then((m) => {
+        if (cancelled) return;
+        const ids = enabledPaymentMethods(m);
+
+        setAvailableMethods(ids);
+        if (ids.length > 0) setPaymentMethod((current) => (ids.includes(current) ? current : ids[0]));
+      })
+      .catch((err) => {
+        console.error("Failed to load payment methods", err);
+        // Older backend without /v1/payment-methods: keep the previous behaviour.
+        if (!cancelled) setAvailableMethods(["stripe", "sslcommerz"]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Pre-fill email from authenticated user for a smoother post-login return
   useEffect(() => {
@@ -374,23 +401,39 @@ export default function CartPage() {
                   <h2 className="text-lg font-semibold">{t("checkout-select-payment") || "Select Payment Method"}</h2>
                 </Card.Header>
                 <Card.Content className="space-y-4">
-                  <RadioGroup value={paymentMethod} onChange={(v: string) => setPaymentMethod(v as "stripe" | "sslcommerz")}>
-                    <Radio value="stripe" className="shrink-0">
-                      <Radio.Control>
-                        <Radio.Indicator />
-                      </Radio.Control>
-                      💳 Stripe (Credit/Debit Card)
-                    </Radio>
-                    <Radio value="sslcommerz" className="shrink-0">
-                      <Radio.Control>
-                        <Radio.Indicator />
-                      </Radio.Control>
-                      🇧🇩 SSLCommerz (Bangladesh)
-                    </Radio>
-                  </RadioGroup>
+                  {availableMethods === null ? (
+                    <p className="text-sm text-default-500">{t("loading", "Loading...")}</p>
+                  ) : availableMethods.length === 0 ? (
+                    <p className="text-sm text-danger">
+                      {t("checkout-no-payment-methods", "Online payment is not available right now. Please contact the store.")}
+                    </p>
+                  ) : (
+                    <RadioGroup value={paymentMethod} onChange={(v: string) => setPaymentMethod(v as PaymentMethodId)}>
+                      {availableMethods.includes("stripe") && (
+                        <Radio value="stripe" className="shrink-0">
+                          <Radio.Control>
+                            <Radio.Indicator />
+                          </Radio.Control>
+                          💳 Stripe (Credit/Debit Card)
+                        </Radio>
+                      )}
+                      {availableMethods.includes("sslcommerz") && (
+                        <Radio value="sslcommerz" className="shrink-0">
+                          <Radio.Control>
+                            <Radio.Indicator />
+                          </Radio.Control>
+                          🇧🇩 SSLCommerz (Bangladesh)
+                        </Radio>
+                      )}
+                    </RadioGroup>
+                  )}
 
                   <div className="flex gap-3 pt-4">
-                    <Button variant="primary" onPress={() => void proceedToPayment(currentCart.id)}>
+                    <Button
+                      variant="primary"
+                      isDisabled={!availableMethods?.includes(paymentMethod)}
+                      onPress={() => void proceedToPayment(currentCart.id)}
+                    >
                       {t("checkout-pay-now") || "Pay Now"}
                     </Button>
                     <Button variant="secondary" onPress={() => setStep("shipping-rate")}>

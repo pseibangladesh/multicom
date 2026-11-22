@@ -186,10 +186,34 @@ export type Env = {
   EBAY_RU_NAME?: string;
   /** 'sandbox' targets api.sandbox.ebay.com / auth.sandbox.ebay.com. Default: production. */
   EBAY_ENVIRONMENT?: string;
+  /**
+   * Notification API verification token (32–80 chars of [A-Za-z0-9_-]), the
+   * same value entered in the eBay developer portal. Secret.
+   */
+  EBAY_VERIFICATION_TOKEN?: string;
+  /** URL registered with eBay. Default: API_BASE_URL + /v1/marketplace/webhook/ebay. */
+  EBAY_NOTIFICATION_ENDPOINT?: string;
+  /** LWA client identifier of the SP-API app (amzn1.application-oa2-client.…). */
+  AMAZON_LWA_CLIENT_ID?: string;
+  /** LWA client secret. Secret. */
+  AMAZON_LWA_CLIENT_SECRET?: string;
+  /** Older names for the two above, still accepted. */
   AMAZON_LWA_APP_ID?: string;
   AMAZON_LWA_APP_SECRET?: string;
+  /** SP-API application ID (amzn1.sp.solution.…), used in the seller consent URL. */
+  AMAZON_SP_APP_ID?: string;
   /** Amazon SP-API region: NA | EU | FE. Default NA. */
   AMAZON_REGION?: string;
+  /** Marketplace to sell in when the seller has several. Default: US / UK / JP by region. */
+  AMAZON_MARKETPLACE_ID?: string;
+  /** "sandbox" uses the SP-API sandbox hosts. Default production. */
+  AMAZON_ENVIRONMENT?: string;
+  /** Registered OAuth redirect URI. Default: API_BASE_URL + /v1/marketplace/connect/amazon/callback. */
+  AMAZON_REDIRECT_URI?: string;
+  /** Seller Central origin for the consent page, if not the region default. */
+  AMAZON_SELLER_CENTRAL_URL?: string;
+  /** "true" while the app is a draft (adds version=beta to the consent URL). */
+  AMAZON_APP_DRAFT?: string;
 
   /**
    * Producer binding for marketplace sync jobs (wrangler.jsonc "queues").

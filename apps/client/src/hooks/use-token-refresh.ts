@@ -17,7 +17,7 @@ import { useAuth } from "@/authentication";
  * window.addEventListener(TOKEN_REFRESHED_EVENT, (e) => console.log(e.detail));
  * ```
  */
-export const TOKEN_REFRESHED_EVENT = "fufuni:token-refreshed";
+export const TOKEN_REFRESHED_EVENT = "bengal-exchange:token-refreshed";
 
 /**
  * Options for the {@link useTokenRefresh} hook.

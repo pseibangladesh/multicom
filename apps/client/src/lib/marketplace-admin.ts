@@ -18,7 +18,7 @@
 export type MarketplacePlatform = "ebay" | "etsy" | "amazon";
 
 /** Platforms whose connect flow is implemented on the backend. */
-export const CONNECTABLE_PLATFORMS = ["ebay", "etsy"] as const;
+export const CONNECTABLE_PLATFORMS = ["ebay", "etsy", "amazon"] as const;
 export type ConnectablePlatform = (typeof CONNECTABLE_PLATFORMS)[number];
 
 export const PLATFORM_LABELS: Record<MarketplacePlatform, string> = {
@@ -80,7 +80,17 @@ export interface EbayConfigForm {
   merchant_location_key: string;
 }
 
-export type ConfigForm = EtsyConfigForm | EbayConfigForm;
+export interface AmazonConfigForm {
+  marketplace_id: string;
+  default_carrier: string;
+  import_fba_orders: "" | "true";
+  product_type: string;
+  condition_type: string;
+  brand: string;
+  language_tag: string;
+}
+
+export type ConfigForm = EtsyConfigForm | EbayConfigForm | AmazonConfigForm;
 
 const ETSY_LISTING_FIELDS = [
   "taxonomy_id",
@@ -111,7 +121,23 @@ const EBAY_LISTING_FIELDS = [
   "merchant_location_key",
 ] as const;
 
-/** Fields the backend needs before the channel can create listings. */
+const AMAZON_TOP_FIELDS = [
+  "marketplace_id",
+  "default_carrier",
+  "import_fba_orders",
+] as const;
+const AMAZON_LISTING_FIELDS = [
+  "product_type",
+  "condition_type",
+  "brand",
+  "language_tag",
+] as const;
+
+/**
+ * Fields the backend needs before the channel can create listings. Amazon
+ * needs none: a SKU whose barcode is in Amazon's catalog is offered on the
+ * existing product; the product type only matters for brand-new products.
+ */
 export const REQUIRED_FOR_LISTING: Record<
   ConnectablePlatform,
   readonly string[]
@@ -124,6 +150,7 @@ export const REQUIRED_FOR_LISTING: Record<
     "return_policy_id",
     "merchant_location_key",
   ],
+  amazon: [],
 };
 
 const str = (v: unknown): string =>
@@ -167,13 +194,31 @@ export function ebayFormFromConfig(
   };
 }
 
+export function amazonFormFromConfig(
+  config: Record<string, unknown>,
+): AmazonConfigForm {
+  const l = obj(config.amazon_listing);
+
+  return {
+    marketplace_id: str(config.marketplace_id),
+    default_carrier: str(config.default_carrier),
+    // Off is the default, so it is shown (and saved) as "not set".
+    import_fba_orders: config.import_fba_orders === true ? "true" : "",
+    product_type: str(l.product_type),
+    condition_type: str(l.condition_type),
+    brand: str(l.brand),
+    language_tag: str(l.language_tag),
+  };
+}
+
 export function formFromConfig(
   platform: ConnectablePlatform,
   config: Record<string, unknown>,
 ): ConfigForm {
-  return platform === "etsy"
-    ? etsyFormFromConfig(config)
-    : ebayFormFromConfig(config);
+  if (platform === "etsy") return etsyFormFromConfig(config);
+  if (platform === "amazon") return amazonFormFromConfig(config);
+
+  return ebayFormFromConfig(config);
 }
 
 /** Field → error key (an i18n key). Mirrors the backend zod schemas. */
@@ -200,6 +245,18 @@ export function validateConfigForm(
     ) {
       errors.when_made = "admin-marketplaces-error-when-made";
     }
+  } else if (platform === "amazon") {
+    if (f.marketplace_id && !/^[A-Z0-9]{9,14}$/.test(f.marketplace_id.trim()))
+      errors.marketplace_id = "admin-marketplaces-error-amazon-marketplace-id";
+    if (
+      f.product_type &&
+      !/^[A-Z0-9_]{2,64}$/.test(f.product_type.trim().toUpperCase())
+    )
+      errors.product_type = "admin-marketplaces-error-product-type";
+    if (f.language_tag && !/^[a-z]{2}_[A-Z]{2}$/.test(f.language_tag.trim()))
+      errors.language_tag = "admin-marketplaces-error-language-tag";
+    if (f.brand && f.brand.trim().length > 100)
+      errors.brand = "admin-marketplaces-error-too-long";
   } else {
     if (f.marketplace_id && !/^EBAY_[A-Z_]{2,}$/.test(f.marketplace_id.trim()))
       errors.marketplace_id = "admin-marketplaces-error-marketplace-id";
@@ -227,6 +284,8 @@ function fieldValue(
   if (v === "") return null; // cleared → backend deletes the key
   if (platform === "etsy" && ETSY_INT_FIELDS.has(key)) return Number(v);
   if (platform === "etsy" && key === "is_supply") return v === "true";
+  if (platform === "amazon" && key === "import_fba_orders") return v === "true";
+  if (platform === "amazon" && key === "product_type") return v.toUpperCase();
 
   return v;
 }
@@ -247,10 +306,16 @@ export function buildConfigPatch(
   const patch: Record<string, unknown> = {};
   const nested: Record<string, unknown> = {};
 
-  const [top, listing, nestedKey] =
+  const [top, listing, nestedKey]: [
+    readonly string[],
+    readonly string[],
+    string,
+  ] =
     platform === "etsy"
       ? [["default_carrier"], ETSY_LISTING_FIELDS, "listing_defaults"]
-      : [EBAY_TOP_FIELDS, EBAY_LISTING_FIELDS, "listing"];
+      : platform === "amazon"
+        ? [AMAZON_TOP_FIELDS, AMAZON_LISTING_FIELDS, "amazon_listing"]
+        : [EBAY_TOP_FIELDS, EBAY_LISTING_FIELDS, "listing"];
 
   for (const k of top) if (changed(k)) patch[k] = fieldValue(platform, k, f[k]);
   for (const k of listing)

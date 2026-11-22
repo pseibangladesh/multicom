@@ -177,6 +177,66 @@ const EBAY_FIELDS: FieldSpec[] = [
   },
 ];
 
+const AMAZON_FIELDS: FieldSpec[] = [
+  {
+    key: "marketplace_id",
+    labelKey: "admin-marketplaces-field-amazon-marketplace-id",
+    hintKey: "admin-marketplaces-hint-amazon-marketplace-id",
+    placeholder: "ATVPDKIKX0DER",
+  },
+  {
+    key: "default_carrier",
+    labelKey: "admin-marketplaces-field-default-carrier",
+    hintKey: "admin-marketplaces-hint-carrier-amazon",
+    placeholder: "UPS",
+  },
+  {
+    key: "product_type",
+    labelKey: "admin-marketplaces-field-product-type",
+    hintKey: "admin-marketplaces-hint-product-type",
+    placeholder: "SHIRT",
+  },
+  {
+    key: "brand",
+    labelKey: "admin-marketplaces-field-brand",
+    hintKey: "admin-marketplaces-hint-brand",
+  },
+  {
+    key: "condition_type",
+    labelKey: "admin-marketplaces-field-condition-type",
+    options: [
+      { value: "", labelKey: "admin-marketplaces-option-default" },
+      { value: "new_new", labelKey: "admin-marketplaces-option-condition-new" },
+      {
+        value: "refurbished_refurbished",
+        labelKey: "admin-marketplaces-option-condition-refurbished",
+      },
+      {
+        value: "used_like_new",
+        labelKey: "admin-marketplaces-option-condition-used-like-new",
+      },
+      {
+        value: "used_good",
+        labelKey: "admin-marketplaces-option-condition-used-good",
+      },
+    ],
+  },
+  {
+    key: "language_tag",
+    labelKey: "admin-marketplaces-field-language-tag",
+    hintKey: "admin-marketplaces-hint-language-tag",
+    placeholder: "en_US",
+  },
+  {
+    key: "import_fba_orders",
+    labelKey: "admin-marketplaces-field-import-fba",
+    options: [
+      { value: "", labelKey: "admin-marketplaces-option-fba-skip" },
+      { value: "true", labelKey: "admin-marketplaces-option-fba-import" },
+    ],
+  },
+];
+
 const SELECT_CLASS =
   "px-3 py-2 rounded-lg bg-default-100 border border-default-300 text-sm focus:outline-none focus:ring-2";
 
@@ -391,7 +451,11 @@ export default function MarketplacesPage() {
   };
 
   const editingFields =
-    editing?.platform === "etsy" ? ETSY_FIELDS : EBAY_FIELDS;
+    editing?.platform === "etsy"
+      ? ETSY_FIELDS
+      : editing?.platform === "amazon"
+        ? AMAZON_FIELDS
+        : EBAY_FIELDS;
   const required = useMemo(
     () =>
       new Set(

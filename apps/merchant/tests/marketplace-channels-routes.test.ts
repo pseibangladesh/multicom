@@ -152,10 +152,22 @@ describe('PATCH /v1/admin/marketplace/channels/:id/config', () => {
     expect((await call('PATCH', '/channels/nope/config', {})).status).toBe(404);
   });
 
-  it('501s for platforms without an editable config', async () => {
+  it('edits Amazon config and validates it', async () => {
     const { merchant, call } = await setup();
     merchant.run(`INSERT INTO marketplace_channels (id, platform, store_id) VALUES ('amz', 'amazon', 'default')`);
-    expect((await call('PATCH', '/channels/amz/config', {})).status).toBe(501);
+    const ok = await call('PATCH', '/channels/amz/config', {
+      marketplace_id: 'A1F83G8C2ARO7P',
+      default_carrier: 'Royal Mail',
+      amazon_listing: { product_type: 'SHIRT', condition_type: 'new_new', brand: 'Bengal' },
+    });
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as any).channel).toMatchObject({
+      listingReady: true,
+      config: { marketplace_id: 'A1F83G8C2ARO7P', amazon_listing: { product_type: 'SHIRT', brand: 'Bengal' } },
+    });
+    expect((await call('PATCH', '/channels/amz/config', { amazon_listing: { product_type: 'not a type' } })).status).toBe(400);
+    expect((await call('PATCH', '/channels/amz/config', { amazon_listing: { condition_type: 'broken' } })).status).toBe(400);
+    expect((await call('PATCH', '/channels/amz/config', { listing_defaults: {} })).status).toBe(400);
   });
 });
 

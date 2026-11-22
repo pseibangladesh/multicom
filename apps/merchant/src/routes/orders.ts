@@ -27,6 +27,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 import { z } from 'zod';
 import { getDb } from '../db';
+import { getStripeSettings } from '../lib/payment-config';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, uuid, now, generateOrderNumber, type HonoEnv } from '../types';
 import { validateDiscount, calculateDiscount, type Discount } from './discounts';
@@ -317,10 +318,11 @@ adminApp.openapi(refundOrder, async (c) => {
   const { orderId } = c.req.valid('param');
   const { amount_cents, reason, notes } = c.req.valid('json');
 
-  const stripeSecretKey = c.get('auth').stripeSecretKey;
-  if (!stripeSecretKey) throw ApiError.invalidRequest('Stripe not connected');
-
   const db = getDb(c.var.db);
+
+  // Refunds work even while Stripe checkout is switched off.
+  const { secretKey: stripeSecretKey } = await getStripeSettings(db, c.env);
+  if (!stripeSecretKey) throw ApiError.invalidRequest('Stripe not connected');
 
   const [order] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
   if (!order) throw ApiError.notFound('Order not found');

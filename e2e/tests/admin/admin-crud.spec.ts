@@ -124,7 +124,7 @@ test.describe("Admin — accès refusé sans permission admin", () => {
     await page.waitForLoadState("networkidle");
     await dismissCookieBanner(page);
 
-    // AuthenticationGuardWithPermission renders an empty fallback (no redirect, no 403 alert).
+    // AdminGuard sends signed-in non-admins (email not in ADMIN_EMAILS) back to "/".
     // Blocking is confirmed by absence of admin-specific UI.
     const url = page.url();
     const isRedirected = /login|unauthorized/i.test(url) || !url.includes("/admin/categories");

@@ -109,6 +109,22 @@ async function tokenRequest(
   };
 }
 
+/** Scope for application (client credentials) tokens, e.g. the Notification API's getPublicKey. */
+export const EBAY_APPLICATION_SCOPE = 'https://api.ebay.com/oauth/api_scope';
+
+/** Application access token (client credentials grant); no user or refresh token involved. */
+export function getEbayApplicationToken(
+  app: Pick<EbayAppCredentials, 'clientId' | 'clientSecret' | 'environment'>,
+  opts: { fetch?: typeof fetch; now?: Date } = {},
+): Promise<EbayTokens> {
+  return tokenRequest(
+    app as EbayAppCredentials,
+    new URLSearchParams({ grant_type: 'client_credentials', scope: EBAY_APPLICATION_SCOPE }),
+    opts.fetch ?? fetch,
+    opts.now ?? new Date(),
+  );
+}
+
 /** Exchanges the `code` from the OAuth callback for user tokens. */
 export function exchangeEbayCode(
   app: EbayAppCredentials,

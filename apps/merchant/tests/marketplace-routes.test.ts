@@ -210,10 +210,12 @@ describe('marketplace routes: OAuth connect', () => {
     expect(merchant.query<any>(`SELECT id, status FROM marketplace_channels`)).toEqual([{ id: 'ch-old', status: 'active' }]);
   });
 
-  it('answers 501 for platforms whose connector is not implemented', async () => {
+  it('rejects unknown platforms and an unconfigured Amazon app', async () => {
     const { call } = await setup();
-    expect((await call('POST', '/connect/amazon')).status).toBe(501);
     expect((await call('POST', '/connect/shopify')).status).toBe(400);
+    const amazon = await call('POST', '/connect/amazon');
+    expect(amazon.status).toBe(400);
+    expect(JSON.stringify(await amazon.json())).toMatch(/Amazon is not configured/);
   });
 
   it('400s when the eBay or Etsy app is not configured', async () => {

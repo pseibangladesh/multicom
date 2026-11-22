@@ -19,6 +19,16 @@ import {
   EtsyOAuthError,
 } from '../../lib/marketplace/etsy-oauth';
 import { fetchEtsyShopId, EtsyApiError } from '../../lib/marketplace/etsy';
+import {
+  amazonAppFromEnv,
+  buildAmazonAuthorizeUrl,
+  buildAmazonLoginReturnUrl,
+  exchangeAmazonCode,
+  isAmazonCallbackUri,
+  saveAmazonTokens,
+  AmazonOAuthError,
+} from '../../lib/marketplace/amazon-oauth';
+import { fetchMarketplaceParticipations, pickMarketplace, AmazonApiError } from '../../lib/marketplace/amazon';
 import { parseChannelConfig, type ChannelConfig } from '../../lib/marketplace/channel';
 import type { MarketplacePlatform } from '../../lib/marketplace/types';
 
@@ -95,6 +105,14 @@ export function connectRoutes(): Hono<HonoEnv> {
         const codeVerifier = createCodeVerifier();
         return { authUrl: await buildEtsyAuthorizeUrl(etsy, state, codeVerifier), codeVerifier };
       };
+    } else if (platform === 'amazon') {
+      const amazon = amazonAppFromEnv(c.env);
+      if (!amazon) {
+        throw ApiError.invalidRequest(
+          'Amazon is not configured (AMAZON_LWA_CLIENT_ID, AMAZON_LWA_CLIENT_SECRET, AMAZON_SP_APP_ID, and AMAZON_REDIRECT_URI or API_BASE_URL)',
+        );
+      }
+      authorize = async (state) => ({ authUrl: buildAmazonAuthorizeUrl(amazon, state) });
     } else {
       throw notImplemented(platform);
     }
@@ -131,6 +149,35 @@ export function connectRoutes(): Hono<HonoEnv> {
     return c.json({ ok: true, authUrl, state });
   });
 
+  /**
+   * Amazon "Login URI" step of the website authorization workflow. Register
+   * <API_BASE_URL>/v1/marketplace/connect/amazon/login as the app's Login URI.
+   * Amazon sends the admin here after consent; we hand them back to Seller
+   * Central with the pending state, and Amazon then calls the redirect URI.
+   */
+  app.get('/amazon/login', async (c) => {
+    const amazon = amazonAppFromEnv(c.env);
+    if (!amazon) throw ApiError.invalidRequest('Amazon is not configured');
+    const callbackUri = c.req.query('amazon_callback_uri');
+    const amazonState = c.req.query('amazon_state');
+    if (!amazonState || !isAmazonCallbackUri(callbackUri)) {
+      throw ApiError.invalidRequest('Missing or invalid amazon_callback_uri / amazon_state');
+    }
+
+    const db = getDb(c.var.db);
+    const nowIso = new Date().toISOString();
+    const given = c.req.query('state');
+    const [pending] = await db.query<{ state: string }>(
+      given
+        ? `SELECT state FROM marketplace_oauth_states WHERE platform = 'amazon' AND state = ? AND expires_at > ?`
+        : `SELECT state FROM marketplace_oauth_states WHERE platform = 'amazon' AND expires_at > ? ORDER BY expires_at DESC LIMIT 1`,
+      given ? [given, nowIso] : [nowIso],
+    );
+    if (!pending) throw ApiError.invalidRequest('No Amazon connection in progress; start it again from the admin dashboard');
+
+    return c.redirect(buildAmazonLoginReturnUrl(amazon, callbackUri!, amazonState, pending.state), 302);
+  });
+
   app.get('/:platform/callback', async (c) => {
     const platform = parsePlatform(c.req.param('platform'));
     const state = c.req.query('state');
@@ -158,10 +205,10 @@ export function connectRoutes(): Hono<HonoEnv> {
     const providerError = c.req.query('error');
     if (providerError) return finish({ result: 'denied', error: providerError }, 400);
 
-    const code = c.req.query('code');
+    // Amazon names its code spapi_oauth_code.
+    const code = c.req.query('code') ?? c.req.query('spapi_oauth_code');
     if (!code) throw ApiError.invalidRequest('No authorization code received');
 
-    if (platform !== 'ebay' && platform !== 'etsy') throw notImplemented(platform);
     if (!c.env.CRYPTOKEN) throw ApiError.internalServerError('CRYPTOKEN is not set; cannot store marketplace credentials');
 
     // Exchange the code. Nothing is written until this succeeds.
@@ -175,6 +222,30 @@ export function connectRoutes(): Hono<HonoEnv> {
         const tokens = await exchangeEbayCode(ebay, code);
         saveTokens = (cm, id) => saveEbayTokens(cm, id, tokens);
         configPatch = { environment: ebay.environment };
+      } else if (platform === 'amazon') {
+        const amazon = amazonAppFromEnv(c.env);
+        if (!amazon) throw ApiError.invalidRequest('Amazon is not configured');
+        const sellerId = c.req.query('selling_partner_id');
+        if (!sellerId) throw ApiError.invalidRequest('No selling_partner_id received from Amazon');
+        const tokens = await exchangeAmazonCode(amazon, code);
+        // Proves the token works and tells us where the seller sells.
+        const participations = await fetchMarketplaceParticipations({
+          accessToken: tokens.accessToken,
+          region: amazon.region,
+          environment: amazon.environment,
+        });
+        let preferred = amazon.marketplaceId;
+        if (row.channel_id) {
+          const [prev] = await db.query<{ config_json: string }>(`SELECT config_json FROM marketplace_channels WHERE id = ?`, [row.channel_id]);
+          preferred = parseChannelConfig(prev?.config_json).marketplace_id ?? preferred;
+        }
+        externalShopId = sellerId;
+        saveTokens = (cm, id) => saveAmazonTokens(cm, id, tokens);
+        configPatch = {
+          marketplace_id: amazon.environment === 'sandbox' ? preferred : pickMarketplace(participations, preferred, amazon.region),
+          region: amazon.region,
+          environment: amazon.environment,
+        };
       } else {
         const etsy = etsyAppFromEnv(c.env);
         if (!etsy) throw ApiError.invalidRequest('Etsy is not configured');
@@ -185,7 +256,13 @@ export function connectRoutes(): Hono<HonoEnv> {
         configPatch = { shop_id: externalShopId };
       }
     } catch (err) {
-      if (err instanceof EbayOAuthError || err instanceof EtsyOAuthError || err instanceof EtsyApiError) {
+      if (
+        err instanceof EbayOAuthError ||
+        err instanceof EtsyOAuthError ||
+        err instanceof EtsyApiError ||
+        err instanceof AmazonOAuthError ||
+        err instanceof AmazonApiError
+      ) {
         console.error(`[marketplace] ${platform} code exchange failed:`, err.message);
         return finish({ result: 'error', error: 'token_exchange_failed' }, 502);
       }

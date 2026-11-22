@@ -416,7 +416,7 @@ function CategoryFormModal({
                         </Modal.Header>
                         <Modal.Body className="gap-4">
                             {/* Locale selector */}
-                            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
+                            <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/40 rounded-lg">
                                 <Select
                                     key="locale_select"
                                     selectedKey={selectedLocale || null}
@@ -764,7 +764,7 @@ export function CategoryAdmin() {
                                     <Table.Row key={category.id}>
                                         <Table.Cell className="font-medium">{displayName}</Table.Cell>
                                         <Table.Cell>
-                                            <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                            <code className="text-xs bg-default-100 text-default-700 border border-default-200 px-2 py-1 rounded">
                                                 {category.handle}
                                             </code>
                                         </Table.Cell>
@@ -772,11 +772,8 @@ export function CategoryAdmin() {
                                         <Table.Cell>
                                             <Chip
                                                 size="sm"
-                                                className={
-                                                    category.status === 'active'
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-orange-100 text-orange-700'
-                                                }
+                                                variant="soft"
+                                                color={category.status === 'active' ? 'success' : 'warning'}
                                             >
                                                 {t(category.status)}
                                             </Chip>
@@ -798,7 +795,7 @@ export function CategoryAdmin() {
                                                         isIconOnly
                                                         size="sm"
                                                         variant="ghost"
-                                                        className="text-red-600 hover:bg-red-100"
+                                                        className="text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/30"
                                                         onPress={() => handleDeleteClick(category)}
                                                     >
                                                         <Trash2 className="w-4 h-4" />

@@ -1,6 +1,6 @@
 # Feasibility Study: Integration with Etsy, eBay, and Amazon Marketplaces
 
-**Project:** Multicom (fufuni) — Headless multi-tenant commerce platform  
+**Project:** Multicom (bengal-exchange) — Headless multi-tenant commerce platform  
 **Date:** 2026-11-18  
 **Version:** 1.0  
 **Status:** Draft for Review

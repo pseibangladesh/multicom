@@ -1,6 +1,6 @@
 # Phase 2 Development Plan: eBay Integration
 
-**Project:** Multicom (fufuni) — Headless commerce platform
+**Project:** Multicom (bengal-exchange) — Headless commerce platform
 **Date:** 2026-11-19
 **Status:** Planning
 **Dependencies:** Phase 1 Etsy client completed; P1 remaining tasks (OAuth token exchange, webhook order creation, shipment update) should be finished first

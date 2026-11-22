@@ -1,671 +1,595 @@
-# Multicom  — System Design Document
+# Bengal Exchange — System Design
 
-**Version:** 2.0 | **Date:** 2026-11-21 | **Status:** Active
+**Version:** 3.0 | **Updated:** 2026-11-22 | **Status:** Active
+
+Bengal Exchange (repository `multicom`, npm package `bengal-exchange`) is a headless e-commerce platform that runs entirely on Cloudflare. This document describes how it is built today. For setup see [run-instructions.md](./run-instructions.md); for a step-by-step walk through login and sessions see [authentication.md](./authentication.md).
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [Architecture Overview](#2-architecture-overview)
+2. [Architecture](#2-architecture)
 3. [Tech Stack](#3-tech-stack)
-4. [Project Structure](#4-project-structure)
-5. [Core Runtime: Cloudflare Durable Object](#5-core-runtime-cloudflare-durable-object)
-6. [Database Schema](#6-database-schema)
-7. [Authentication System](#7-authentication-system)
-8. [Marketplace Integrations](#8-marketplace-integrations)
-9. [API Key System](#9-api-key-system)
-10. [Caching Layer](#10-caching-layer)
-11. [Payment & Checkout](#11-payment--checkout)
-12. [Image & Digital Asset Storage](#12-image--digital-asset-storage)
-13. [Webhooks](#13-webhooks)
-14. [Environment Variables](#14-environment-variables)
-15. [Deployment](#15-deployment)
-
----
-
-> **Note:** See [docs/authentication.md](./authentication.md) for a detailed end-to-end walkthrough of how authentication works across the entire project — from frontend login to session verification in the worker.
+4. [Repository Layout](#4-repository-layout)
+5. [Request Pipeline](#5-request-pipeline)
+6. [Data Layer: MerchantDO](#6-data-layer-merchantdo)
+7. [Authentication & Authorization](#7-authentication--authorization)
+8. [Catalog, Cart & Orders](#8-catalog-cart--orders)
+9. [Payments](#9-payments)
+10. [Marketplace Integrations](#10-marketplace-integrations)
+11. [AI Agents (UCP) & AI Features](#11-ai-agents-ucp--ai-features)
+12. [Caching & Rate Limiting](#12-caching--rate-limiting)
+13. [File Storage](#13-file-storage)
+14. [Webhooks](#14-webhooks)
+15. [Background Work](#15-background-work)
+16. [Frontend](#16-frontend)
+17. [Environment Variables](#17-environment-variables)
+18. [Deployment](#18-deployment)
+19. [Security](#19-security)
+20. [Testing](#20-testing)
 
 ---
 
 ## 1. Overview
 
-Multicom is a **headless commerce platform** built on Cloudflare Workers. It provides:
+| Area | What it provides |
+|---|---|
+| Catalog | Products with variants, SKUs, barcodes, weights, per-currency prices; hierarchical categories; reviews with moderation; per-locale titles/descriptions |
+| Selling | Carts, checkout, orders, refunds; regions, countries, currencies, warehouses; shipping rates and classes; tax rates; discount codes |
+| Payments | Stripe Checkout and SSLCommerz, both configured and switched on/off from the admin dashboard |
+| Customers | Email + password accounts (Better Auth), addresses, order history, wishlist, saved carts |
+| Digital goods | Downloadable files (R2, signed links) and AI token packages |
+| Marketplaces | Etsy, eBay and Amazon SP-API: connect, push listings/price/stock, import orders, send tracking |
+| AI | UCP endpoints for AI shopping agents; AI translation and review-moderation help; an MCP knowledge server |
+| Storefront + admin | One React 19 SPA with themes and 6 languages (RTL supported) |
 
-- **Product catalog** with variants, categories, and multi-currency pricing
-- **Cart + checkout** powered by Stripe (and SSLCommerz for South Asia)
-- **Order management** with shipping, tax, and discount support
-- **Customer accounts** via Better Auth session-based authentication (email/password)
-- **Multi-channel marketplace sync** (Etsy, eBay, Amazon SP-API)
-- **Digital products** (downloadable assets + AI token packages)
-- **Storefront API** (OpenAPI/Swagger documented)
-- **Public storefront** (React SPA with theming and i18n)
-
-The platform is designed for **single-region Durable Object storage** (SQLite), **KV caching**, and **R2 object storage** — all running on Cloudflare's edge network.
+All store data lives in **one Durable Object's SQLite database**. There is no D1 or external database.
 
 ---
 
-## 2. Architecture Overview
+## 2. Architecture
 
 ```
-┌───────────────────────────────────────────────────────────────┐
-│                        Client Layer                           │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────────┐  │
-│  │ Storefront   │   │ Admin Panel  │   │ Third-party      │  │
-│  │ (React SPA)  │   │ (React SPA)  │   │ consumers        │  │
-│  └──────┬───────┘   └──────┬───────┘   └────────┬─────────┘  │
-└─────────┼──────────────────┼─────────────────────┼────────────┘
-          │                   │                     │
-          ▼                   ▼                     ▼
-┌───────────────────────────────────────────────────────────────┐
-│                   Cloudflare Edge (Worker)                    │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │  Hono API Server (OpenAPI/Swagger)                      │  │
-│  │  /v1/* — Admin + Public REST endpoints                  │  │
-│  │  /oauth/* — OAuth flows                                 │  │
-│  │  /v1/marketplace/* — Multi-channel sync                 │  │
-│  └───────────────────┬─────────────────────────────────────┘  │
-│                      │                                        │
-│  ┌───────────────────▼─────────────────────────────────────┐  │
-│  │  Middleware Pipeline                                      │  │
-│  │  • CORS                                                   │  │
-│  │  • Auth (API keys, Better Auth sessions, OAuth tokens)              │  │
-│  │  • Rate limiting                                          │  │
-│  │  • KV cache / invalidation                                │  │
-│  └───────────────────┬─────────────────────────────────────┘  │
-│                      │                                        │
-│  ┌───────────────────▼─────────────────────────────────────┐  │
-│  │  MerchantDO (Durable Object)                              │  │
-│  │  • SQLite storage (SQLITE3)                               │  │
-│  │  • Schema migrations                                      │  │
-│  │  • WebSocket broadcasts                                   │  │
-│  │  • Scheduled cron (cart expiry)                           │  │
-│  └───────────────────┬─────────────────────────────────────┘  │
-│                      │                                        │
-│  ┌───────────────────▼─────────────────────────────────────┐  │
-│  │  External Services                                        │  │
-│  │  • Stripe (payments, webhooks)                            │  │
-│  │  • Better Auth (session cookies)                              │  │
-│  │  • Mailgun (transactional email)                          │  │
-│  │  • AI providers (Groq/OpenAI-compatible)                  │  │
-│  │  • Marketplaces (Etsy, eBay, Amazon SP-API)               │  │
-│  └─────────────────────────────────────────────────────────┘  │
-└───────────────────────────────────────────────────────────────┘
-          │                   │                     │
-          ▼                   ▼                     ▼
-┌──────────────┐   ┌──────────────┐   ┌──────────────────┐
-│ R2: IMAGES   │   │ R2: DIGITAL  │   │ KV: KV_CACHE     │
-│ (product     │   │ ASSETS       │   │ (public JSON     │
-│  photos)     │   │ (downloads,  │   │  responses,      │
-│              │   │  AI tokens)  │   │  rate limits)    │
-└──────────────┘   └──────────────┘   └──────────────────┘
+   Browser: storefront + admin SPA       AI agents (UCP)      Etsy / eBay / Amazon
+   (GitHub Pages / any static host)            │                       ▲  │
+                  │                            │                       │  │ eBay notifications
+                  ▼                            ▼                       │  ▼
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ Cloudflare Worker  apps/merchant  (Hono + @hono/zod-openapi)                   │
+│                                                                                │
+│  CORS allowlist → DO stub → KV cache/invalidate → rate limit → auth → routes   │
+│                                                                                │
+│  /v1/*  REST API      /api/auth/*  → forwarded to MerchantDO (Better Auth)     │
+│  /ucp/v1/*, /.well-known/ucp       /v1/marketplace/*      /docs (Swagger)      │
+│                                                                                │
+│  fetch()      scheduled() every 15 min      queue() marketplace sync consumer  │
+└───────┬───────────────────────────────┬─────────────────────────┬──────────────┘
+        │ RPC + fetch                   │                         │
+        ▼                               ▼                         ▼
+┌───────────────────────────┐ ┌──────────────────────────┐ ┌─────────────────────┐
+│ MerchantDO (Durable Obj.) │ │ R2  IMAGES               │ │ Queue               │
+│ SQLite: catalog, carts,   │ │ R2  DIGITAL_ASSETS_BUCKET│ │ multicom-marketplace│
+│ orders, customers, auth,  │ │ KV  KV_CACHE (cache,     │ │ -sync (+ DLQ)       │
+│ settings, marketplaces    │ │     rate limits, AI cfg) │ │                     │
+│ Better Auth, WebSockets   │ └──────────────────────────┘ └─────────────────────┘
+└───────────────────────────┘
+        External: Stripe · SSLCommerz · Mailgun · AI provider (OpenAI-compatible)
 ```
+
+- The Worker is stateless. Every request gets a stub to the single `MerchantDO` instance (`idFromName('default')`).
+- Better Auth runs **inside** the DO, because only the DO can reach its SQLite storage.
 
 ---
 
 ## 3. Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Runtime** | Cloudflare Workers | Edge serverless execution |
-| **Database** | SQLite (Durable Object) | Primary data store, single-region |
-| **Cache** | Cloudflare KV | Public response caching, rate limiting |
-| **Object Storage** | Cloudflare R2 | Product images, digital assets |
-| **API Framework** | Hono + OpenAPI | REST API with Swagger docs |
-| **Validation** | Zod | Request/response schemas |
-|| **Auth** | Better Auth (session cookies) + API keys | Customer identity + admin permissions |
-| **Payments** | Stripe + SSLCommerz | Checkout, subscriptions, refunds |
-| **Email** | Mailgun | Transactional emails |
-| **AI** | Groq / OpenAI-compatible | Product description translation |
-| **Frontend** | React + Vite | Storefront SPA |
-| **Admin UI** | HeroUI (React) | Merchant admin panel |
-
-## 6. Database Schema Details
-
-### Key Relationships
-
-```
-products (1) ──┬── (N) variants ── (1..N) variant_prices (via currencies)
-               ├── (N) product_categories ── (N) categories
-               └── (0..1) shipping_classes
-
-variants (1) ── (N) inventory (by SKU)
-               └── (N) warehouse_inventory (per warehouse)
-
-carts (1) ── (N) cart_items
-            └── (0..1) orders → (N) order_items
-
-customers (1) ── (N) customer_addresses
-                └── (N) saved_carts
-
-orders (1) ── (N) refunds
-             └── (N) discount_usage
-
-marketplace_channels (1) ── (N) marketplace_product_mappings
-                            └── (N) marketplace_orders
-                            └── (N) marketplace_credentials
-                            └── (N) marketplace_sync_jobs
-```
-
-### Indexes
-
-All tables have composite indexes covering the most common query patterns:
-
-- `idx_variants_sku` — unique lookup by SKU
-- `idx_products_status` — filtered product listing
-- `idx_orders_customer`, `idx_orders_email`, `idx_orders_status_created` — order queries
-- `idx_carts_expires`, `idx_carts_status` — cart expiry cleanup
-- `idx_marketplace_*` — all marketplace tables indexed by channel_id
+| Layer | Technology |
+|---|---|
+| Runtime | Cloudflare Workers (`nodejs_compat`) |
+| Database | SQLite inside a Durable Object (`MerchantDO`) |
+| API | Hono 4 + `@hono/zod-openapi` (Zod schemas → OpenAPI 3.1, Swagger UI at `/docs`) |
+| Auth | Better Auth 1.x (email/password, Drizzle adapter over `drizzle-orm/durable-sqlite`) + hashed API keys |
+| Payments | Stripe (SDK v22), SSLCommerz |
+| Cache / limits | Cloudflare KV |
+| Files | Cloudflare R2 |
+| Background jobs | Cloudflare Queues + Cron Trigger |
+| Email | Mailgun |
+| AI | Any OpenAI-compatible API (Groq, OpenAI, Cloudflare AI Gateway) |
+| Frontend | React 19, Vite 8, HeroUI v3, React Router 7, i18next, Tailwind |
+| Monorepo | npm workspaces + Turborepo |
+| Tests | Vitest (backend on `node:sqlite`, client), Playwright (e2e) |
 
 ---
 
-## 7. Authentication System
+## 4. Repository Layout
 
-> **Full details:** See [docs/authentication.md](./authentication.md) for an end-to-end walkthrough of the auth flow from frontend login through session verification and role-based access control.
+| Path | Contents |
+|---|---|
+| `apps/merchant` | Worker + Durable Object. `src/index.ts` (entry), `src/do.ts` (MerchantDO, schema, migrations), `src/routes/*`, `src/lib/*` (shared domain logic), `src/middleware/*`, `migrations/*.sql`, `scripts/` (`init.ts`, `seed.ts`, `create-admin.ts`) |
+| `apps/client` | Storefront and admin SPA (`src/pages`, `src/pages/admin`, `src/locales`) |
+| `apps/mcp` | MCP knowledge server about this codebase (Worker on :8788, plus a stdio build) |
+| `apps/inspector` | Fork of the MCP Inspector UI |
+| `e2e` | Playwright tests |
+| `docs` | Documentation |
 
-### 7.1 Three-Layer Auth
+Key backend libraries in `apps/merchant/src/lib`:
 
-The platform supports **three authentication methods**, handled by the auth middleware in order:
-
-```
-Request → Authorization Header / Cookie
-         │
-         ├─ Cookie: better-auth.session_token=*** (Better Auth session) → DB lookup via SHA-256 hash
-         ├─ Bearer sk_... (Admin API key) → DB lookup via SHA-256 hash
-         ├─ Bearer pk_... (Public API key) → DB lookup, role=public
-         └─ Bearer <64-hex> (OAuth token)  → DB lookup via SHA-256 hash
-```
-
-### 7.2 Auth Roles
-
-|| Role | Source | Permissions |
-|------|--------|-------------|
-| `public` | `pk_*` API key | Read-only endpoints |
-| `admin` | `sk_*` API key or Better Auth session | Full store management |
-| `oauth` | OAuth 2.0 access token (64-char hex) | Scoped via `scope` claim |
-| `customer` | Better Auth session | Customer-facing endpoints only |
-
-### 7.3 Better Auth Integration
-
-**Customer auth:** Users sign up or log in via email/password at `/api/auth/signin/email`. The backend issues a secure HttpOnly cookie (`better-auth.session_token`) containing a random session token. The frontend verifies login state by calling `GET /api/auth/session`.
-
-**Session verification:** The middleware hashes the raw cookie token with SHA-256 and queries the `sessions` table for a matching hash with a future `expires_at`. On match, the user's email, name, and user ID are extracted from the joined `user` table.
-
-**Session storage (D1):**
-```sql
-CREATE TABLE "user" (
-  id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
-  name TEXT,
-  email_verified INTEGER NOT NULL DEFAULT 0,
-  image TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE "session" (
-  id TEXT PRIMARY KEY,
-  expires_at TEXT NOT NULL,
-  token TEXT NOT NULL UNIQUE,        -- SHA-256 hash of raw token
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  ip_address TEXT,
-  user_agent TEXT,
-  user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
-);
-
-CREATE TABLE "account" (
-  id TEXT PRIMARY KEY,
-  account_id TEXT NOT NULL,
-  provider_id TEXT NOT NULL,
-  user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-  access_token TEXT, refresh_token TEXT, id_token TEXT,
-  access_token_expires_at TEXT, refresh_token_expires_at TEXT,
-  scope TEXT, password TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(account_id, provider_id)
-);
-```
-
-**Session configuration:**
-- Lifetime: 30 days (`session.expiresIn = 2592000s`)
-- Update age: renewed every 24 hours (`session.updateAge = 86400s`)
-- Cookie cache: session data cached for 5 minutes in the cookie itself
-
-**Rate limiting:** 10 requests per 60-second window per IP (using `cf-connecting-ip` / `x-forwarded-for`).
-
-### 7.4 Auth Router & Session Endpoint
-
-The worker mounts Better Auth's built-in handlers at `/api/auth/*`:
-```typescript
-// apps/merchant/src/index.ts
-app.all('/api/auth/*', async (c) => {
-  const auth = createAuthRouter(c.env as any);
-  return auth.fetch(c.req.raw);
-});
-
-app.get('/api/auth/session', async (c) => {
-  const sessionApp = createSessionRouter(c.env as any);
-  return sessionApp.fetch(c.req.raw);
-});
-```
-
-This provides all standard Better Auth endpoints out of the box: `POST /api/auth/signin/email`, `POST /api/auth/signup/email`, `POST /api/auth/signout`, `GET /api/auth/session`, etc.
-
-### 7.5 Customer Account Resolution
-
-When a Better Auth session is verified, the middleware sets `auth.userId` (the `user.id`). Customer-facing routes (`/v1/me/*`) then resolve the corresponding `customers` row by joining on email:
-```sql
-SELECT * FROM customers 
-WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1;
-```
-
-If no customer row exists, one is auto-created with `auth_provider = 'better-auth'` and `auth_provider_id` set to the user ID.
-
-### 7.6 Order View Tokens
-
-Customers can view their order status without logging in. The system generates an HMAC-HS256 JWT (`ORDER_TOKEN_SECRET`) containing the order ID (`oid` claim). This token is included in order confirmation emails as a tracking link. Valid for 30 days.
-
-### 7.7 API Key Generation
-
-```typescript
-function generateApiKey(prefix: 'pk' | 'sk'): string {
-  const bytes = new Uint8Array(24);
-  crypto.getRandomValues(bytes); // 48 hex chars
-  return `${prefix}_${hex}`;
-}
-```
-
-Keys are stored as SHA-256 hashes in the `api_keys` table. The prefix (`sk_` or `pk_`) is stored separately for display purposes.
+| File | Responsibility |
+|---|---|
+| `auth.ts`, `session.ts` | Better Auth instance; session verification and admin rules |
+| `order-token.ts` | Signed order view links |
+| `payment-config.ts` | Encrypted payment-gateway settings (Stripe, SSLCommerz) |
+| `pricing.ts`, `shipping.ts`, `tax.ts`, `inventory.ts` | Price resolution, shipping rates, tax, stock reservation |
+| `webhooks.ts` | Outbound webhook signing and delivery |
+| `order-email.ts`, `email-templates.ts` | Order status emails |
+| `marketplace/*` | Etsy, eBay and Amazon clients, OAuth, credentials, sync queue, order import, fulfillment |
 
 ---
 
-## 8. Marketplace Integrations
+## 5. Request Pipeline
 
-### 8.1 Architecture
+`src/index.ts` builds one `OpenAPIHono` app. Order matters:
 
-All marketplace clients implement the **unified `IMarketplaceClient` interface** defined in `types.ts`:
+1. **CORS** — allowlist only: `STORE_URL`, or the comma-separated `CORS_ORIGIN`. Credentials are allowed so the session cookie is sent. No `*` fallback; with neither set, no browser origin is allowed.
+2. **DO stub** — puts the `MerchantDO` stub on the context (`c.var.db`).
+3. **KV cache / invalidation** — registered with `app.use()` *before* any `app.route()` (see §12).
+4. **Routes mounted before the rate limiter** (not rate-limited): `/sitemap.xml`, public `/v1/orders` (order view by token), public `/v1/categories`, `/v1/payment-methods`, `/v1/admin` settings, SSLCommerz checkout and IPN.
+5. **`rateLimitMiddleware`** on `/v1/*`.
+6. **All other routers.** `reviews` is mounted before the catalog router, because the catalog applies `authMiddleware` to `*`. Several routers share a prefix (`/v1/orders`, `/v1/products`, `/v1/carts`, `/v1/webhooks`), so check for collisions when adding a route.
+7. `/api/auth/*` is forwarded to the DO; `/openapi.json` and `/docs` serve the API spec.
 
-```typescript
+Main route groups:
+
+| Prefix | Router(s) |
+|---|---|
+| `/v1/products`, `/v1/categories`, `/v1/inventory` | catalog, reviews, digital-asset variants, categories, inventory |
+| `/v1/carts` | cart + Stripe checkout, SSLCommerz checkout |
+| `/v1/orders` | public order view, admin orders/refunds, customer downloads |
+| `/v1/customers`, `/v1/me`, `/v1/me/ai-tokens` | admin customers; signed-in customer profile, addresses, orders, AI tokens |
+| `/v1/discounts`, `/v1/regions`, `/v1/tax-rates`, `/v1/analytics`, `/v1/reviews`, `/v1/mails` | admin features |
+| `/v1/webhooks` | Stripe webhook; outbound webhook management |
+| `/v1/setup` | `init`, `admin-user`, `config`, `reset`, `demo-reset`, migrations |
+| `/v1/admin/*` | settings (payment gateways), order-email settings, digital assets, AI tokens, marketplace channels |
+| `/v1/marketplace/*` | connect, sync, status, order import/shipment, inbound webhooks |
+| `/ucp/v1/*`, `/.well-known/ucp` | Universal Commerce Protocol |
+| `/oauth/*` | OAuth 2.0 for third-party apps |
+
+Errors: `ApiError` carries a status code and is turned into `{ error: { code, message } }` by `app.onError`.
+
+---
+
+## 6. Data Layer: MerchantDO
+
+`MerchantDO` (`src/do.ts`) owns all data. Routes talk to it through the `Database` wrapper in `src/db.ts` (`query` / `run`). The DO also exposes RPC methods:
+
+| Method | Used by |
+|---|---|
+| `getSessionForCookie(cookie)` | Worker auth middleware, on every session request |
+| `provisionUser(...)` | `POST /v1/setup/admin-user` (`create-admin.ts`) |
+| `cleanupExpiredCarts()` | Cron |
+| `broadcast(event)` | WebSocket push to connected admin clients |
+
+Its own `fetch()` handles `/api/auth/*` (Better Auth), `/health` and WebSocket upgrades.
+
+### 6.1 Schema and migrations
+
+Initialization is idempotent (`ensureInitialized()`), and default API keys are created from `MERCHANT_SK` / `MERCHANT_PK`. A schema change needs **three edits together**:
+
+1. the `SCHEMA` constant in `do.ts`
+2. the inline migration list in `ensureInitialized()`
+3. a numbered file in `migrations/` (currently up to `039-marketplace-order-import.sql`)
+
+Migrations are additive only (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ADD COLUMN`).
+
+### 6.2 Tables
+
+| Group | Tables |
+|---|---|
+| Catalog | `products`, `variants`, `variant_prices`, `categories`, `product_categories`, `product_reviews`, `shipping_classes` |
+| Stock | `inventory`, `inventory_logs`, `warehouses`, `warehouse_inventory`, `warehouse_inventory_logs` |
+| Geography & pricing | `currencies`, `countries`, `regions`, `region_countries`, `region_warehouses`, `region_shipping_rates`, `shipping_rates`, `shipping_rate_prices`, `tax_rates` |
+| Carts & orders | `carts`, `cart_items`, `orders`, `order_items`, `refunds`, `discounts`, `discount_usage`, `events` (Stripe events) |
+| Customers | `customers`, `customer_addresses`, `saved_carts` |
+| Auth | `user`, `session`, `account`, `verification` (Better Auth); `api_keys`; `oauth_clients`, `oauth_authorizations`, `oauth_tokens` |
+| Digital | `digital_assets`, `ai_token_balances`, `ai_token_transactions` |
+| Marketplaces | `marketplace_channels`, `marketplace_credentials`, `marketplace_oauth_states`, `marketplace_product_mappings`, `marketplace_orders`, `marketplace_order_lines`, `marketplace_sync_jobs`, `marketplace_webhook_events` |
+| Settings | `config` (key/value, includes encrypted gateway settings), `store_themes`, `order_email_settings` |
+| UCP / webhooks | `ucp_checkout_sessions`, `webhooks`, `webhook_deliveries` |
+| System | `migrations` |
+
+Full column list: [current-database-schema.md](./current-database-schema.md).
+
+### 6.3 Key relationships
+
+```
+products ─┬─< variants ─< variant_prices (per currency)
+          ├─< product_categories >─ categories
+          └── shipping_classes (0..1)
+variants ── inventory (by SKU) ─< warehouse_inventory (per warehouse)
+carts ─< cart_items ;  carts ── orders (0..1) ─< order_items, refunds, discount_usage
+customers ─< customer_addresses, saved_carts ;  customers ── user (by email)
+marketplace_channels ─< credentials, product_mappings, orders ─< order_lines, sync_jobs
+orders.channel_id → marketplace_channels (orders imported from a marketplace)
+```
+
+---
+
+## 7. Authentication & Authorization
+
+### 7.1 Credential order
+
+`middleware/auth.ts` (admin routes) and `customer-auth.ts` (customer routes) check credentials in this order:
+
+```
+1. Cookie better-auth.session_token  → MerchantDO.getSessionForCookie()
+2. Bearer sk_…  (admin key)          → SHA-256 lookup in api_keys
+   Bearer pk_…  (public key)         → SHA-256 lookup, role = public
+3. Bearer <64 hex chars> (OAuth)     → SHA-256 lookup in oauth_tokens
+```
+
+### 7.2 Roles
+
+| Role | Comes from | Can do |
+|---|---|---|
+| `admin` | `sk_*` key, or a session whose email is in `ADMIN_EMAILS` | Everything |
+| `customer` | Any other Better Auth session | Own profile, orders, addresses, wishlist, saved carts |
+| `public` | `pk_*` key | Read-only storefront endpoints |
+| `oauth` | OAuth access token | Limited by its `scope` |
+
+### 7.3 Better Auth
+
+- **Where it runs:** inside `MerchantDO` (`src/lib/auth.ts`), with tables in `src/db/schema.ts` (migration `037-add-better-auth-tables.sql`). The Worker forwards `/api/auth/*` to the DO, e.g. `POST /api/auth/sign-in/email`, `POST /api/auth/sign-up/email`, `POST /api/auth/sign-out`. The DO adds `GET /api/auth/session`, a simpler `{ session }` response that the storefront uses.
+- **Verification:** the Worker does not read session tables itself. It calls the DO's `getSessionForCookie` RPC, which runs Better Auth's `getSession` (signature and expiry checked) without going through the rate-limited HTTP handler.
+- **Settings:** email + password, minimum 8 characters, no email verification. Sessions last 30 days and are refreshed every 24 hours. A 5-minute cookie cache. Rate limit: 10 requests per 60 seconds per IP (`cf-connecting-ip`, `x-forwarded-for`).
+- **Cross-site cookie:** when `API_BASE_URL` is `https://`, cookies are `SameSite=None; Secure`, because the storefront and API are on different sites. `trustedOrigins` = the CORS allowlist, and Better Auth's Origin (CSRF) check is always on.
+- **Admins:** admin rights come only from `ADMIN_EMAILS`. Because email verification is off, public sign-up **refuses** any address in `ADMIN_EMAILS`. Admin accounts are created with `scripts/create-admin.ts` (→ `POST /v1/setup/admin-user` → `provisionUser`), which also supports `--reset-password` and `--remote`.
+
+### 7.4 Customers
+
+When a customer session arrives, `/v1/me/*` finds the `customers` row with the same email, and creates one if it does not exist.
+
+### 7.5 Order view links and downloads
+
+- **Order links:** HS256 JWT signed with `ORDER_TOKEN_SECRET`, holding the order ID, valid 30 days (`lib/order-token.ts`). Sent in order emails so buyers can view an order without logging in.
+- **Downloads:** digital items get a signed download token per SKU and order; `/v1/downloads` serves the file from R2.
+
+### 7.6 API keys and OAuth
+
+- Keys are `sk_` / `pk_` + 48 hex characters. Only the SHA-256 hash and the prefix are stored (`api_keys`). The DO creates keys from `MERCHANT_SK` / `MERCHANT_PK` on first start.
+- OAuth 2.0 for third-party apps (`/oauth/*`): tokens are 64 hex characters, stored hashed in `oauth_tokens` with scope and expiry.
+
+---
+
+## 8. Catalog, Cart & Orders
+
+- **Prices** (`lib/pricing.ts`): a variant has a price per currency (`variant_prices`); the region decides the currency.
+- **Stock** (`lib/inventory.ts`): stock is kept per SKU and per warehouse. Adding to a cart reserves stock; a paid order commits the sale. The cron releases reservations of expired carts.
+- **Shipping and tax** (`lib/shipping.ts`, `lib/tax.ts`): rates per region and shipping class, with weight ranges; tax rates per country/region.
+- **Discounts:** fixed or percentage codes, with usage limits, synced to Stripe coupons.
+- **Orders:** status changes (e.g. shipped) send order emails (Mailgun, configurable per status and locale) and outbound webhooks. Refunds go back through Stripe.
+- **Localized content:** product and category titles/descriptions can be plain text or per-locale JSON.
+
+---
+
+## 9. Payments
+
+Both gateways are configured from **Admin → Payment Gateways**. Their settings are stored in the `config` table, and secrets are encrypted with `CRYPTOKEN` (PBKDF2-SHA256, 100,000 iterations → AES-256-CBC) by `lib/payment-config.ts`.
+
+| | Stripe | SSLCommerz |
+|---|---|---|
+| Settings key | `payment_gateway.stripe` | `payment_gateway.sslcommerz` |
+| Admin API | `PUT /v1/admin/settings/payment-gateways/stripe` | `PUT /v1/admin/settings/payment-gateways` |
+| Saved | Publishable key, secret key, webhook secret, on/off | Store ID, store password, sandbox flag, on/off |
+| Checks on save | Secret key must be accepted by Stripe (`/v1/balance`); test and live keys cannot be mixed | — |
+| Checkout | `POST /v1/carts/{cartId}/checkout` → Stripe Checkout Session | `POST /v1/carts/{cartId}/checkout/sslcommerz` |
+| Confirmation | `POST /v1/webhooks/stripe` (`checkout.session.completed`, `payment_intent.payment_failed`), deduplicated in `events` | `POST /v1/webhooks/sslcommerz/ipn`, then checked server-side with SSLCommerz's validation API |
+
+- **Where Stripe keys come from:** the dashboard settings first, then the `STRIPE_*` environment variables, then the older `stripe` config row.
+- **Switching Stripe off** stops new checkouts. Refunds and webhooks for existing orders keep working.
+- **Storefront:** the checkout asks `GET /v1/payment-methods` (public) and only shows gateways that are on.
+
+---
+
+## 10. Marketplace Integrations
+
+### 10.1 Design
+
+Each platform has a client that implements `IMarketplaceClient` (`lib/marketplace/types.ts`). Clients that can send tracking also implement `ShipmentClient`.
+
+```ts
 interface IMarketplaceClient {
   readonly platform: 'etsy' | 'ebay' | 'amazon';
-  config: Record<string, unknown>;
-
-  // Auth
+  readonly config: Record<string, unknown>;
   refreshTokens(): Promise<void>;
   getAccessToken(): Promise<string>;
-
-  // Products
-  listProducts(params?): Promise<{ items: MarketProduct[]; nextCursor?: string }>;
+  listProducts(p?: { limit?: number; cursor?: string }): Promise<{ items: MarketProduct[]; nextCursor?: string }>;
   getProduct(id: string): Promise<MarketProduct>;
   upsertProduct(product: MarketProduct): Promise<string>;
   deleteProduct(externalId: string): Promise<void>;
-
-  // Inventory
-  listInventory(params?): Promise<MarketInventoryItem[]>;
+  listInventory(p?: { limit?: number }): Promise<MarketInventoryItem[]>;
   updateInventory(sku: string, quantity: number): Promise<void>;
-
-  // Orders
-  listOrders(params?): Promise<MarketOrder[]>;
+  listOrders(p?: { from?: Date; to?: Date; limit?: number; by?: 'created' | 'modified' }): Promise<MarketOrder[]>;
   getOrder(externalOrderId: string): Promise<MarketOrder>;
-  updateShipment(orderId: string, trackingNumber: string, trackingUrl?: string): Promise<void>;
-
-  // Health
+  updateShipment(externalOrderId: string, trackingNumber: string, trackingUrl?: string): Promise<void>;
   healthCheck(): Promise<boolean>;
 }
-```
 
-### 8.2 Data Mapping
-
-Each platform returns data in its own shape. The **data-mapper** module normalizes to internal types:
-
-```
-Etsy Listing ──→ mapMarketplaceToProduct() ──→ MarketProduct
-eBay InventoryItem ──→ mapMarketplaceToProduct() ──→ MarketProduct
-Amazon ListingsItems ──→ mapAmazonListingToProduct() ──→ MarketProduct
-
-Etsy Receipt ──→ mapMarketplaceToOrder() ──→ MarketOrder
-eBay Order ──→ mapEbayOrderToOrder() ──→ MarketOrder
-Amazon Orders v2 ──→ mapAmazonOrderToOrder() ──→ MarketOrder
-```
-
-### 8.3 Amazon SP-API Integration (Phase 3)
-
-**Three-layer authentication:**
-
-1. **LWA (Login with Amazon):** OAuth 2.0 flow — authorization code → access token (1h expiry) + refresh token (permanent)
-2. **RDT (Restricted Data Token):** Per-operation PII token fetched via `/2021-06-30/authorizationTokens` endpoint
-3. **AWS SigV4:** Every request cryptographically signed using HMAC-SHA256 chain
-
-**Implementation in `amazon.ts`:**
-
-| Method | Endpoint | Auth Required | RDT Required |
-|--------|----------|---------------|--------------|
-| `listProducts` | GET /listings/2021-08-01/items/{sellerId} | LWA + SigV4 | No |
-| `getProduct` | GET /listings/.../{sellerId},{asin} | LWA + SigV4 | No |
-| `upsertProduct` | PUT /listings/.../{sellerId},{sku} | LWA + SigV4 | No |
-| `deleteProduct` | DELETE /listings/.../{sellerId},{id} | LWA + SigV4 | No |
-| `listInventory` | GET /inventory/v2 | LWA + SigV4 | No |
-| `updateInventory` | PATCH /listings/.../{sellerId},{sku} | LWA + SigV4 | No |
-| `listOrders` | GET /orders/v2/orders?created_after=... | LWA + SigV4 | No (metadata only) |
-| `getOrder` | GET /orders/v2/orders/{orderId} | LWA + SigV4 + RDT | **Yes** |
-| `updateShipment` | POST /orders/v2/{orderId}/shipments | LWA + SigV4 + RDT | **Yes** |
-
-**Rate limits:** Amazon orders API is limited to 0.0056 req/sec (~480/day). The rate limiter enforces per-operation sub-limits in `rate-limiter.ts`.
-
-### 8.4 OAuth Connect Flow
-
-All platforms share the same connect flow via `/v1/marketplace/connect/:platform`:
-
-```
-POST /connect/:platform     → generateAuthUrl() → returns { channelId, authUrl }
-GET  /connect/:platform/callback?code=... → exchangeCodeForTokens() → stores encrypted credentials
-```
-
-- **Etsy:** OAuth 2.0 with keystring:shared_secret API key header
-- **eBay:** OAuth 2.0 with RuName redirect URI
-- **Amazon:** LWA OAuth 2.0 with `api.amazon.com/auth/o2/token`
-
-### 8.5 Credential Storage
-
-All marketplace credentials are encrypted at rest using **AES-GCM** (via `crypto-utils.ts`):
-
-| Credential Type | Stored In | Decrypted Via |
-|-----------------|-----------|---------------|
-| `oauth_token` | `marketplace_credentials` table | `getSecret(channelId, 'oauth_token')` |
-| `refresh_token` | `marketplace_credentials` table | Same |
-| `api_key` (AWS Access Key ID) | `marketplace_credentials` table | Same |
-| `secret_key` (AWS Secret Key) | `marketplace_credentials` table | Same |
-
-Encryption passphrase is the `CRYPTOKEN` environment variable, derived via PBKDF2-SHA256.
-
----
-
-## 9. API Key System
-
-### 9.1 Key Types
-
-| Prefix | Role | Scope |
-|--------|------|-------|
-| `sk_...` | Admin | Full access to all admin routes |
-| `pk_...` | Public | Read-only storefront endpoints (products, categories, reviews) |
-
-### 9.2 Storage & Verification
-
-```sql
-CREATE TABLE api_keys (
-  id TEXT PRIMARY KEY,
-  key_hash TEXT NOT NULL UNIQUE,    -- SHA-256 of the raw key
-  key_prefix TEXT NOT NULL,          -- Display prefix (sk_ or pk_)
-  role TEXT NOT NULL CHECK (role IN ('public', 'admin'))
-);
-```
-
-The middleware hashes the incoming token and does a single indexed lookup. Keys are seeded at DO startup from `MERCHANT_SK` and `MERCHANT_PK` environment variables.
-
-### 9.3 OAuth Tokens
-
-For third-party integrations that need scoped access:
-
-```sql
-CREATE TABLE oauth_tokens (
-  id TEXT PRIMARY KEY,
-  client_id TEXT NOT NULL,
-  customer_id TEXT NOT NULL,
-  access_token_hash TEXT NOT NULL,   -- SHA-256 of raw token
-  refresh_token_hash TEXT NOT NULL,
-  scope TEXT NOT NULL,
-  access_expires_at TEXT NOT NULL,
-  refresh_expires_at TEXT NOT NULL
-);
-```
-
-Tokens are 64-character hex strings (32 bytes random). The middleware checks `isOAuthToken` by pattern matching (`/^[a-f0-9]{64}$/`).
-
----
-
-## 10. Caching Layer
-
-### 10.1 KV Cache Strategy
-
-The `KV_CACHE` namespace stores serialized JSON responses for **public endpoints**:
-
-| Endpoint | Cache Key Pattern | TTL |
-|----------|-------------------|-----|
-| `/v1/products` | `products:*` | Default (3600s) |
-| `/v1/categories` | `categories:*` | Default (3600s) |
-| `/v1/products/:id/reviews/guest` | `reviews:guest:*` | Reviews TTL (600s) |
-| Search results | `search:*` | Search TTL (300s) |
-
-### 10.2 Cache Invalidation
-
-On successful mutations (POST/PUT/PATCH/DELETE), the `kvInvalidateMiddleware` purges by prefix:
-
-```typescript
-// After PUT /v1/products/:id → purge all product cache keys
-await kv.delete('products:*');
-```
-
-### 10.3 Rate Limiting
-
-The KV-backed rate limiter (`rate-limiter.ts`) uses sliding-window counters:
-
-- **Daily counter:** `ml:dq:{platform}:{windowId}` — expires after 86400s
-- **Per-second counter:** `ml:sq:{platform}:{windowId}` — expires after 2s
-
-Amazon has per-operation sub-limits (e.g., `searchOrders: 0.0056/s`, `getOrder: 0.5/s`).
-
----
-
-## 11. Payment & Checkout
-
-### 11.1 Stripe Integration
-
-```
-Customer creates cart → POST /v1/carts/:id/checkout
-                         ↓
-                    Stripe Checkout Session (server-side)
-                         ↓
-                    Redirect customer to Stripe hosted page
-                         ↓
-                    Stripe webhook → POST /v1/webhooks/stripe
-                         ↓
-                    Worker processes order creation, inventory deduction
-```
-
-**Environment variables:** `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`
-
-### 11.2 SSLCommerz (South Asia)
-
-Separate app mounts at `/v1/carts` and `/v1/webhooks/sslcommerz`. Handles payment initiation and IPN (instant payment notification) callbacks.
-
----
-
-## 12. Image & Digital Asset Storage
-
-### 12.1 R2 Buckets
-
-| Binding | Purpose |
-|---------|---------|
-| `IMAGES` | Product photos, category thumbnails |
-| `DIGITAL_ASSETS_BUCKET` | Downloadable files, AI token package assets |
-
-### 12.2 Digital Assets Table
-
-```sql
-CREATE TABLE digital_assets (
-  id TEXT PRIMARY KEY,
-  sku TEXT NOT NULL UNIQUE REFERENCES inventory(sku),
-  storage_type TEXT NOT NULL DEFAULT 'url' CHECK (storage_type IN ('url', 'r2')),
-  storage_value TEXT NOT NULL,     -- R2 key or external URL
-  filename TEXT NOT NULL,
-  content_type TEXT NOT NULL
-);
-```
-
-### 12.3 AI Token Packages
-
-Products with `variant_type = 'ai_tokens'` include `ai_token_units`. Purchases credit the customer's `ai_token_balances` table and create ledger entries in `ai_token_transactions`.
-
----
-
-## 13. Webhooks
-
-### 13.1 Outbound Webhooks
-
-The platform sends events to merchant-configured URLs:
-
-| Event | Trigger |
-|-------|---------|
-| `order.created` | New order placed |
-| `order.updated` | Order status changed |
-| `order.shipped` | Tracking number set |
-| `order.refunded` | Refund issued |
-| `inventory.low` | Stock below threshold |
-
-**Delivery retry:** Failed deliveries are retried with exponential backoff. Status tracked in `webhook_deliveries` table.
-
-### 13.2 Inbound Webhooks
-
-Marketplace webhooks (Etsy/eBay) are received at `/v1/marketplace/webhook/:platform` and processed to update local inventory/orders.
-
----
-
-## 14. Environment Variables
-
-See [Section 15](#15-environment-variables) for full configuration guide.
-
----
-
-## 15. Environment Variables
-
-### 15.1 Required (Production)
-
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `MERCHANT_SK` | Admin API key (seeded at DO startup) | `sk_abc123...` |
-| `MERCHANT_PK` | Public API key (seeded at DO startup) | `pk_def456...` |
-| `STRIPE_SECRET_KEY` | Stripe API secret key | `sk_live_...` |
-| `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (frontend) | `pk_live_...` |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signature verification | `whsec_...` |
-| `CRYPTOKEN` | AES-GCM encryption passphrase for secrets at rest | 32+ char random string |
-| `ORDER_TOKEN_SECRET` | HMAC secret for order view tokens (32+ chars) | 32+ char random string |
-
-### 15.2 Better Auth Configuration
-
-|| Variable | Purpose | Default |
-|----------|---------|---------|
-| `BETTER_AUTH_SECRET` | Secret used to sign Better Auth session cookies (≥32 chars) | *(required)* |
-| `API_BASE_URL` | Base URL for cookie callbacks and redirect URIs | `http://127.0.0.1:8787` |
-
-### 15.3 Marketplace Configuration
-
-#### Etsy
-| Variable | Purpose |
-|----------|---------|
-| `ETSY_CLIENT_ID` | Etsy app keystring |
-| `ETSY_SHARED_SECRET` | Etsy shared secret; sent with the keystring as `x-api-key: keystring:shared_secret` |
-| `ETSY_REDIRECT_URI` | Registered OAuth callback URL (optional; defaults to `API_BASE_URL` + `/v1/marketplace/connect/etsy/callback`) |
-
-#### eBay
-| Variable | Purpose |
-|----------|---------|
-| `EBAY_CLIENT_ID` | eBay OAuth client ID |
-| `EBAY_CLIENT_SECRET` | eBay OAuth client secret |
-| `EBAY_RU_NAME` | eBay RuName redirect URI alias |
-
-#### Amazon (Phase 3)
-| Variable | Purpose |
-|----------|---------|
-| `AMAZON_LWA_APP_ID` | Login with Amazon app ID |
-| `AMAZON_LWA_APP_SECRET` | Login with Amazon app secret |
-| `AMAZON_AWS_ACCESS_KEY` | AWS Access Key ID for SigV4 signing |
-| `AMAZON_AWS_SECRET_KEY` | AWS Secret Access Key for SigV4 signing |
-| `AMAZON_REGION` | SP-API region (`NA`, `EU`, `FEA`) — default: `NA` |
-
-### 15.4 Optional / Operational
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `STORE_NAME` | Store display name in emails | *(none)* |
-| `STORE_URL` | Public storefront URL for tracking links | *(none)* |
-| `IMAGES_URL` | R2 public URL prefix for images | *(empty, uses signed URLs)* |
-| `AI_API_KEY` | Groq/OpenAI API key for AI features | *(none — disabled)* |
-| `AI_MODEL` | Model name (e.g., `llama-3.3-70b-versatile`) | *(none)* |
-| `AI_API_URL` | AI provider base URL | *(none)* |
-| `MAILGUN_USER` | Mailgun API user | *(none — email disabled)* |
-| `MAILGUN_API_KEY` | Mailgun API key | *(none — email disabled)* |
-| `MAILGUN_DOMAIN` | Mailgun domain | *(none — email disabled)* |
-| `MAILGUN_BASE_URL` | Custom Mailgun endpoint | *(default: api.mailgun.net)* |
-| `KV_CACHE_SEARCH_TTL_SECONDS` | Search result cache TTL | `300` (5 min) |
-| `KV_CACHE_REVIEWS_TTL_SECONDS` | Review cache TTL | `600` (10 min) |
-| `KV_CACHE_DEFAULT_TTL_SECONDS` | Default cache TTL | `3600` (1 hour) |
-| `AI_BALANCE_SHARED_SECRET` | Secret for AI token proxy auth | *(none — proxy disabled)* |
-| `CLOUDFLARE_AIG_TOKEN` | Cloudflare AI Gateway bearer token | *(none)* |
-
-### 15.5 Adding New Environment Variables
-
-**In the Worker (`wrangler.jsonc`):** Add to the `"vars"` object:
-```jsonc
-"vars": {
-  "IMAGES_URL": "",
-  "MY_NEW_VAR": "default-value"
+interface ShipmentClient {
+  createShippingFulfillment(input: {
+    orderId: string; trackingNumber: string; shippingCarrierCode: string;
+    lineItems?: Array<{ lineItemId: string; quantity: number }>;
+  }): Promise<void>;
 }
 ```
 
-**In the TypeScript types (`src/types.ts` `Env` interface):** Add the binding with JSDoc:
-```typescript
-/** Description of what this var does. */
-MY_NEW_VAR?: string;
-```
+| Module | Role |
+|---|---|
+| `etsy.ts`, `ebay.ts`, `amazon.ts` | Platform clients and mappers (`mapEtsyReceipt`, `mapEbayOrder`, `mapAmazonOrder`, …) |
+| `etsy-oauth.ts`, `ebay-oauth.ts`, `amazon-oauth.ts` | Consent URLs, code exchange, token refresh |
+| `auth-manager.ts` | `CredentialManager`: encrypted tokens in `marketplace_credentials` |
+| `channel.ts` | Loads a channel and builds its client (`clientForChannel`) |
+| `sync-jobs.ts` | Queue jobs: `push_products`, `push_inventory`, `pull_orders`, `sync_all` |
+| `order-import.ts` | Turns marketplace orders into internal orders |
+| `fulfillment.ts` | `pushShipment`: sends tracking back per order line |
+| `buyer.ts` | Placeholder emails for masked or missing buyer emails |
+| `ebay-notifications.ts` | eBay notification signature checks |
+| `rate-limiter.ts` | KV per-platform limiter (exported, not yet used by the clients, which retry on 429 instead) |
 
-**In the Durable Object (`src/do.ts` `MerchantEnv` interface):** If used as a secret (not a plain var), add to the `MerchantEnv` interface — Cloudflare secrets are injected as top-level bindings, not under `vars`.
+### 10.2 Endpoints
 
-**For secrets (sensitive values):** Set via `wrangler secret put MY_SECRET` or in the Cloudflare dashboard. These are injected as direct bindings on `c.env`, not through `vars`.
+| Endpoint | Purpose |
+|---|---|
+| `POST /v1/marketplace/connect/:platform` | Returns the consent URL; stores a one-time state in `marketplace_oauth_states` |
+| `GET /v1/marketplace/connect/amazon/login` | Amazon "Login URI" step: sends the browser back to Seller Central |
+| `GET /v1/marketplace/connect/:platform/callback` | Exchanges the code, stores tokens, creates or updates the channel, redirects to the admin page |
+| `POST /v1/marketplace/:channelId/sync/{products,inventory,orders,all}` | Queues a sync job (409 if one is already running) |
+| `GET /v1/marketplace/:channelId/status` | Channel and job status |
+| `POST /v1/marketplace/:channelId/orders/import` | Imports orders now |
+| `POST /v1/marketplace/:channelId/orders/:orderId/shipment` | Sends tracking to the marketplace |
+| `GET /v1/admin/marketplace/channels`, `PATCH …/channels/:id/config` | Admin channel list and per-platform settings (validated per platform) |
+| `GET|POST /v1/marketplace/webhook/ebay` | eBay endpoint check and notifications; Etsy and Amazon return 501 |
+
+### 10.3 Per-platform details
+
+| | Etsy | eBay | Amazon (SP-API) |
+|---|---|---|---|
+| Auth | OAuth 2.0 + PKCE; `x-api-key: keystring:shared_secret` | OAuth 2.0 with RuName | Seller Central consent → LWA code (`spapi_oauth_code`) → refresh token. No AWS SigV4 (dropped by Amazon in 2023) |
+| Seller ID | Shop ID | — | `selling_partner_id`, stored as `external_shop_id` |
+| Listings | Listings API; needs taxonomy and shipping profile | Inventory + Offer APIs; needs category and business policies | Listings Items 2021-08-01: PATCH existing listing; offer on a catalog ASIN found by barcode (`LISTING_OFFER_ONLY`); new product only with a product type |
+| Orders | Receipts, pulled by the cron | Fulfillment API; pulled by the cron and on notifications | Orders v0, by last update, merchant-fulfilled only unless `import_fba_orders`; buyer data through a Restricted Data Token when the app has that role |
+| Tracking | Receipt tracking | Shipping fulfillment per line item | `shipmentConfirmation` per order item |
+| Channel settings | `listing_defaults`, `default_carrier` | `marketplace_id`, `content_language`, `listing`, `default_carrier` | `marketplace_id`, `region`, `amazon_listing` (product type, brand, condition, language), `default_carrier`, `import_fba_orders` |
+
+Clients retry on 429/503 with backoff and refresh an expired access token once. Errors are marked retryable or not, so the queue does not retry bad input.
+
+### 10.4 Order import
+
+`importOrders()` (`order-import.ts`), for each order:
+
+1. Skips cancelled and unpaid orders. Unpaid ones are picked up on a later run.
+2. Claims `(channel_id, external_order_id)` in `marketplace_orders`. The unique index makes the import idempotent.
+3. Creates or merges the customer by email, then writes `orders` (number `ETSY-…`, `EBAY-…`, `AMAZON-…`, with `channel_id`), `order_items` and `marketplace_order_lines` (with the marketplace line IDs, used later for tracking).
+4. Deducts stock (reserve + commit). If stock is short, it deducts what is there and reports the shortfall; the order is never undone, because the sale already happened.
+
+### 10.5 Credentials
+
+`marketplace_credentials` holds `oauth_token` (with expiry) and `refresh_token`, encrypted with AES-256-GCM and a key derived from `CRYPTOKEN` (PBKDF2-SHA256, 100,000 iterations) in `crypto-utils.ts`. Access tokens are refreshed shortly before they expire; concurrent refreshes share one request.
 
 ---
 
-## 16. Deployment
+## 11. AI Agents (UCP) & AI Features
 
-### 16.1 Build & Deploy
-
-```bash
-# From project root
-cd apps/merchant
-npx wrangler deploy          # Deploy to production
-npx wrangler deploy --dry-run  # Type-check + dry run (used in CI)
-```
-
-The `wrangler.jsonc` configures:
-- **Durable Object:** `MERCHANT` → `MerchantDO` class
-- **R2 buckets:** `IMAGES`, `DIGITAL_ASSETS_BUCKET`
-- **KV namespace:** `KV_CACHE`
-- **Cron trigger:** `*/15 * * * *` (cart expiry cleanup every 15 min)
-
-### 16.2 Frontend
-
-```bash
-cd apps/client
-npm run build    # Vite production build
-# Deploy output from dist/ to any static host (Cloudflare Pages, Netlify, etc.)
-```
+- **UCP** (`routes/ucp.ts`): `/.well-known/ucp` describes the store. `/ucp/v1/products`, `/ucp/v1/categories` and `/ucp/v1/checkout-sessions` (create, read, update, estimate shipping, complete, cancel) let AI shopping agents browse and buy. Sessions are stored in `ucp_checkout_sessions`. UCP payments use Stripe only when it is on.
+- **AI features** (`routes/ai.ts`): translation of product content and order emails, and review-moderation suggestions. The provider config is encrypted (`ai.json.enc`, key `CRYPTOKEN`) and pushed to KV under `ai:config` (`npm run ai:encrypt | ai:decrypt | ai:kv:push`); the `AI_*` environment variables are the fallback.
+- **AI token packages:** variants of type `ai_tokens` credit `ai_token_balances` and log `ai_token_transactions`. `/v1/ai-tokens/proxy` lets an external AI service check and spend balances (`AI_BALANCE_SHARED_SECRET`).
+- **MCP server** (`apps/mcp`): a knowledge server that explains this codebase to coding assistants.
 
 ---
 
-## 17. Security Considerations
+## 12. Caching & Rate Limiting
 
-|| Concern | Mechanism |
-|---------|-----------|-----------|
-| **Session tokens** | SHA-256 hash stored in DB; raw token only in HttpOnly cookie |
-| **Secrets at rest** | AES-GCM encryption via `crypto-utils.ts` with PBKDF2 key derivation |
-| **API authentication** | SHA-256 hash comparison (never store plaintext keys) |
-| **Order view tokens** | HMAC-HS256 JWT signed with `ORDER_TOKEN_SECRET`, 30-day TTL |
-| **AWS SigV4** | HMAC-SHA256 signing chain for all Amazon SP-API requests |
-| **PII handling** | RDT tokens obtained per-operation; never cached across sessions |
-| **Rate limiting** | KV-backed sliding window + Better Auth rate limiter (10 req/60s per IP) |
-| **CORS** | Enabled on all routes via Hono `cors()` middleware |
+### 12.1 KV response cache (`middleware/kv-cache.ts`)
+
+- **Cached:** GETs on `/v1/products*`, `/v1/categories*`, `/openapi*`, `/.well-known/ucp`, `/ucp/v1/products*` and `/ucp/v1/categories` that are anonymous or use a `pk_` key. Admin requests always skip the cache.
+- **Key:** `cache:<full URL>`, so each page and filter is cached separately.
+- **TTL:** search 300 s, reviews 600 s, everything else 3600 s (configurable with `KV_CACHE_*_TTL_SECONDS`).
+- **Invalidation:** a successful POST/PUT/PATCH/DELETE on products or categories (or a demo reset) deletes every key with the matching prefix, paging through `kv.list()`.
+
+### 12.2 API rate limiting (`middleware/rate-limit.ts`, `config/rate-limits.ts`)
+
+KV counters per API key and window:
+
+| Who | Limit |
+|---|---|
+| Default | 100 requests/minute |
+| Admin | 2000/minute |
+| Public key | 60/minute |
+| `/v1/carts` | 30/minute |
+
+Better Auth has its own limit (§7.3).
 
 ---
 
+## 13. File Storage
 
+| Binding | Bucket | Holds |
+|---|---|---|
+| `IMAGES` | `multicom-images` | Product and category images, served through `/v1/images` (or `IMAGES_URL` if set) |
+| `DIGITAL_ASSETS_BUCKET` | `multicom-digital-assets` | Files sold as digital products |
+
+`digital_assets` links a SKU to a file, either an R2 key or an external URL.
+
+---
+
+## 14. Webhooks
+
+### 14.1 Outbound
+
+Merchants register URLs and event filters in **Admin → Webhooks**.
+
+| Event | Sent when |
+|---|---|
+| `order.created` | An order is created (checkout or marketplace import) |
+| `order.updated`, `order.shipped` | Order status changes (`shipped` sends `order.shipped`) |
+| `order.refunded` | A refund is issued |
+| `inventory.low` | Stock falls below the threshold |
+| `ai_tokens.key_created`, `ai_tokens.credited` | AI token events |
+
+- **Signing:** each delivery is signed with HMAC-SHA256 and carries the headers `X-Bengal-Exchange-Signature`, `X-Bengal-Exchange-Timestamp` and `X-Bengal-Exchange-Delivery-Id`.
+- **Delivery:** runs in `waitUntil`, with up to 3 attempts and 2 s / 4 s backoff. Results are logged in `webhook_deliveries` and can be re-sent from the admin.
+
+### 14.2 Inbound
+
+| Source | Endpoint | Verification |
+|---|---|---|
+| Stripe | `POST /v1/webhooks/stripe` | Stripe signature with the saved webhook secret |
+| SSLCommerz | `POST /v1/webhooks/sslcommerz/ipn` | Re-checked with SSLCommerz's validation API |
+| eBay | `GET/POST /v1/marketplace/webhook/ebay` | `X-EBAY-SIGNATURE`. Order topics queue a `pull_orders` job; the payload itself is not trusted |
+
+---
+
+## 15. Background Work
+
+| Trigger | Does |
+|---|---|
+| Cron `*/15 * * * *` (`scheduled()`) | Removes expired carts and releases their stock; queues `pull_orders` for every active Etsy, eBay and Amazon channel (skips channels that already have a pull queued or running) |
+| Queue `multicom-marketplace-sync` (`queue()`) | Runs sync jobs one at a time (`max_batch_size` 1, `max_concurrency` 1), with 5 retries and a dead-letter queue `multicom-marketplace-sync-dlq`. Job status is in `marketplace_sync_jobs` |
+| `ctx.waitUntil` | Outbound webhook delivery, emails |
+| WebSocket (DO) | Live updates to connected admin clients |
+
+---
+
+## 16. Frontend
+
+`apps/client` is one Vite SPA for the storefront and the admin dashboard.
+
+- **Storefront pages:** home (classic and luxury layouts), product, cart/checkout, success, order view, account (profile, orders, addresses, wishlist, saved carts), CMS pages, blog, API docs.
+- **Admin (`/admin`):** products, categories, inventory, warehouses, orders, customers, reviews, analytics, regions, countries, currencies, shipping rates and classes, tax rates, email templates, webhooks, payment gateways, marketplaces, users and permissions.
+- **Auth:** a Better Auth session cookie (`credentials: 'include'`); the admin dashboard is shown only when `/v1/me` reports the admin role.
+- **Themes:** `classic` and `luxury`, set as `data-theme` on `<html>`. A signed-in user's choice is saved with `PATCH /v1/me/preferences`; a guest's choice is kept in `localStorage`. Theme definitions live in the `store_themes` table. The luxury theme uses `radius="none"`.
+- **i18n:** `src/locales` (en-US, fr-FR, es-ES, zh-CN, ar-SA, he-IL). Arabic and Hebrew switch to right-to-left. A unit test checks that every locale has the same keys.
+- **Conventions:** HeroUI components use `onPress`, not `onClick`.
+- **Hosting:** built with `npm run build:client:env` and published to GitHub Pages or any static host.
+
+---
+
+## 17. Environment Variables
+
+The Worker reads them from `apps/merchant/.dev.vars` locally (`npm run dev:env` copies the root `.env` there) and from `wrangler secret put` in production. Types are in `src/types.ts` (`Env`).
+
+### 17.1 Core
+
+| Variable | Purpose |
+|---|---|
+| `MERCHANT_SK`, `MERCHANT_PK` | Admin and public API keys, created on first start |
+| `BETTER_AUTH_SECRET` | Signs session cookies (32+ characters) |
+| `API_BASE_URL` | Public URL of the Worker; used for Better Auth and OAuth redirect URIs |
+| `STORE_URL` | Storefront URL; links in emails and the default CORS origin |
+| `CORS_ORIGIN` | Optional comma-separated list of allowed browser origins (replaces `STORE_URL` for CORS) |
+| `ADMIN_EMAILS` | Comma-separated emails whose sessions get admin rights |
+| `CRYPTOKEN` | Passphrase for encrypting gateway settings, marketplace tokens and the AI config |
+| `ORDER_TOKEN_SECRET` | Signs order view links (32+ characters) |
+| `STORE_NAME` | Store name in emails |
+
+### 17.2 Payments
+
+| Variable | Purpose |
+|---|---|
+| `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | Fallback used when Stripe keys are not saved in the dashboard |
+
+SSLCommerz is configured only in the dashboard.
+
+### 17.3 Marketplaces
+
+| Platform | Variables |
+|---|---|
+| Etsy | `ETSY_CLIENT_ID` (keystring), `ETSY_SHARED_SECRET`, `ETSY_REDIRECT_URI` (optional) |
+| eBay | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_RU_NAME`, `EBAY_ENVIRONMENT` (`sandbox`/`production`), `EBAY_VERIFICATION_TOKEN`, `EBAY_NOTIFICATION_ENDPOINT` |
+| Amazon | `AMAZON_SP_APP_ID`, `AMAZON_LWA_CLIENT_ID`, `AMAZON_LWA_CLIENT_SECRET` (old names `AMAZON_LWA_APP_ID` / `AMAZON_LWA_APP_SECRET` still work), `AMAZON_REGION` (`NA`/`EU`/`FE`); optional `AMAZON_MARKETPLACE_ID`, `AMAZON_ENVIRONMENT` (`sandbox`), `AMAZON_APP_DRAFT`, `AMAZON_SELLER_CENTRAL_URL`, `AMAZON_REDIRECT_URI` |
+
+Without a platform's variables, its connect button returns a clear "not configured" error.
+
+### 17.4 Optional
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `IMAGES_URL` | Public URL prefix for images | empty (served by the Worker) |
+| `MAILGUN_USER`, `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_BASE_URL` | Email | email off |
+| `AI_API_KEY`, `AI_MODEL`, `AI_API_URL` | AI provider fallback when `ai:config` is not in KV | AI off |
+| `CLOUDFLARE_AIG_TOKEN` | Cloudflare AI Gateway token | — |
+| `AI_BALANCE_SHARED_SECRET` | AI token proxy | proxy off |
+| `KV_CACHE_SEARCH_TTL_SECONDS`, `KV_CACHE_REVIEWS_TTL_SECONDS`, `KV_CACHE_DEFAULT_TTL_SECONDS` | Cache TTLs | 300 / 600 / 3600 |
+| `DATABASE_PERMISSION`, `MAIL_PERMISSION`, `AI_PERMISSION` | Permission names used by the admin UI | — |
+
+### 17.5 Adding a variable
+
+1. Add it to `Env` in `src/types.ts`, with a comment.
+2. For a non-secret value, add it to `vars` in `wrangler.jsonc`; for a secret, use `npx wrangler secret put NAME`.
+3. If the Durable Object needs it, also add it to `MerchantEnv` in `do.ts`.
+4. Document it in `run-instructions.md` and here. Run `npm run typegen` after changing `wrangler.jsonc`.
+
+---
+
+## 18. Deployment
+
+**Bindings** (`wrangler.jsonc`):
+
+| Binding | Resource |
+|---|---|
+| `MERCHANT` | `MerchantDO` (SQLite class) |
+| `IMAGES`, `DIGITAL_ASSETS_BUCKET` | R2 buckets |
+| `KV_CACHE` | KV namespace |
+| `MARKETPLACE_SYNC_QUEUE` | Queue producer and consumer (with DLQ) |
+| Cron | `*/15 * * * *` |
+
+**Steps:**
+
+1. **Backend:**
+   ```bash
+   cd apps/merchant
+   npx wrangler deploy
+   npx wrangler secret put BETTER_AUTH_SECRET   # and MERCHANT_SK, ADMIN_EMAILS, CRYPTOKEN, …
+   ```
+2. **First run:**
+   ```bash
+   npx tsx scripts/init.ts --remote
+   npx tsx scripts/create-admin.ts you@example.com --remote
+   ```
+3. **Storefront:** run `npm run build:client:env` and publish `apps/client/dist`.
+4. **MCP server** (optional): deploy `apps/mcp` and create its vectorize index (`bengal-exchange-mcp`).
+
+Checklist before launch: [production-checklist.md](./production-checklist.md).
+
+---
+
+## 19. Security
+
+| Concern | How it is handled |
+|---|---|
+| Sessions | Better Auth signed cookies, HttpOnly, `SameSite=None; Secure` over HTTPS; Origin check always on |
+| Admin rights | Only emails in `ADMIN_EMAILS`; public sign-up refuses those emails; admins are created by script |
+| API keys / OAuth tokens | Stored as SHA-256 hashes only |
+| CORS | Allowlist, fails closed |
+| Secrets at rest | Gateway settings: AES-256-CBC; marketplace tokens: AES-256-GCM; both with keys from `CRYPTOKEN` via PBKDF2-SHA256 |
+| Payments | Stripe webhook signatures; SSLCommerz payments re-validated server-side; Stripe keys checked before saving |
+| Inbound marketplace webhooks | eBay signatures verified; the payload only triggers a pull |
+| OAuth connect | One-time `state` with expiry; Amazon's return address must be a Seller Central host over HTTPS |
+| Buyer data | Amazon buyer data only with the restricted role; masked marketplace emails replaced by placeholders |
+| Order links | Signed 30-day tokens |
+| Outbound webhooks | HMAC-SHA256 signature with timestamp |
+| Abuse | KV rate limits per key; Better Auth limit per IP |
+
+The root `.env` holds secrets and must not be committed.
+
+---
+
+## 20. Testing
+
+| Suite | Command | Notes |
+|---|---|---|
+| Backend | `cd apps/merchant && npm test` | Vitest. `tests/helpers/merchant-db.ts` runs the real `MerchantDO` schema and migrations on `node:sqlite`; `cloudflare:workers` is stubbed. External APIs (Stripe, Etsy, eBay, Amazon) are faked at the `fetch` level |
+| Client | `cd apps/client && npm test` | Vitest, Node environment (no DOM) |
+| E2E | `cd e2e && npm run test:dev` | Playwright against local dev servers (projects: `public-chromium`, `auth-user`, `auth-admin`) |
+
+The integration suites `advanced-routes`, `regions.integration` and `variant-pricing` need a running Worker and a `.env` at a fixed path, so they fail in a plain `npm test`.

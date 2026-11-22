@@ -66,9 +66,6 @@ export function syncRoutes(): Hono<HonoEnv> {
       );
       if (!channel) throw ApiError.notFound('Channel not found');
       if (channel.status !== 'active') throw ApiError.invalidRequest('Channel is not active');
-      if (channel.platform !== 'etsy' && channel.platform !== 'ebay') {
-        throw new ApiError('not_implemented', 501, `${channel.platform} channels are not supported yet`);
-      }
 
       try {
         const { jobId } = await enqueueSyncJob(db, c.env.MARKETPLACE_SYNC_QUEUE, channelId, jobType);

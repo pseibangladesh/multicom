@@ -25,6 +25,7 @@
 
 import { DurableObject } from 'cloudflare:workers';
 import { createAuth, type BetterAuthInstance } from './lib/auth';
+import type { VerifiedSession } from './lib/session';
 import { isAdminEmail } from './lib/session';
 
 export interface MerchantEnv {
@@ -692,7 +693,7 @@ CREATE TABLE IF NOT EXISTS store_themes (
 );
 
 INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
-  VALUES ('theme_classic', 'Fufuni Classic', 1, '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}');
+  VALUES ('theme_classic', 'Bengal Exchange Classic', 1, '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}');
 INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
   VALUES ('theme_luxury', 'Luxury Minimal', 0, '{"themeSlug":"luxury","radius":"none","accentOklch":"oklch(15% 0 0)"}');
 
@@ -1260,7 +1261,7 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
           name: '030_store_themes_seed_classic',
           sql: `INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
             VALUES (
-              'theme_classic', 'Fufuni Classic', 1,
+              'theme_classic', 'Bengal Exchange Classic', 1,
               '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}'
             )`,
         },
@@ -1805,6 +1806,71 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
     }
 
     return new Response('Not found', { status: 404 });
+  }
+
+  /**
+   * RPC used by the Worker's auth middleware (lib/session.ts verifySession) on
+   * every authenticated request. Calls Better Auth's server API directly, as
+   * /api/auth/session does, instead of the rate-limited HTTP handler. The
+   * cookie's signature and expiry are still fully checked.
+   */
+  async getSessionForCookie(cookieHeader: string): Promise<VerifiedSession | null> {
+    this.auth ??= createAuth(this.env, this.ctx.storage);
+    const result = await this.auth.api.getSession({ headers: new Headers({ cookie: cookieHeader }) });
+    if (!result?.user?.id || !result.user.email) return null;
+    return { userId: result.user.id, email: result.user.email, name: result.user.name ?? null };
+  }
+
+  /**
+   * RPC behind POST /v1/setup/admin-user (scripts/create-admin.ts). Writes the
+   * Better Auth `user` + credential `account` rows through Better Auth's own
+   * internal adapter and password hasher (scrypt), exactly as sign-up would,
+   * but without the public sign-up endpoint. An existing user's password is
+   * only replaced when `resetPassword` is set.
+   */
+  async provisionUser(input: {
+    email: string;
+    password: string;
+    name: string;
+    resetPassword: boolean;
+  }): Promise<{ status: 'created' | 'password_reset' | 'exists'; userId: string }> {
+    this.auth ??= createAuth(this.env, this.ctx.storage);
+    const ctx = await this.auth.$context;
+    const email = input.email.trim().toLowerCase();
+
+    const { minPasswordLength, maxPasswordLength } = ctx.password.config;
+    if (input.password.length < minPasswordLength || input.password.length > maxPasswordLength) {
+      throw new Error(`Password must be ${minPasswordLength}-${maxPasswordLength} characters`);
+    }
+
+    const existing = await ctx.internalAdapter.findUserByEmail(email, { includeAccounts: true });
+    if (existing) {
+      if (!input.resetPassword) return { status: 'exists', userId: existing.user.id };
+      const hash = await ctx.password.hash(input.password);
+      if (existing.accounts.some((a) => a.providerId === 'credential')) {
+        await ctx.internalAdapter.updatePassword(existing.user.id, hash);
+      } else {
+        await ctx.internalAdapter.linkAccount({
+          userId: existing.user.id,
+          providerId: 'credential',
+          accountId: existing.user.id,
+          password: hash,
+        });
+      }
+      return { status: 'password_reset', userId: existing.user.id };
+    }
+
+    const user = await ctx.internalAdapter.createUser(
+      { email, name: input.name, emailVerified: true },
+      { method: 'admin' },
+    );
+    await ctx.internalAdapter.linkAccount({
+      userId: user.id,
+      providerId: 'credential',
+      accountId: user.id,
+      password: await ctx.password.hash(input.password),
+    });
+    return { status: 'created', userId: user.id };
   }
 
   private async handleAuth(request: Request, url: URL): Promise<Response> {

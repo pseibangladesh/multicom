@@ -6,14 +6,12 @@ import { ApiError, type HonoEnv } from '../src/types';
 
 const COOKIE = 'better-auth.session_token=abc.sig';
 
-function sessionTarget(user: { id: string; email: string; name?: string } | null, status = 200) {
+function sessionTarget(user: { id: string; email: string; name?: string } | null, fail = false) {
   return {
-    fetch: vi.fn(async (_req: Request) =>
-      new Response(JSON.stringify(user ? { user, session: { id: 's1' } } : null), {
-        status,
-        headers: { 'content-type': 'application/json' },
-      })
-    ),
+    getSessionForCookie: vi.fn(async (_cookie: string) => {
+      if (fail) throw new Error('DO unavailable');
+      return user ? { userId: user.id, email: user.email, name: user.name ?? null } : null;
+    }),
   };
 }
 
@@ -26,7 +24,7 @@ function buildApp(opts: {
 }) {
   const target = sessionTarget(opts.sessionUser ?? null);
   const stub = {
-    fetch: target.fetch,
+    getSessionForCookie: target.getSessionForCookie,
     query: async (sql: string, params: unknown[] = []) => {
       if (sql.includes('FROM api_keys')) {
         const role = opts.apiKeys?.[params[0] as string];
@@ -84,25 +82,24 @@ describe('isAdminEmail', () => {
 });
 
 describe('verifySession', () => {
-  it('forwards the cookie to get-session and returns the user', async () => {
+  it('asks the DO over RPC (not the rate-limited HTTP handler) and returns the user', async () => {
     const target = sessionTarget({ id: 'u1', email: 'a@b.com', name: 'A' });
-    const result = await verifySession(target, COOKIE);
-
-    expect(result).toEqual({ userId: 'u1', email: 'a@b.com', name: 'A' });
-    const req = target.fetch.mock.calls[0][0];
-    expect(new URL(req.url).pathname).toBe('/api/auth/get-session');
-    expect(req.headers.get('cookie')).toBe(COOKIE);
+    expect(await verifySession(target, COOKIE)).toEqual({ userId: 'u1', email: 'a@b.com', name: 'A' });
+    expect(target.getSessionForCookie).toHaveBeenCalledWith(COOKIE);
   });
 
   it('does not call the DO without a session cookie', async () => {
     const target = sessionTarget({ id: 'u1', email: 'a@b.com' });
     expect(await verifySession(target, 'foo=1')).toBeNull();
-    expect(target.fetch).not.toHaveBeenCalled();
+    expect(target.getSessionForCookie).not.toHaveBeenCalled();
   });
 
-  it('returns null for an invalid/expired session or error response', async () => {
+  it('returns null for an invalid/expired session', async () => {
     expect(await verifySession(sessionTarget(null), COOKIE)).toBeNull();
-    expect(await verifySession(sessionTarget({ id: 'u1', email: 'a@b.com' }, 500), COOKIE)).toBeNull();
+  });
+
+  it('propagates DO failures so the middleware can log them', async () => {
+    await expect(verifySession(sessionTarget(null, true), COOKIE)).rejects.toThrow('DO unavailable');
   });
 });
 

@@ -27,6 +27,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 import { getDb, type Database } from '../db';
+import { getStripeSettings } from '../lib/payment-config';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { resolveVariantPrice, getCurrencyIdFromCode } from '../lib/pricing';
 import { ErrorResponse } from '../schemas';
@@ -181,21 +182,12 @@ function parseUCPAgentHeader(header: string | null): { profile?: string } {
   return { profile: match?.[1] };
 }
 
-async function getStripeConfig(db: Database): Promise<{ secretKey: string | null; webhookSecret: string | null }> {
-  const [config] = await db.query<{ value: string }>(
-    `SELECT value FROM config WHERE key = 'stripe'`,
-    []
-  );
-  if (!config) return { secretKey: null, webhookSecret: null };
-  try {
-    const parsed = JSON.parse(config.value);
-    return { 
-      secretKey: parsed.secret_key || null,
-      webhookSecret: parsed.webhook_secret || null,
-    };
-  } catch {
-    return { secretKey: null, webhookSecret: null };
-  }
+/** Stripe as offered to AI agents: only while Stripe checkout is switched on. */
+async function getStripeConfig(db: Database, env: HonoEnv['Bindings']): Promise<{ secretKey: string | null; webhookSecret: string | null }> {
+  const s = await getStripeSettings(db, env);
+  return s.enabled
+    ? { secretKey: s.secretKey, webhookSecret: s.webhookSecret }
+    : { secretKey: null, webhookSecret: null };
 }
 
 interface TaxResult {
@@ -264,7 +256,7 @@ const routeGetUCPProfile = createRoute({
 ucp.openapi(routeGetUCPProfile, async (c) => {
   const baseUrl = new URL(c.req.url).origin;
   const db = getDb(c.var.db);
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
   
   // Build payment handlers based on Stripe config
   const paymentHandlers: UCPPaymentHandler[] = [];
@@ -511,7 +503,7 @@ ucp.openapi(routePostCheckoutSession, async (c) => {
   );
   
   // Build payment handlers
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
   const paymentHandlers: UCPPaymentHandler[] = [];
   
   if (stripeConfig.secretKey) {
@@ -581,7 +573,7 @@ ucp.openapi(routeGetCheckoutSession, async (c) => {
     session.status = 'canceled';
   }
   
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
   const paymentHandlers: UCPPaymentHandler[] = [];
   
   if (stripeConfig.secretKey) {
@@ -763,7 +755,7 @@ ucp.openapi(routePutCheckoutSession, async (c) => {
     ]
   );
   
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
   const paymentHandlers: UCPPaymentHandler[] = [];
   
   if (stripeConfig.secretKey) {
@@ -844,7 +836,7 @@ ucp.openapi(routePostComplete, async (c) => {
   const buyer = JSON.parse(session.buyer || '{}');
   const totals = JSON.parse(session.totals || '[]');
 
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
 
   // For UCP, we use Stripe Checkout redirect flow
   // The payment_data should indicate the handler being used

@@ -60,9 +60,12 @@ import { customerOrderDownloads, publicDownloads } from './routes/downloads';
 import { customerAiTokensRouter, proxyAiTokensRouter, adminAiTokensRouter } from './routes/ai-tokens';
 import { sslcommerzCheckoutApp, sslcommerzIpnApp } from './routes/sslcommerz-ipn';
 import { adminSettings } from './routes/admin-settings';
+import { publicPaymentMethods } from './routes/payment-methods';
 import { marketplaceRoutes } from './routes/marketplace';
 import { adminMarketplaceChannelRoutes } from './routes/marketplace/channels';
 import { handleMarketplaceQueue } from './workers/marketplace-consumer';
+import { enqueueOrderPulls } from './lib/marketplace/sync-jobs';
+import { getDb } from './db';
 
 // ... inside the app setup ...
 
@@ -129,11 +132,14 @@ app.use('/v1/categories', kvInvalidateMiddleware);
 app.use('/v1/categories/*', kvInvalidateMiddleware);
 app.use('/v1/products', kvInvalidateMiddleware);
 app.use('/v1/products/*', kvInvalidateMiddleware);
+// demo-reset deletes products/categories outside those prefixes
+app.use('/v1/setup/demo-reset', kvInvalidateMiddleware);
 
 // Mount public routes BEFORE authentication middleware
 app.route('/', sitemapRouter);         // /sitemap.xml — no auth
 app.route('/v1/orders', publicOrders);
 app.route('/v1/categories', publicCategories);
+app.route('/v1/payment-methods', publicPaymentMethods); // storefront: which gateways are on
 // Admin settings
 app.route('/v1/admin', adminSettings);
 
@@ -167,7 +173,7 @@ app.onError((err, c) => {
   return c.json({ error: { code: 'internal', message } }, 500);
 });
 
-app.get('/', (c) => c.json({ name: 'fufuni', version: '0.1.0', ok: true }));
+app.get('/', (c) => c.json({ name: 'bengal-exchange', version: '0.1.0', ok: true }));
 
 app.route('/v1/setup', adminSetup);
 app.route('/v1/ai', adminAi);
@@ -217,7 +223,7 @@ app.all('/api/auth/*', async (c) => {
 app.doc31('/openapi.json', {
   openapi: '3.1.0',
   info: {
-    title: 'Fufuni API',
+    title: 'Bengal Exchange API',
     version: '1.0.0',
     description: 'The open-source commerce backend for Cloudflare + Stripe + Better Auth',
   },
@@ -237,5 +243,14 @@ export default {
     const stub = env.MERCHANT.get(id);
     const cleaned = await (stub as unknown as { cleanupExpiredCarts: () => Promise<number> }).cleanupExpiredCarts();
     console.log(`Cron: cleaned ${cleaned} expired carts`);
+
+    // Order pulls for every connected channel. This is the only trigger for
+    // Etsy and the safety net for eBay (webhooks can be missed). Channels with
+    // a pull already queued or running are skipped.
+    if (env.MARKETPLACE_SYNC_QUEUE) {
+      const pulls = await enqueueOrderPulls(getDb(stub as unknown as DOStub), env.MARKETPLACE_SYNC_QUEUE);
+      console.log(`Cron: queued order pulls for ${pulls.queued.length} channel(s), ${pulls.alreadyRunning.length} already running`);
+      for (const e of pulls.errors) console.error(`Cron: order pull for ${e.channelId} not queued: ${e.error}`);
+    }
   },
 };

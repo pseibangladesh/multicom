@@ -27,7 +27,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
         {/* Brand */}
         <div className="md:col-span-1">
-          <h2 className="font-serif text-2xl mb-6">FUFUNI</h2>
+          <h2 className="font-serif text-2xl mb-6">BENGAL_EXCHANGE</h2>
           <p className="text-gray-400 font-sans font-light text-sm leading-relaxed">
             L'élégance à la française, hébergée sur l'Edge. Un framework
             moderne pour des créations intemporelles.
@@ -77,7 +77,7 @@ export function Footer() {
             <li>
               <a
                 className="hover:text-white transition-colors"
-                href="mailto:hello@fufuni.local"
+                href="mailto:hello@bengal-exchange.local"
               >
                 Contact
               </a>
@@ -96,16 +96,16 @@ export function Footer() {
             <br />
             <a
               className="hover:text-white transition-colors"
-              href="mailto:hello@fufuni.local"
+              href="mailto:hello@bengal-exchange.local"
             >
-              hello@fufuni.local
+              hello@bengal-exchange.local
             </a>
           </p>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-24 pt-8 border-t border-gray-800 text-center text-gray-500 text-xs">
-        © {new Date().getFullYear()} Fufuni Framework. Open Source E-commerce.
+        © {new Date().getFullYear()} Bengal Exchange Framework. Open Source E-commerce.
       </div>
     </footer>
   );

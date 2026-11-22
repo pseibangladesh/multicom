@@ -170,10 +170,10 @@ async function deliverWebhook(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Fufuni-Signature': signature,
-          'X-Fufuni-Timestamp': String(timestamp),
-          'X-Fufuni-Delivery-Id': deliveryId,
-          'User-Agent': 'Fufuni-Webhook/1.0',
+          'X-Bengal-Exchange-Signature': signature,
+          'X-Bengal-Exchange-Timestamp': String(timestamp),
+          'X-Bengal-Exchange-Delivery-Id': deliveryId,
+          'User-Agent': 'Bengal-Exchange-Webhook/1.0',
         },
         body: payloadString,
       });

@@ -28,7 +28,6 @@ export type {
   LogoutOptions,
   AuthProviderConfig,
   AuthGuardProps,
-  AuthPermissionGuardProps,
 } from "@/features/auth/providers/auth-provider";
 
 // Export UI components
@@ -41,7 +40,6 @@ export {
   LoginLogoutButton,
   LoginLogoutLink,
   AuthenticationGuard,
-  AuthenticationGuardWithPermission,
   useSecuredApi,
 } from "@/features/auth/components/auth-components";
 

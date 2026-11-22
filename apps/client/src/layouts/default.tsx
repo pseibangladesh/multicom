@@ -66,7 +66,7 @@ export default function DefaultLayout({
             <div className="lg:col-span-2 space-y-4">
               <RouterLink to="/" className="inline-flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <Logo />
-                <span className="font-bold text-lg text-foreground">Fufuni</span>
+                <span className="font-bold text-lg text-foreground">Bengal Exchange</span>
               </RouterLink>
               <p className="text-sm text-default-500 max-w-xs leading-relaxed">
                 {t("make-beautiful-websites-regardless-of-your-design-experience")}
@@ -210,11 +210,11 @@ export default function DefaultLayout({
               <Link
                 target="_blank"
                 className="flex items-center gap-1 text-xs text-default-400 hover:text-foreground transition-colors"
-                href="https://github.com/sctg-development/fufuni"
+                href="https://github.com/pseibangladesh/multicom"
               >
                 <Trans ns="base">powered-by</Trans>
                 &nbsp;
-                <span className="text-primary font-medium">SCTG Fufuni</span>
+                <span className="text-primary font-medium">SCTG Bengal Exchange</span>
               </Link>
             </div>
 

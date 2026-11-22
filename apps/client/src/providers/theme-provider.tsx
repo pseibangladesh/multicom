@@ -28,7 +28,7 @@ import { getApiBase } from "@/lib/api-base";
 const THEME_LS_KEY = "ui-theme";
 
 /** CustomEvent name used for cross-component sync */
-export const THEME_UPDATED_EVENT = "fufuni:theme-updated";
+export const THEME_UPDATED_EVENT = "bengal-exchange:theme-updated";
 
 /** Store URL for scoped metadata — must match the backend STORE_URL env var */
 const STORE_URL = import.meta.env.STORE_URL;

@@ -125,10 +125,26 @@ export const useLocalProvider = (): AuthProvider => {
   );
 
   // API helpers that automatically include session cookies
+  // "HTTP <status>" stays first (isConflictError matches on it); the API's
+  // own error message is appended so pages can show why a request failed.
+  const httpError = async (resp: Response): Promise<Error> => {
+    let detail = "";
+
+    try {
+      const body = (await resp.json()) as { error?: { message?: string } | string };
+
+      detail = typeof body.error === "string" ? body.error : (body.error?.message ?? "");
+    } catch {
+      // Not JSON: keep the status only.
+    }
+
+    return new Error(detail ? `HTTP ${resp.status}: ${detail}` : `HTTP ${resp.status}`);
+  };
+
   const getJson = async (url: string): Promise<any> => {
     const resp = await fetch(url, { credentials: "include" });
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await httpError(resp);
 
     return resp.json();
   };
@@ -141,7 +157,7 @@ export const useLocalProvider = (): AuthProvider => {
       body: JSON.stringify(data),
     });
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await httpError(resp);
 
     return resp.json();
   };
@@ -153,7 +169,7 @@ export const useLocalProvider = (): AuthProvider => {
       body: formData,
     });
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await httpError(resp);
 
     return resp.json();
   };
@@ -164,7 +180,7 @@ export const useLocalProvider = (): AuthProvider => {
       credentials: "include",
     });
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await httpError(resp);
 
     return resp.json();
   };
@@ -177,7 +193,7 @@ export const useLocalProvider = (): AuthProvider => {
       body: JSON.stringify(data),
     });
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await httpError(resp);
 
     return resp.json();
   };
@@ -190,7 +206,7 @@ export const useLocalProvider = (): AuthProvider => {
       body: JSON.stringify(data),
     });
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await httpError(resp);
 
     return resp.json();
   };

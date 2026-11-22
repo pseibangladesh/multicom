@@ -98,11 +98,12 @@ export default defineConfig({
     ),
     "import.meta.env.API_BASE_URL": JSON.stringify(process.env.API_BASE_URL),
     "import.meta.env.MERCHANT_PK": JSON.stringify(process.env.MERCHANT_PK || "merchant_pk_placeholder"),
-    "import.meta.env.STORE_URL": JSON.stringify(process.env.STORE_URL || "https://github.com/sctg-development/fufuni"),
-    "import.meta.env.STORE_NAME": JSON.stringify(process.env.STORE_NAME || "Fufuni Store"),
-    "import.meta.env.FUFUNI_THEME": JSON.stringify(process.env.FUFUNI_THEME ?? "heroui_standard"),
+    // No fallback: it must match the backend's STORE_URL, and main.tsx shows an
+    // "Environment Variables Missing" screen when it (or API_BASE_URL) is unset.
+    "import.meta.env.STORE_URL": JSON.stringify(process.env.STORE_URL),
+    "import.meta.env.STORE_NAME": JSON.stringify(process.env.STORE_NAME || "Bengal Exchange Store"),
+    "import.meta.env.BENGAL_EXCHANGE_THEME": JSON.stringify(process.env.BENGAL_EXCHANGE_THEME ?? "heroui_standard"),
     // Permissions
-    "import.meta.env.ADMIN_STORE_PERMISSION": JSON.stringify(process.env.ADMIN_STORE_PERMISSION || "admin:store"),
     "import.meta.env.DATABASE_PERMISSION": JSON.stringify(process.env.DATABASE_PERMISSION || "admin:database"),
     "import.meta.env.AI_PERMISSION": JSON.stringify(process.env.AI_PERMISSION || "ai:api"),
     "import.meta.env.MAIL_PERMISSION": JSON.stringify(process.env.MAIL_PERMISSION || "mail:api"),

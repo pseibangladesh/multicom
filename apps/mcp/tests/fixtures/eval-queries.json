@@ -16,7 +16,7 @@
     "relevant_topics": ["checkout-and-ucp", "orders-and-refunds"]
   },
   {
-    "query": "How do I configure Auth0 for the Fufuni store?",
+    "query": "How do I configure Auth0 for the Bengal Exchange store?",
     "relevant_topics": ["auth0-tenant-setup", "auth-patterns", "setup-and-initialization"]
   },
   {
@@ -36,7 +36,7 @@
     "relevant_topics": ["admin-crud-pattern", "frontend-react-patterns"]
   },
   {
-    "query": "What Cloudflare Worker patterns does Fufuni use?",
+    "query": "What Cloudflare Worker patterns does Bengal Exchange use?",
     "relevant_topics": ["cloudflare-worker-patterns", "framework-overview"]
   },
   {
@@ -52,7 +52,7 @@
     "relevant_topics": ["how-to-add-hono-route", "api-error-patterns"]
   },
   {
-    "query": "What is the DurableObject pattern in Fufuni?",
+    "query": "What is the DurableObject pattern in Bengal Exchange?",
     "relevant_topics": ["cloudflare-worker-patterns", "db-schema"]
   },
   {
@@ -84,7 +84,7 @@
     "relevant_topics": ["image-storage-patterns", "cloudflare-worker-patterns"]
   },
   {
-    "query": "What is the webhook system in Fufuni?",
+    "query": "What is the webhook system in Bengal Exchange?",
     "relevant_topics": ["webhooks-outbound", "api-error-patterns"]
   },
   {
@@ -96,7 +96,7 @@
     "relevant_topics": ["theming-and-layouts", "frontend-react-patterns"]
   },
   {
-    "query": "How to use internationalization (i18n) in Fufuni?",
+    "query": "How to use internationalization (i18n) in Bengal Exchange?",
     "relevant_topics": ["i18n-patterns", "localized-content-patterns"]
   },
   {
@@ -148,7 +148,7 @@
     "relevant_topics": ["e2e-testing"]
   },
   {
-    "query": "What database schema tables exist in Fufuni?",
+    "query": "What database schema tables exist in Bengal Exchange?",
     "relevant_topics": ["db-schema", "migrations-reference"]
   },
   {

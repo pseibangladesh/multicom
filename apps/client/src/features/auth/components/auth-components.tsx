@@ -3,14 +3,13 @@
  * @license AGPL-3.0-or-later
  */
 
-import { FC, ReactNode, useEffect, useState } from "react";
+import { FC } from "react";
 import { Button } from "@heroui/react";
 import { Tooltip } from "@heroui/react";
 import { Link } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { getBaseURL } from "@/utils/base-url";
-import { ShieldCheck } from "lucide-react";
 
+import { getBaseURL } from "@/utils/base-url";
 import { SiteLoading } from "@/shared/ui/feedback/site-loading";
 
 import {
@@ -323,83 +322,6 @@ export const AuthenticationGuard: FC<{ component: FC }> = ({ component }) => {
   });
 
   return <Component />;
-};
-
-/**
- * Component that conditionally renders its children based on whether the user has a specific permission.
- *
- * @param props - Component props
- * @param props.permission - The required permission to display the content
- * @param props.children - The child elements to display if the user has the permission
- * @param props.fallback - Optional element to display if the user lacks the permission (defaults to empty fragment)
- * @returns The children if the user has the permission, otherwise the fallback
- *
- * @example
- * ```tsx
- * <AuthenticationGuardWithPermission permission="read:api">
- *   <ProtectedComponent />
- * </AuthenticationGuardWithPermission>
- * ```
- */
-export const AuthenticationGuardWithPermission: FC<{
-  permission: string;
-  children: ReactNode;
-  fallback?: ReactNode;
-}> = ({ permission, children, fallback }) => {
-  const { hasPermission } = useAuth();
-  const [permitted, setPermitted] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkPermission = async () => {
-      try {
-        const result = await hasPermission(permission);
-
-        if (isMounted) {
-          setPermitted(result);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error("Permission check failed:", error);
-        if (isMounted) {
-          setPermitted(false);
-          setIsLoading(false);
-        }
-      }
-    };
-
-    checkPermission();
-
-    // Cleanup function to prevent state updates on unmounted component
-    return () => {
-      isMounted = false;
-    };
-  }, [permission, hasPermission]);
-
-  if (isLoading) {
-    return <SiteLoading />;
-  }
-
-  if (!permitted && fallback !== undefined) {
-    return <>{fallback}</>;
-  }
-
-  if (!permitted) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <ShieldCheck className="w-16 h-16 text-default-300" />
-        <h2 className="text-xl font-semibold text-default-600">Access Denied</h2>
-        <p className="text-sm text-default-400 text-center max-w-md">
-          You do not have the required permission (<code className="px-1 py-0.5 bg-default-100 rounded">{permission}</code>) to access this page. Contact your administrator for access.
-        </p>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
 };
 
 /**

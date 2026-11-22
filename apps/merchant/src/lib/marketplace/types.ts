@@ -61,6 +61,8 @@ export interface MarketProduct {
   requiresShipping: boolean;
   /** Lifecycle status. */
   status: 'active' | 'draft' | 'inactive';
+  /** UPC/EAN/GTIN, when known (Amazon uses it to find the catalog product). */
+  barcode?: string | null;
 }
 
 /** Request body for creating/updating a product via the internal API. */

@@ -35,7 +35,7 @@ import i18next from "../i18n";
  * @example
  * ```tsx
  * const config = siteConfig();
- * console.log(config.name); // e.g. "Fufuni"
+ * console.log(config.name); // e.g. "Bengal Exchange"
  * ```
  */
 export const siteConfig = () => ({
@@ -48,191 +48,190 @@ export const siteConfig = () => ({
     {
       label: i18next.t("home"),
       href: "/",
-      permissions: [], // No permissions required, visible to all
+      adminOnly: false,
     },
-    // admin pages - visible to all for now. guards can be handled on the page itself
     {
       label: i18next.t("dashboard"),
       href: "/admin/analytics",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-products-title"),
       href: "/admin/products",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("categories"),
       href: "/admin/categories",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-customers-title"),
       href: "/admin/customers",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-inventory-title"),
       href: "/admin/inventory",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-orders-title"),
       href: "/admin/orders",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("reviews-title"),
       href: "/admin/reviews",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-webhooks-title"),
       href: "/admin/webhooks",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-email-templates-title"),
       href: "/admin/email-templates",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-regions-title"),
       href: "/admin/regions",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-currencies-title"),
       href: "/admin/currencies",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-countries-title"),
       href: "/admin/countries",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-warehouses-title"),
       href: "/admin/warehouses",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-shipping-rates-title"),
       href: "/admin/shipping-rates",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-shipping-classes-title"),
       href: "/admin/shipping-classes",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-tax-rates-title"),
       href: "/admin/tax-rates",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("openapi-explorer"),
       href: "/openapi",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-payment-gateways-title") || "Payment Gateways",
       href: "/admin/payment-gateways",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-marketplaces-title"),
       href: "/admin/marketplaces",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
   ],
   navMenuItems: [
     {
       label: i18next.t("home"),
       href: "/",
-      permissions: [], // No permissions required, visible to all
+      adminOnly: false,
     },
     {
       label: i18next.t("admin-products-title"),
       href: "/admin/products",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("categories"),
       href: "/admin/categories",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-customers-title"),
       href: "/admin/customers",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-inventory-title"),
       href: "/admin/inventory",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-orders-title"),
       href: "/admin/orders",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-webhooks-title"),
       href: "/admin/webhooks",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-email-templates-title"),
       href: "/admin/email-templates",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-regions-title"),
       href: "/admin/regions",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-currencies-title"),
       href: "/admin/currencies",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-countries-title"),
       href: "/admin/countries",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-warehouses-title"),
       href: "/admin/warehouses",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-shipping-rates-title"),
       href: "/admin/shipping-rates",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-shipping-classes-title"),
       href: "/admin/shipping-classes",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-tax-rates-title"),
       href: "/admin/tax-rates",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
     {
       label: i18next.t("admin-marketplaces-title"),
       href: "/admin/marketplaces",
-      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+      adminOnly: true, // shown only to sessions with is_admin (ADMIN_EMAILS)
     },
   ],
   links: {
-    github: "https://github.com/sctg-development/fufuni",
+    github: "https://github.com/pseibangladesh/multicom",
     twitter: "https://twitter.com/hero_ui",
-    docs: "https://github.com/sctg-development/fufuni/blob/main/README.md",
+    docs: "https://github.com/pseibangladesh/multicom/blob/main/README.md",
     discord: "https://discord.gg/9b6yyZKmH4",
     sponsor: "https://github.com/sponsors/sctg-development",
   },

@@ -12,47 +12,18 @@ import {
   toGatewayAmount,
   type SslValidationResponse,
 } from '../lib/sslcommerz';
-
-// ─── Encryption helper ────────────────────────────────────────────────
-async function decryptSecret(base64Ciphertext: string, password: string): Promise<string> {
-  const raw = Uint8Array.from(atob(base64Ciphertext.trim()), c => c.charCodeAt(0));
-  const salt = raw.slice(0, 8);
-  const ciphertext = raw.slice(8);
-  const pwBytes = new TextEncoder().encode(password);
-  const baseKey = await crypto.subtle.importKey('raw', pwBytes, 'PBKDF2', false, ['deriveBits']);
-  const derived = new Uint8Array(
-    await crypto.subtle.deriveBits(
-      { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100_000 },
-      baseKey, 384
-    )
-  );
-  const aesKey = await crypto.subtle.importKey('raw', derived.slice(0, 32), 'AES-CBC', false, ['decrypt']);
-  const iv = derived.slice(32, 48);
-  const decrypted = await crypto.subtle.decrypt({ name: 'AES-CBC', iv }, aesKey, ciphertext);
-  return new TextDecoder().decode(decrypted);
-}
+import { SSLCOMMERZ_CONFIG_KEY, decryptSecret, getSslcommerzSettings, readConfigJson } from '../lib/payment-config';
 
 // ─── Helpers ──────────────────────────────────────────────────────────
-async function getDecryptedSslPassword(c: any): Promise<string | null> {
-  const db = getDb(c.var.db);
-  const [row] = await db.query<any>(`SELECT value FROM config WHERE key = 'payment_gateway.sslcommerz'`);
-  if (!row || !row.value) return null;
-  let parsed: any;
-  try { parsed = JSON.parse(row.value); } catch { return null; }
-  if (!parsed.enabled || !parsed.store_password || !parsed.store_id) return null;
+async function getDecryptedSslPassword(c: { var: HonoEnv['Variables']; env: HonoEnv['Bindings'] }): Promise<string | null> {
+  const row = await readConfigJson(getDb(c.var.db), SSLCOMMERZ_CONFIG_KEY);
+  if (!row || row.enabled !== true || typeof row.store_password !== 'string' || !row.store_id) return null;
   const cryptoken = c.env.CRYPTOKEN;
   if (!cryptoken) return null;
-  try { return await decryptSecret(parsed.store_password, cryptoken); } catch { return null; }
+  try { return await decryptSecret(row.store_password, cryptoken); } catch { return null; }
 }
 
-async function getSslConfig(c: any): Promise<{ enabled: boolean; store_id: string; sandbox: boolean }> {
-  const db = getDb(c.var.db);
-  const [row] = await db.query<any>(`SELECT value FROM config WHERE key = 'payment_gateway.sslcommerz'`);
-  if (!row || !row.value) return { enabled: false, store_id: '', sandbox: true };
-  let parsed: any;
-  try { parsed = JSON.parse(row.value); } catch { return { enabled: false, store_id: '', sandbox: true }; }
-  return { enabled: parsed.enabled === true, store_id: parsed.store_id || '', sandbox: parsed.sandbox !== false };
-}
+const getSslConfig = (c: { var: HonoEnv['Variables'] }) => getSslcommerzSettings(getDb(c.var.db));
 
 function getSslBaseUrl(sandbox: boolean): string {
   return sandbox ? 'https://sandbox.sslcommerz.com' : 'https://securegw.sslcommerz.com';

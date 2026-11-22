@@ -27,6 +27,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 import { getDb } from '../db';
+import { getStripeSettings } from '../lib/payment-config';
 import { authMiddleware } from '../middleware/auth';
 import { ApiError, uuid, now, isValidEmail, type HonoEnv } from '../types';
 import { validateDiscount, calculateDiscount, type Discount } from './discounts';
@@ -375,12 +376,16 @@ adminApp.openapi(checkoutCart, async (c) => {
   const { cartId } = c.req.valid('param');
   const { success_url, cancel_url, collect_shipping, shipping_countries, shipping_options } = c.req.valid('json');
 
-  const stripeSecretKey = c.get('auth').stripeSecretKey;
-  if (!stripeSecretKey) {
-    throw ApiError.invalidRequest('Stripe not connected. POST /v1/setup/stripe first.');
-  }
-
   const db = getDb(c.var.db);
+
+  const stripeSettings = await getStripeSettings(db, c.env);
+  if (!stripeSettings.switched_on) {
+    throw ApiError.invalidRequest('Stripe payments are turned off for this store.');
+  }
+  const stripeSecretKey = stripeSettings.secretKey;
+  if (!stripeSecretKey) {
+    throw ApiError.invalidRequest('Stripe not connected. Add the keys under Admin → Payment Gateways.');
+  }
 
   const statusUpdateResult = await db.run(
     `UPDATE carts SET status = 'checked_out', updated_at = ? WHERE id = ? AND status = 'open'`,

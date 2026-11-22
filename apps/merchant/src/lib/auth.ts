@@ -2,10 +2,12 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/durable-sqlite';
 import * as schema from '../db/schema';
-import { allowedOrigins } from './session';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { allowedOrigins, isAdminEmail } from './session';
 
 export interface AuthEnv {
   BETTER_AUTH_SECRET: string;
+  ADMIN_EMAILS?: string;
   API_BASE_URL?: string;
   CORS_ORIGIN?: string;
   STORE_URL?: string;
@@ -53,6 +55,19 @@ export function createAuth(env: AuthEnv, storage: DurableObjectStorage) {
       sendResetPassword: async ({ user, url }) => {
         console.log(`[Auth] Password reset requested for user ${user.email}, url=${url}`);
       },
+    },
+    hooks: {
+      // Admin rights come from ADMIN_EMAILS, and email verification is off, so
+      // whoever signs up first with such an address would become admin. Admin
+      // accounts are created with scripts/create-admin.ts instead (it uses the
+      // internal adapter, which this endpoint hook does not affect).
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/sign-up/email') return;
+        const email: unknown = (ctx.body as { email?: unknown } | undefined)?.email;
+        if (typeof email === 'string' && isAdminEmail(email, env.ADMIN_EMAILS)) {
+          throw new APIError('FORBIDDEN', { message: 'Sign-up is not available for this email address.' });
+        }
+      }),
     },
     session: {
       expiresIn: 60 * 60 * 24 * 30,

@@ -1,6 +1,6 @@
 # Development Tracker: Marketplace Integrations (Etsy, eBay, Amazon)
 
-**Project:** Multicom (fufuni) — Headless commerce platform
+**Project:** Multicom (bengal-exchange) — Headless commerce platform
 **Last Updated:** 2026-11-19
 **Status:** Phase 1 Partially Complete
 
@@ -13,7 +13,7 @@
 | **P0: Foundation** | 2026-11-18 | 2026-12-02 | ✅ **COMPLETE** | 100% |
 | **P1: Etsy** | 2026-11-19 | TBD | 🔄 **IN PROGRESS** | ~75% |
 | **P2: eBay** | 2026-11-19 | TBD | 🔄 **IN PROGRESS** | ~40% |
-| **P3: Amazon SP-API** | TBD | TBD | ⏳ Pending | 0% |
+| **P3: Amazon SP-API** | 2026-11-22 | 2026-11-22 | ✅ **COMPLETE** (mock-tested; needs a live seller account to verify) | 100% |
 | **P4: Unified Dashboard** | TBD | TBD | ⏳ Pending | 0% |
 
 ---
@@ -158,7 +158,11 @@ Indexes: 6 new indexes for platform, store, channel, and channel+status lookups.
 
 ---
 
-## Phase 3: Amazon SP-API (Planned)
+## Phase 3: Amazon SP-API (Implemented)
+
+Done: seller authorization (consent URL, Login URI, callback with `spapi_oauth_code`), LWA token refresh, marketplace detection, listings (update / offer on catalog ASIN / new product with a product type), stock push, order polling with RDT for PII, shipment confirmation, admin UI settings. No SigV4 or AWS keys (removed by Amazon in 2023). Tests: `apps/merchant/tests/amazon.test.ts`.
+
+The original plan below is kept for reference.
 
 **See:** [`docs/phase3-amazon-plan.md`](../phase3-amazon-plan.md) for full implementation plan.
 

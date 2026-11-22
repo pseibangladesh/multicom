@@ -706,7 +706,7 @@ W1  W2  W3  W4  W5  W6  W7  W8  W9  W10 W11 W12 W13 W14 W15 W16 W17 W18 W19 W20 
 - [ ] Environment variables configured:
   - `ETSY_API_KEY`, `ETESH_SHARED_SECRET` (per store, stored in config table, not env)
   - `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`
-  - `AMAZON_LWA_APP_ID`, `AMAZON_LWA_APP_SECRET`, `AMAZON_AWS_ACCESS_KEY`, `AMAZON_AWS_SECRET_KEY`
+  - `AMAZON_SP_APP_ID`, `AMAZON_LWA_CLIENT_ID`, `AMAZON_LWA_CLIENT_SECRET`, `AMAZON_REGION` (no AWS keys: SigV4 is no longer required)
   - `MARKETPLACE_ENCRYPTION_KEY` (from CRYPTOKEN)
 - [ ] CORS updated to allow webhook callback URLs from each platform
 - [ ] Rate limiting configured per platform in KV

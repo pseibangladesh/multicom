@@ -26,6 +26,7 @@
 import { Hono } from 'hono';
 import Stripe from 'stripe';
 import { getDb } from '../db';
+import { getStripeSettings } from '../lib/payment-config';
 import { ApiError, uuid, now, generateOrderNumber, type HonoEnv } from '../types';
 import { dispatchWebhooks } from '../lib/webhooks';
 import { handleUCPStripeWebhook } from './ucp';
@@ -47,21 +48,10 @@ webhooks.post('/stripe', async (c) => {
 
   const db = getDb(c.var.db);
 
-  // For simplicity and to avoid an extra DB query, we read the webhook secret directly from env vars
-  let stripeConfig = {
-    secret_key: c.env.STRIPE_SECRET_KEY,
-    webhook_secret: c.env.STRIPE_WEBHOOK_SECRET,
-  };
-
-  if (!stripeConfig.secret_key || !stripeConfig.webhook_secret) {
-    // Get stripe keys from config table if not set in env vars (legacy support)
-    const [config] = await db.query<any>(`SELECT * FROM config WHERE key = 'stripe'`);
-    if (!config?.value) {
-      throw ApiError.invalidRequest('Stripe not configured');
-    }
-
-    stripeConfig = JSON.parse(config.value);
-  }
+  // Webhooks keep working while Stripe checkout is switched off, so
+  // payments and refunds for existing orders are still recorded.
+  const resolved = await getStripeSettings(db, c.env);
+  const stripeConfig = { secret_key: resolved.secretKey, webhook_secret: resolved.webhookSecret };
 
   if (!stripeConfig.secret_key || !stripeConfig.webhook_secret) {
     throw ApiError.invalidRequest('Stripe not configured. Missing secret key or webhook secret.');

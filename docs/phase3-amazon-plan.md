@@ -1,8 +1,10 @@
 # Phase 3 Development Plan: Amazon SP-API Integration
 
-**Project:** Multicom (fufuni) — Headless commerce platform
+**Project:** Multicom (bengal-exchange) — Headless commerce platform
 **Date:** 2026-11-19
-**Status:** Planning
+**Status:** Implemented (2026-11-22). Setup: `docs/run-instructions.md` §4.6.
+
+> **Changes from this plan:** no AWS SigV4 (Amazon removed it in Oct 2023, so there are no AWS keys); listings use the Listings Items API (PATCH for existing listings, `LISTING_OFFER_ONLY` when the barcode matches a catalog ASIN) instead of the Feeds API; order PII uses a Restricted Data Token and falls back to importing without PII. Code: `src/lib/marketplace/amazon.ts`, `amazon-oauth.ts`; tests: `tests/amazon.test.ts`.
 **Dependencies:** Phase 0 foundation complete; Phase 1 Etsy ~75%; Phase 2 eBay core API ~40%
 
 ---

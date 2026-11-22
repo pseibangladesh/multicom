@@ -252,8 +252,7 @@ Defined in `vite.config.ts` under `define`. Override per-client via `.env` files
 |----------|---------|
 | `STORE_URL` | Backend API base URL |
 | `STORE_NAME` | Display name for the store |
-| `FUFUNI_THEME` | Default theme slug (`default`, `luxury`, custom) |
-| `ADMIN_STORE_PERMISSION` | Permission string for admin routes |
+| `BENGAL_EXCHANGE_THEME` | Default theme slug (`default`, `luxury`, custom) |
 | `ADMIN_AUTH0_PERMISSION` | Legacy permission (still used in guards) |
 
 ### 6.3 i18n / Translations

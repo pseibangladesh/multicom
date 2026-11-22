@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'setup-and-initialization',
-  description: 'First-run store setup — the /v1/setup endpoint, initial-configuration fields, and the routes that bootstrap a fresh Fufuni instance.',
+  description: 'First-run store setup — the /v1/setup endpoint, initial-configuration fields, and the routes that bootstrap a fresh Bengal Exchange instance.',
   tags: ["api","backend","hono"],
   sources: [
     'apps/merchant/src/routes/setup.ts',

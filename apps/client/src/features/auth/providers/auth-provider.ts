@@ -3,7 +3,7 @@
  * @license AGPL-3.0-or-later
  */
 
-import { ReactNode, FC, JSX } from "react";
+import { FC, JSX } from "react";
 
 /**
  * Interface for the common user properties across all auth providers
@@ -103,15 +103,6 @@ export interface WithAuthenticationOptions {
 export interface AuthGuardProps {
   component: FC;
   onRedirecting?: () => JSX.Element;
-}
-
-/**
- * Interface for permission-based authentication guard
- */
-export interface AuthPermissionGuardProps {
-  permission: string;
-  children: ReactNode;
-  fallback?: ReactNode;
 }
 
 /**

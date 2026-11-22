@@ -67,11 +67,21 @@ describe('Better Auth inside MerchantDO', () => {
     expect(without).toEqual({ session: null });
   });
 
-  it('flags is_admin only for ADMIN_EMAILS', async () => {
-    const { call, cookieFrom, signUp } = setup({ ADMIN_EMAILS: 'Boss@Example.com' });
-    const cookie = cookieFrom(await signUp('boss@example.com'));
-    const body = await (await call('GET', '/api/auth/session', { cookie })).json();
+  it('flags is_admin only for ADMIN_EMAILS (account made by create-admin.ts)', async () => {
+    const { merchant, call, cookieFrom } = setup({ ADMIN_EMAILS: 'Boss@Example.com' });
+    await merchant.provisionUser({ email: 'boss@example.com', password: 'password123', name: 'Boss', resetPassword: false });
+    const login = await call('POST', '/api/auth/sign-in/email', { body: { email: 'boss@example.com', password: 'password123' } });
+    expect(login.status).toBe(200);
+    const body = await (await call('GET', '/api/auth/session', { cookie: cookieFrom(login) })).json();
     expect(body.session.user.is_admin).toBe(true);
+  });
+
+  it('refuses public sign-up for ADMIN_EMAILS addresses (no first-come admin takeover)', async () => {
+    const { merchant, signUp } = setup({ ADMIN_EMAILS: 'boss@example.com' });
+    const res = await signUp('BOSS@example.com');
+    expect(res.status).toBe(403);
+    expect(merchant.query(`SELECT 1 FROM user`)).toEqual([]);
+    expect((await signUp('customer@example.com')).status).toBe(200); // everyone else still can
   });
 
   it('verifySession (used by the Worker middleware) accepts the real cookie', async () => {
@@ -80,6 +90,17 @@ describe('Better Auth inside MerchantDO', () => {
     const session = await verifySession(merchant, cookie);
     expect(session).toMatchObject({ email: 'buyer@example.com', name: 'Buyer' });
     expect(await verifySession(merchant, 'better-auth.session_token=forged.sig')).toBeNull();
+  });
+
+  it('verifySession is not rate limited: every API request checks the session', async () => {
+    // Regression: verifySession used to call /api/auth/get-session through
+    // Better Auth's HTTP handler with no client IP, so all users shared one
+    // 10-per-minute bucket and the 11th authenticated request got a 401.
+    const { merchant, signUp, cookieFrom } = setup();
+    const cookie = cookieFrom(await signUp());
+    const results = [];
+    for (let i = 0; i < 25; i++) results.push((await verifySession(merchant, cookie))?.email ?? null);
+    expect(results).toEqual(Array(25).fill('buyer@example.com'));
   });
 
   it('signs in with the right password and rejects the wrong one', async () => {

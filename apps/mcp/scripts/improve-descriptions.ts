@@ -36,11 +36,11 @@ const DESCRIPTIONS: Record<string, string> = {
   'cloudflare-worker-patterns':
     'Cloudflare Worker building blocks: Durable Objects with SQLite, KV, R2, Rate Limiter bindings, wrangler.jsonc layout, and CI secrets handling.',
   'conventions-and-anti-patterns':
-    'Fufuni coding conventions and forbidden patterns — naming rules, no c.req.json, no Drizzle, Zod-in-createRoute, plus AI-agent contributor guidelines.',
+    'Bengal Exchange coding conventions and forbidden patterns — naming rules, no c.req.json, no Drizzle, Zod-in-createRoute, plus AI-agent contributor guidelines.',
   'customer-account-patterns':
     'Customer account surface: /me routes, customerAuthMiddleware, address book, order history, and profile-update flows for logged-in shoppers.',
   'db-schema':
-    'Complete Durable Object SQL schema — every table, column, index and foreign key used by the Fufuni backend.',
+    'Complete Durable Object SQL schema — every table, column, index and foreign key used by the Bengal Exchange backend.',
   'discounts-and-pricing':
     'Discount codes and tiered pricing — lib/pricing.ts helpers, promotion endpoints, and the discount-application order for cart totals.',
   'e2e-testing':
@@ -48,7 +48,7 @@ const DESCRIPTIONS: Record<string, string> = {
   'email-templates':
     'Transactional email delivery via Mailgun — Handlebars templates (order confirmation, password reset, refund), sending helpers, and trigger points.',
   'framework-overview':
-    'High-level Fufuni architecture — stack (CF Workers + Durable Objects + React), monorepo layout, request lifecycle, and core conventions. Start here.',
+    'High-level Bengal Exchange architecture — stack (CF Workers + Durable Objects + React), monorepo layout, request lifecycle, and core conventions. Start here.',
   'frontend-react-patterns':
     'React 19 patterns on the merchant UI — React Query defaults, HeroUI v3 components, client routing, custom hooks, navbar wiring, and theme integration.',
   'how-to-add-hono-route':
@@ -68,7 +68,7 @@ const DESCRIPTIONS: Record<string, string> = {
   'localized-content-patterns':
     'Multilingual content model — LocalizedText type, useLocalizedTextInput hook, and the renderLocalized utility used across product and category surfaces.',
   'mcp-server-quickstart':
-    'Setup and extension of the Fufuni MCP server itself — generate.ts pipeline, adding a new topic, running gen-knowledge, and deploying to Cloudflare.',
+    'Setup and extension of the Bengal Exchange MCP server itself — generate.ts pipeline, adding a new topic, running gen-knowledge, and deploying to Cloudflare.',
   'migrations-reference':
     'Enumeration of every numbered SQL migration — applied order, schema changes introduced, and a mini changelog per migration file.',
   'oauth-embedded':
@@ -86,7 +86,7 @@ const DESCRIPTIONS: Record<string, string> = {
   'seed-data-patterns':
     'Seed script structure — how demo data is inserted, how to add new seed records, and the reset-demo GitHub Action that triggers it on a schedule.',
   'setup-and-initialization':
-    'First-run store setup — the /v1/setup endpoint, initial-configuration fields, and the routes that bootstrap a fresh Fufuni instance.',
+    'First-run store setup — the /v1/setup endpoint, initial-configuration fields, and the routes that bootstrap a fresh Bengal Exchange instance.',
   'theming-and-layouts':
     'Theme and layout system — ThemeProvider, the Default and Luxury layouts, CMS-driven content blocks, and siteConfig integration.',
   'use-secured-api':

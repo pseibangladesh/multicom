@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'framework-overview',
-  description: 'High-level Fufuni architecture — stack (CF Workers + Durable Objects + React), monorepo layout, request lifecycle, and core conventions. Start here.',
+  description: 'High-level Bengal Exchange architecture — stack (CF Workers + Durable Objects + React), monorepo layout, request lifecycle, and core conventions. Start here.',
   tags: ["cloudflare","images","storage"],
   sources: [
     'README.md',
@@ -23,14 +23,14 @@ const topic: Topic = {
     'All database schema changes must be applied in THREE places simultaneously: SCHEMA constant in do.ts, ensureInitialized() in do.ts, and a new numbered SQL file in apps/merchant/migrations/.',
     'Auth0 is the sole identity provider. RBAC is managed via Auth0 permissions on the access token, not in the database.',
     'The frontend navbar items and their visibility are driven by siteConfig() in apps/client/src/config/site.ts — each navItem has a permissions[] array. Add a new page by adding an entry there.',
-    'Fufuni is designed to run 100% free: Cloudflare Workers free tier (100k req/day), Durable Object SQLite (included), R2 free tier (10 GB/month), KV free tier (100k reads/day), Auth0 free tenant (7500 MAU), GitHub Pages for the frontend, and Mailgun 3000 emails/month. No credit card required.',
+    'Bengal Exchange is designed to run 100% free: Cloudflare Workers free tier (100k req/day), Durable Object SQLite (included), R2 free tier (10 GB/month), KV free tier (100k reads/day), Auth0 free tenant (7500 MAU), GitHub Pages for the frontend, and Mailgun 3000 emails/month. No credit card required.',
     'Three GitHub Actions workflows automate the full deployment: (1) deploy-cloudflare-worker.yaml (push to main → Worker deploy, needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID secrets); (2) pages.yaml (push to main → GitHub Pages frontend deploy); (3) reset-demo.yaml (manual/scheduled → resets and re-seeds the live demo).',
     'A fourth workflow ci.yml runs typecheck + ESLint on every pull-request targeting main or develop — it does NOT deploy anything.',
     'The sitemap is generated dynamically at GET /sitemap.xml by the backend Worker (no auth required). It lists all active products and categories with lastmod. Cloudflare edge caches it for 1 hour.',
     'UCP capabilities exposed: dev.ucp.shopping.checkout, dev.ucp.shopping.browse, dev.ucp.shopping.catalog, dev.ucp.common.identity_linking, dev.ucp.shopping.order. Browse and catalog endpoints: GET /ucp/v1/products, GET /ucp/v1/products/:id, GET /ucp/v1/categories. Shipping estimation: POST /ucp/v1/checkout-sessions/:id/estimate-shipping.',
   ],
   buildPrompt: (src) => appendFacts(`
-Below is the root README and the Hono application entry point of the Fufuni framework.
+Below is the root README and the Hono application entry point of the Bengal Exchange framework.
 
 ${src}
 

@@ -290,7 +290,7 @@ export default function WarehousesPage() {
                       </Table.Cell>
                       <Table.Cell>{warehouse.country_code}</Table.Cell>
                       <Table.Cell>
-                        <span className="bg-gray-200 px-2 py-1 rounded">
+                        <span className="bg-default-100 text-default-700 border border-default-200 px-2 py-1 rounded">
                           {warehouse.priority}
                         </span>
                       </Table.Cell>

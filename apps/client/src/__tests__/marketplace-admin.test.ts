@@ -7,6 +7,7 @@ import arSA from "@/locales/base/ar-SA.json";
 import heIL from "@/locales/base/he-IL.json";
 import zhCN from "@/locales/base/zh-CN.json";
 import {
+  amazonFormFromConfig,
   buildConfigPatch,
   ebayFormFromConfig,
   etsyFormFromConfig,
@@ -227,8 +228,8 @@ describe("OAuth return", () => {
     expect(connectReturnUrl("https://shop.test", "")).toBe(
       "https://shop.test/admin/marketplaces",
     );
-    expect(connectReturnUrl("https://x.github.io", "/fufuni/")).toBe(
-      "https://x.github.io/fufuni/admin/marketplaces",
+    expect(connectReturnUrl("https://x.github.io", "/bengal-exchange/")).toBe(
+      "https://x.github.io/bengal-exchange/admin/marketplaces",
     );
   });
 });
@@ -327,4 +328,74 @@ describe("marketplace i18n keys", () => {
       }
     },
   );
+});
+
+describe("Amazon config form", () => {
+  const config = {
+    marketplace_id: "ATVPDKIKX0DER",
+    region: "NA",
+    default_carrier: "UPS",
+    import_fba_orders: true,
+    amazon_listing: {
+      product_type: "SHIRT",
+      condition_type: "new_new",
+      brand: "Bengal",
+    },
+  };
+
+  it("reads top-level and amazon_listing fields", () => {
+    expect(amazonFormFromConfig(config)).toEqual({
+      marketplace_id: "ATVPDKIKX0DER",
+      default_carrier: "UPS",
+      import_fba_orders: "true",
+      product_type: "SHIRT",
+      condition_type: "new_new",
+      brand: "Bengal",
+      language_tag: "",
+    });
+    expect(amazonFormFromConfig({}).import_fba_orders).toBe("");
+  });
+
+  it("nests listing fields under amazon_listing and converts types", () => {
+    const original = amazonFormFromConfig(config);
+    const patch = buildConfigPatch(
+      "amazon",
+      {
+        ...original,
+        import_fba_orders: "",
+        product_type: " home ",
+        brand: "",
+        language_tag: "en_US",
+      },
+      original,
+    );
+
+    expect(patch).toEqual({
+      import_fba_orders: null,
+      amazon_listing: {
+        product_type: "HOME",
+        brand: null,
+        language_tag: "en_US",
+      },
+    });
+  });
+
+  it("mirrors the backend rules and requires nothing for listing", () => {
+    const form = amazonFormFromConfig({});
+
+    expect(validateConfigForm("amazon", form)).toEqual({});
+    expect(
+      validateConfigForm("amazon", {
+        ...form,
+        marketplace_id: "EBAY_US",
+        product_type: "shirt-x",
+        language_tag: "en-US",
+      }),
+    ).toEqual({
+      marketplace_id: "admin-marketplaces-error-amazon-marketplace-id",
+      product_type: "admin-marketplaces-error-product-type",
+      language_tag: "admin-marketplaces-error-language-tag",
+    });
+    expect(missingListingFields("amazon", form)).toEqual([]);
+  });
 });

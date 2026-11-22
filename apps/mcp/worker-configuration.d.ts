@@ -4,7 +4,7 @@
 declare namespace Cloudflare {
 	interface GlobalProps {
 		mainModule: typeof import("./src/index");
-		durableNamespaces: "FufuniMCP";
+		durableNamespaces: "BengalExchangeMCP";
 	}
 	interface Env {
 		KV_CACHE: KVNamespace;
@@ -60,7 +60,7 @@ declare namespace Cloudflare {
 		KV_CACHE_SEARCH_TTL_SECONDS: string;
 		KV_CACHE_REVIEWS_TTL_SECONDS: string;
 		KV_CACHE_DEFAULT_TTL_SECONDS: string;
-		MCP_OBJECT: DurableObjectNamespace<import("./src/index").FufuniMCP>;
+		MCP_OBJECT: DurableObjectNamespace<import("./src/index").BengalExchangeMCP>;
 	}
 }
 interface Env extends Cloudflare.Env {}

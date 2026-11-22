@@ -378,6 +378,29 @@ export async function checkoutCart(
   });
 }
 
+/** GET /v1/payment-methods: gateways switched on under Admin → Payment Gateways. */
+export interface PaymentMethodsResponse {
+  stripe: { enabled: boolean; publishable_key: string | null };
+  sslcommerz: { enabled: boolean };
+}
+
+export type PaymentMethodId = "stripe" | "sslcommerz";
+
+/** Fetch the payment methods the store currently offers. */
+export async function getPaymentMethods(): Promise<PaymentMethodsResponse> {
+  return request<PaymentMethodsResponse>("/v1/payment-methods");
+}
+
+/** Enabled method ids, in display order (Stripe first). */
+export function enabledPaymentMethods(m: PaymentMethodsResponse): PaymentMethodId[] {
+  const ids: PaymentMethodId[] = [];
+
+  if (m.stripe.enabled) ids.push("stripe");
+  if (m.sslcommerz.enabled) ids.push("sslcommerz");
+
+  return ids;
+}
+
 /** Response from POST /v1/carts/:id/checkout/sslcommerz. */
 export interface SslcommerzCheckoutResponse {
   gateway_url: string;

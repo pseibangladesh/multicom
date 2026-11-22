@@ -30,7 +30,7 @@
  * An MCP server exposes "tools" that an AI assistant can call to get focused,
  * structured context about a codebase. Instead of dumping the whole source into
  * every AI prompt, the assistant asks for exactly what it needs:
- *   - "How do I add a DB migration in Fufuni?"
+ *   - "How do I add a DB migration in Bengal Exchange?"
  *   - "Show me the useSecuredApi() usage pattern."
  *   - "What tables exist in the Durable Object schema?"
  *
@@ -632,7 +632,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Fufuni MCP static generator`);
+  console.log(`Bengal Exchange MCP static generator`);
   console.log(`Output dir : ${MCP_DIR}`);
   console.log(`Topics dir : ${TOPICS_DIR}`);
   console.log(`AI endpoint: ${AI_API_URL}`);

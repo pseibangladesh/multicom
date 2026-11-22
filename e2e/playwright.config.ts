@@ -4,7 +4,7 @@ const BASE_URL =
   process.env.PLAYWRIGHT_BASE_URL ??
   (process.env.PLAYWRIGHT_ENV === "local"
     ? "http://localhost:5173"
-    : "https://sctg-development.github.io/fufuni/");
+    : "https://pseibangladesh.github.io/multicom/");
 
 export default defineConfig({
   testDir: "./tests",

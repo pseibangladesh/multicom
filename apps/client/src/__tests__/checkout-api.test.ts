@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { checkoutCart, checkoutCartSslcommerz } from "@/lib/store-api";
+import {
+  checkoutCart,
+  checkoutCartSslcommerz,
+  enabledPaymentMethods,
+  getPaymentMethods,
+} from "@/lib/store-api";
 import { paymentReturnMessageKey } from "@/lib/payment-return";
 
 const fetchMock = vi.fn();
@@ -77,5 +82,23 @@ describe("paymentReturnMessageKey", () => {
     );
     expect(paymentReturnMessageKey(null)).toBeNull();
     expect(paymentReturnMessageKey("whatever")).toBeNull();
+  });
+});
+
+describe("payment methods", () => {
+  it("GETs /v1/payment-methods from the API", async () => {
+    const body = { stripe: { enabled: true, publishable_key: "pk_test_x" }, sslcommerz: { enabled: false } };
+
+    fetchMock.mockResolvedValueOnce(json(body));
+    await expect(getPaymentMethods()).resolves.toEqual(body);
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/v1\/payment-methods$/);
+  });
+
+  it("lists only the enabled gateways, Stripe first", () => {
+    const off = { enabled: false, publishable_key: null };
+
+    expect(enabledPaymentMethods({ stripe: { enabled: true, publishable_key: null }, sslcommerz: { enabled: true } })).toEqual(["stripe", "sslcommerz"]);
+    expect(enabledPaymentMethods({ stripe: off, sslcommerz: { enabled: true } })).toEqual(["sslcommerz"]);
+    expect(enabledPaymentMethods({ stripe: off, sslcommerz: { enabled: false } })).toEqual([]);
   });
 });

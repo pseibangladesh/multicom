@@ -23,6 +23,8 @@ import { EbayClient, type EbayListingConfig } from './ebay';
 import { EbayTokenManager, ebayAppFromEnv, type EbayTokenProvider } from './ebay-oauth';
 import { EtsyClient, ETSY_DEFAULT_CARRIER_FALLBACK, type EtsyListingDefaults } from './etsy';
 import { EtsyTokenManager, etsyAppFromEnv, type EtsyTokenProvider } from './etsy-oauth';
+import { AmazonClient, AMAZON_DEFAULT_CARRIER_FALLBACK, type AmazonListingDefaults } from './amazon';
+import { AmazonTokenManager, amazonAppFromEnv, parseAmazonRegion, type AmazonEnv, type AmazonTokenProvider } from './amazon-oauth';
 import type { IMarketplaceClient, ShipmentClient } from './types';
 
 export interface EbayChannelConfig {
@@ -63,8 +65,29 @@ export interface EtsyChannelConfig {
   last_order_import_at?: string;
 }
 
+/**
+ * Amazon keys in config_json. marketplace_id/region/environment are written on
+ * connect; amazon_listing is only needed to create products that are not in
+ * Amazon's catalog yet (SKUs with a known barcode become offers on the existing ASIN).
+ */
+export interface AmazonChannelConfig {
+  marketplace_id?: string;
+  region?: 'NA' | 'EU' | 'FE';
+  environment?: 'production' | 'sandbox';
+  default_carrier?: string;
+  amazon_listing?: Partial<{
+    product_type: string;
+    condition_type: string;
+    brand: string;
+    language_tag: string;
+  }>;
+  /** Import Fulfilled-by-Amazon orders too (default false: Amazon ships those from its stock). */
+  import_fba_orders?: boolean;
+  last_order_import_at?: string;
+}
+
 /** config_json of any channel; each platform reads its own keys. */
-export type ChannelConfig = EbayChannelConfig & EtsyChannelConfig;
+export type ChannelConfig = EbayChannelConfig & EtsyChannelConfig & AmazonChannelConfig;
 
 export const EBAY_LISTING_FALLBACK: EbayChannelConfig['listing'] = {
   merchant_location_key: 'default',
@@ -78,6 +101,8 @@ export interface ChannelRow {
   platform: 'etsy' | 'ebay' | 'amazon';
   status: string;
   config: ChannelConfig;
+  /** Marketplace account ID (Etsy shop, Amazon selling partner ID). */
+  externalShopId?: string | null;
 }
 
 export function parseChannelConfig(raw: string | null | undefined): ChannelConfig {
@@ -105,12 +130,21 @@ export function resolveListingConfig(config: EbayChannelConfig): EbayListingConf
 }
 
 export async function loadChannel(db: Database, channelId: string): Promise<ChannelRow> {
-  const [row] = await db.query<{ id: string; platform: ChannelRow['platform']; status: string; config_json: string }>(
-    `SELECT id, platform, status, config_json FROM marketplace_channels WHERE id = ?`,
-    [channelId],
-  );
+  const [row] = await db.query<{
+    id: string;
+    platform: ChannelRow['platform'];
+    status: string;
+    config_json: string;
+    external_shop_id: string | null;
+  }>(`SELECT id, platform, status, config_json, external_shop_id FROM marketplace_channels WHERE id = ?`, [channelId]);
   if (!row) throw ApiError.notFound('Channel not found');
-  return { id: row.id, platform: row.platform, status: row.status, config: parseChannelConfig(row.config_json) };
+  return {
+    id: row.id,
+    platform: row.platform,
+    status: row.status,
+    config: parseChannelConfig(row.config_json),
+    externalShopId: row.external_shop_id,
+  };
 }
 
 /** Shallow-merges keys into config_json. */
@@ -122,7 +156,7 @@ export async function updateChannelConfig(db: Database, channelId: string, patch
   ]);
 }
 
-export interface ClientEnv {
+export interface ClientEnv extends AmazonEnv {
   EBAY_CLIENT_ID?: string;
   EBAY_CLIENT_SECRET?: string;
   EBAY_RU_NAME?: string;
@@ -222,6 +256,58 @@ export function etsyClientForChannel(
   });
 }
 
+export function resolveAmazonListingDefaults(config: AmazonChannelConfig): AmazonListingDefaults {
+  const l = config.amazon_listing ?? {};
+  return {
+    ...(l.product_type && { productType: l.product_type }),
+    ...(l.condition_type && { conditionType: l.condition_type }),
+    ...(l.brand && { brand: l.brand }),
+    ...(l.language_tag && { languageTag: l.language_tag }),
+  };
+}
+
+/** Builds an AmazonClient for an active Amazon channel. `tokens`/`fetch` are injectable for tests. */
+export function amazonClientForChannel(
+  db: Database,
+  env: ClientEnv,
+  channel: ChannelRow,
+  overrides: { tokens?: AmazonTokenProvider; fetch?: typeof fetch } = {},
+): AmazonClient {
+  if (channel.platform !== 'amazon') throw ApiError.invalidRequest(`Channel ${channel.id} is not an Amazon channel`);
+  if (channel.status !== 'active') throw ApiError.invalidRequest('Channel is not active');
+  if (!channel.externalShopId) throw ApiError.invalidRequest('Amazon channel has no seller ID; reconnect the channel');
+
+  const app = amazonAppFromEnv(env);
+  const region = channel.config.region ?? app?.region ?? parseAmazonRegion(env.AMAZON_REGION);
+  const marketplaceId = channel.config.marketplace_id ?? app?.marketplaceId;
+  if (!marketplaceId) throw ApiError.invalidRequest('Amazon channel has no marketplace_id');
+
+  let tokens = overrides.tokens;
+  if (!tokens) {
+    if (!app) throw ApiError.invalidRequest('Amazon is not configured');
+    if (!env.CRYPTOKEN) throw ApiError.internalServerError('CRYPTOKEN is not set');
+    tokens = new AmazonTokenManager({
+      channelId: channel.id,
+      credentials: new CredentialManager(db, env.CRYPTOKEN),
+      app,
+      fetch: overrides.fetch,
+    });
+  }
+
+  return new AmazonClient({
+    tokens,
+    sellerId: channel.externalShopId,
+    marketplaceId,
+    region,
+    environment: channel.config.environment ?? app?.environment ?? 'production',
+    channelId: channel.id,
+    listing: resolveAmazonListingDefaults(channel.config),
+    defaultCarrier: channel.config.default_carrier ?? AMAZON_DEFAULT_CARRIER_FALLBACK,
+    importFbaOrders: channel.config.import_fba_orders === true,
+    fetch: overrides.fetch,
+  });
+}
+
 /** The client for any connected channel, by platform. */
 export function clientForChannel(
   db: Database,
@@ -234,6 +320,8 @@ export function clientForChannel(
       return ebayClientForChannel(db, env, channel, overrides);
     case 'etsy':
       return etsyClientForChannel(db, env, channel, overrides);
+    case 'amazon':
+      return amazonClientForChannel(db, env, channel, overrides);
     default:
       throw new ApiError('not_implemented', 501, `${channel.platform} channels are not supported yet`);
   }

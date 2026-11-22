@@ -27,7 +27,7 @@ import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useState } from "react";
 import { I18nIcon, LanguageSwitch } from "@/shared/ui/navigation/language-switch";
 
-import { AuthenticationGuardWithPermission, useAuth } from "@/authentication";
+import { useAuth } from "@/authentication";
 import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "@/shared/ui/navigation/theme-switch";
 import {
@@ -56,7 +56,10 @@ export const Navbar = ({ onCartOpen }: NavbarProps = {}) => {
   const [searchValue, setSearchValue] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  // Mirrors the server's ADMIN_EMAILS check (session.is_admin). UI only: the
+  // admin API enforces it with adminOnly, so hiding links is not the security.
+  const isAdmin = isAuthenticated && user?.is_admin === true;
 
   const submitSearch = () => {
     const q = searchValue.trim();
@@ -98,12 +101,12 @@ export const Navbar = ({ onCartOpen }: NavbarProps = {}) => {
           to="/"
         >
           <Logo />
-          <p className="font-bold text-inherit">Fufuni</p>
+          <p className="font-bold text-inherit">Bengal Exchange</p>
         </RouterLink>
 
         {/* Desktop Navigation */}
         <ul className="hidden lg:flex gap-6 justify-start items-center ml-2">
-          {siteConfig().navItems.filter(item => !item.permissions || item.permissions.length === 0).map((item) => (
+          {siteConfig().navItems.filter((item) => !item.adminOnly).map((item) => (
             <li key={item.href}>
               <RouterLink
                 className={clsx(
@@ -124,7 +127,7 @@ export const Navbar = ({ onCartOpen }: NavbarProps = {}) => {
             </li>
           )}
           <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)}/>
-          <AuthenticationGuardWithPermission permission="admin:store">
+          {isAdmin && (
             <li className="hidden lg:block">
               <Dropdown>
                 <Dropdown.Trigger className="cursor-pointer flex items-center gap-2 px-2 py-1 rounded hover:bg-default-100 transition-colors text-sm">
@@ -136,7 +139,7 @@ export const Navbar = ({ onCartOpen }: NavbarProps = {}) => {
                     aria-label="Admin actions"
                     className="w-full"
                   >
-                    {siteConfig().navItems.filter(item => item.permissions && item.permissions.includes("admin:store")).map((item) => (
+                    {siteConfig().navItems.filter((item) => item.adminOnly).map((item) => (
                       <Dropdown.Item
                         key={item.href}
                         id={item.href}
@@ -157,7 +160,7 @@ export const Navbar = ({ onCartOpen }: NavbarProps = {}) => {
                 </Dropdown.Popover>
               </Dropdown>
             </li>
-          </AuthenticationGuardWithPermission>
+          )}
         </ul>
 
         {/* Desktop Right Items */}
@@ -312,44 +315,25 @@ export const Navbar = ({ onCartOpen }: NavbarProps = {}) => {
               icon={I18nIcon}
             />
             <div className="flex flex-col gap-2">
-              {siteConfig().navMenuItems.map((item, index) => (
-                <div key={`${item}-${index}`}>
-                  {item.permissions && item.permissions.length > 0 ? (
-                    <AuthenticationGuardWithPermission
-                      permission={item.permissions[0]}
-                    >
-                      <RouterLink
-                        to={item.href}
-                        className={clsx(
-                          "block text-lg hover:opacity-80 transition-opacity py-2",
-                          index === 2
-                            ? "text-accent-600 font-semibold"
-                            : index === siteConfig().navMenuItems.length - 1
-                              ? "text-danger"
-                              : "text-foreground"
-                        )}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        {item.label}
-                      </RouterLink>
-                    </AuthenticationGuardWithPermission>
-                  ) : (
+              {siteConfig()
+                .navMenuItems.filter((item) => !item.adminOnly || isAdmin)
+                .map((item, index, items) => (
+                  <div key={item.href}>
                     <RouterLink
-                      to={item.href}
                       className={clsx(
                         "block text-lg hover:opacity-80 transition-opacity py-2",
                         index === 2
                           ? "text-accent-600 font-semibold"
-                          : index === siteConfig().navMenuItems.length - 1
+                          : index === items.length - 1
                             ? "text-danger"
-                            : "text-foreground"
+                            : "text-foreground",
                       )}
+                      to={item.href}
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       {item.label}
                     </RouterLink>
-                  )}
-                </div>
+                  </div>
               ))}
             </div>
           </div>

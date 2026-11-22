@@ -265,7 +265,7 @@ export async function sendOrderConfirmationEmail(
   }
 
   const STORE_URL = (env.STORE_URL || '').replace(/\/$/, '') || 'https://example.com';
-  const STORE_NAME = env.STORE_NAME || 'Fufuni Store';
+  const STORE_NAME = env.STORE_NAME || 'Bengal Exchange Store';
 
   const [order] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
   if (!order) {
@@ -386,7 +386,7 @@ export async function sendOrderStatusEmail(
 
   const locale: string = order.locale || 'en-US';
   const STORE_URL = (env.STORE_URL ?? '').replace(/\/$/, '');
-  const STORE_NAME = env.STORE_NAME ?? 'Fufuni Store';
+  const STORE_NAME = env.STORE_NAME ?? 'Bengal Exchange Store';
 
   // 2. Resolve active setting: per-event → global
   const [eventSetting] = await db.query<any>(

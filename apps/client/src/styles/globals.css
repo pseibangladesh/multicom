@@ -74,3 +74,16 @@
 @theme {
   --background-image-gradient-border-violet: linear-gradient(hsl(var(--heroui-background)), hsl(var(--heroui-background))), linear-gradient(83.87deg, #F54180, #9353D3);
 }
+
+/*
+ * Swagger UI (/openapi) ships light-only styles. In dark mode, invert it and
+ * rotate hues back so method colours (GET blue, POST green, DELETE red) stay
+ * recognisable. Images inside it are inverted back to their real colours.
+ */
+.dark .swagger-ui {
+  filter: invert(0.9) hue-rotate(180deg);
+}
+.dark .swagger-ui img,
+.dark .swagger-ui video {
+  filter: invert(1) hue-rotate(180deg);
+}

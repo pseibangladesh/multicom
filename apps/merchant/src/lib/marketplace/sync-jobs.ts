@@ -165,6 +165,7 @@ interface VariantRow {
   currency: string;
   weight_g: number;
   requires_shipping: number;
+  barcode?: string | null;
   variant_image: string | null;
   variant_status: string;
   product_title: string;
@@ -196,11 +197,12 @@ export function variantToMarketProduct(row: VariantRow): MarketProduct {
     weightG: row.weight_g,
     requiresShipping: row.requires_shipping !== 0,
     status: row.product_status === 'active' && row.variant_status === 'active' ? 'active' : 'draft',
+    ...(row.barcode && { barcode: row.barcode }),
   };
 }
 
 const VARIANT_SELECT = `
-  SELECT v.id, v.sku, v.title AS variant_title, v.price_cents, v.currency, v.weight_g, v.requires_shipping,
+  SELECT v.id, v.sku, v.title AS variant_title, v.price_cents, v.currency, v.weight_g, v.requires_shipping, v.barcode,
          v.image_url AS variant_image, v.status AS variant_status,
          p.title AS product_title, p.description, p.image_url AS product_image, p.status AS product_status,
          (SELECT COUNT(*) FROM variants s WHERE s.product_id = p.id) AS sibling_count,
@@ -426,4 +428,43 @@ export async function processSyncMessage(deps: SyncDeps, msg: MarketplaceSyncMes
     }
     return fail(message);
   }
+}
+
+// ─── Automatic order pulls (webhooks + cron) ─────────────────────────────────
+
+export interface OrderPullFanout {
+  queued: string[];
+  /** Channels that already had a pull queued or running (nothing to do). */
+  alreadyRunning: string[];
+  errors: Array<{ channelId: string; error: string }>;
+}
+
+/**
+ * Queues a pull_orders job for every active, connected channel (optionally of
+ * one platform). A channel with a pull already queued or running is skipped,
+ * so bursts of webhooks collapse into one import.
+ */
+export async function enqueueOrderPulls(
+  db: Database,
+  queue: SyncQueue | undefined,
+  opts: { platform?: 'ebay' | 'etsy' | 'amazon' } = {},
+): Promise<OrderPullFanout> {
+  const channels = await db.query<{ id: string }>(
+    `SELECT c.id FROM marketplace_channels c
+     WHERE c.status = 'active' AND c.platform IN ('ebay', 'etsy', 'amazon') AND (? IS NULL OR c.platform = ?)
+       AND EXISTS (SELECT 1 FROM marketplace_credentials k WHERE k.channel_id = c.id AND k.credential_type = 'oauth_token')
+     ORDER BY c.id`,
+    [opts.platform ?? null, opts.platform ?? null],
+  );
+  const out: OrderPullFanout = { queued: [], alreadyRunning: [], errors: [] };
+  for (const { id } of channels) {
+    try {
+      await enqueueSyncJob(db, queue, id, 'pull_orders');
+      out.queued.push(id);
+    } catch (err) {
+      if (err instanceof SyncQueueError && err.code === 'job_already_running') out.alreadyRunning.push(id);
+      else out.errors.push({ channelId: id, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return out;
 }

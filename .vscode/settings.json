@@ -1,6 +1,6 @@
 {
     "chat.mcp.serverSampling": {
-        "Root/.vscode/mcp.json: fufuni": {
+        "Root/.vscode/mcp.json: bengal-exchange": {
             "allowedModels": [
                 "copilot/auto",
                 "copilotcli/claude-sonnet-4.6",

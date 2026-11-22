@@ -49,9 +49,9 @@ import { marketplaceOrderRoutes } from './orders';
 export function marketplaceRoutes(): Hono<HonoEnv> {
   const app = new Hono<HonoEnv>();
 
-  // Webhook receiver: public on purpose (marketplaces can't present our
-  // credentials). NOT YET SIGNATURE-VERIFIED: the handlers only log today.
-  // Verification must land before any handler acts on a payload.
+  // Webhook receivers: public on purpose (marketplaces can't present our
+  // credentials). eBay notifications are ECDSA-verified before anything is
+  // recorded; other platforms answer 501. See ./webhook.ts.
   app.route('/webhook', webhookRoutes());
 
   // Everything else is admin-only: Better Auth admin session or sk_ key.
