@@ -655,7 +655,7 @@ npx tsx scripts/migrate-auth0-to-better-auth.ts --dry  # preview only
 |-----------------|---------------------|
 | External identity provider (Auth0 tenant) | Built-in email/password on platform |
 | JWT tokens with JWKS verification | Session cookies with DB hash lookup |
-| `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` env vars | `BETTER_AUTH_SECRET`, `API_BASE_URL` |
+| `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` env vars | `BETTER_AUTH_SECRET`, `API_BASE_URL`, `ADMIN_EMAILS` |
 | Auth0 hosted login page | Platform sign-in at `/api/auth/signin/email` |
 | Admin permissions via Auth0 scopes | Role-based access (`admin`, `customer`) |
 | Management API proxy routes | Removed (no external IAM) |

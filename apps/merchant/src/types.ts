@@ -61,6 +61,12 @@ export type Env = {
    */
   API_BASE_URL?: string;
 
+  /**
+   * Comma-separated emails whose Better Auth sessions get the admin role.
+   * Any other session is treated as a customer.
+   */
+  ADMIN_EMAILS?: string;
+
   /** Database permission string. Defaults to `admin:database`. */
   DATABASE_PERMISSION?: string;
 

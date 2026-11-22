@@ -19,19 +19,27 @@
       "new_sqlite_classes": ["MerchantDO"]
     }
   ],
-
+  "d1_databases": [
+    {
+      "binding": "multicom_db",
+      "database_name": "multicom-db",
+      "database_id": "ab0ab360-8118-4487-8773-dbc2cefb526a"
+    }
+  ],
   "r2_buckets": [
     {
-      "binding": "IMAGES"
+      "binding": "IMAGES",
+      "bucket_name": "multicom-images"
     },
     {
-      "binding": "DIGITAL_ASSETS_BUCKET"
+      "binding": "DIGITAL_ASSETS_BUCKET",
+      "bucket_name": "multicom-digital-assets"
     }
   ],
 	"kv_namespaces": [
 		{
 			"binding": "KV_CACHE",
-			"id": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+			"id": "2fb78ccfe6354987b5dafd81907586da"
 		}
 	],
   "vars": {

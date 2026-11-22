@@ -22,9 +22,16 @@
  * SOFTWARE.
  */
 
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Lets tests import src/do.ts in Node (see tests/helpers/merchant-db.ts).
+      'cloudflare:workers': fileURLToPath(new URL('./tests/helpers/cloudflare-workers-stub.ts', import.meta.url)),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',

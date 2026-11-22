@@ -1,30 +1,26 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/durable-sqlite';
-import type { Env, DOStub } from '../types';
-// Import your Drizzle schema definitions here
 import * as schema from '../db/schema';
 
-/**
- * Creates a Better Auth instance bound to the current request's environment.
- * Called per-request so each worker invocation gets its own auth config.
- */
-export function createAuth(env: Env & { MERCHANT: any }) {
-  const id = env.MERCHANT.idFromName('default');
-  const stub = env.MERCHANT.get(id);
+export interface AuthEnv {
+  BETTER_AUTH_SECRET: string;
+  API_BASE_URL?: string;
+}
 
-  // The Drizzle driver for Durable Objects requires the storage object.
-  // We access it via the stub's `storage` property.
-  const db = drizzle(stub.storage, { schema });
+/**
+ * Creates the Better Auth instance. Must be called INSIDE MerchantDO:
+ * DurableObjectStorage is only reachable from the object itself, not from a
+ * stub in the Worker. The Worker forwards /api/auth/* to the DO (see do.ts).
+ */
+export function createAuth(env: AuthEnv, storage: DurableObjectStorage) {
+  const db = drizzle(storage, { schema });
 
   return betterAuth({
     baseURL: env.API_BASE_URL || 'http://127.0.0.1:8787',
+    basePath: '/api/auth',
     secret: env.BETTER_AUTH_SECRET,
-    // Use the official adapter with the correct SQLite provider
-    database: drizzleAdapter(db, {
-      provider: 'sqlite',
-    }),
-    // ... rest of your config (emailAndPassword, session, etc.)
+    database: drizzleAdapter(db, { provider: 'sqlite', schema }),
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,

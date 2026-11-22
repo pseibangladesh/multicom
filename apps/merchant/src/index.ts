@@ -38,7 +38,6 @@ import { publicImages } from './routes/images';
 import { adminDiscounts } from './routes/discounts';
 import { oauth } from './routes/oauth';
 import { ucp } from './routes/ucp';
-import { createAuthRouter, createSessionRouter } from './routes/auth';
 import { adminMe } from './routes/me';
 import { adminUserPreferencesRouter } from './routes/user-preferences';
 import { adminSavedCartsRouter } from './routes/saved-carts';
@@ -190,20 +189,11 @@ app.route('/v1/marketplace', marketplaceRoutes());
 app.route('/oauth', oauth);
 app.route('', oauth);
 app.route('/', ucp);
-// Better Auth routes — handles signin, signup, session management via cookies
-app.use('/api/auth/*', async (c, next) => {
-  const auth = createAuthRouter(c.env as any);
-  return auth.fetch(c.req.raw);
-});
-
-app.get('/api/auth/ok', async (c) => {
-  const auth = createAuthRouter(c.env as any);
-  return auth.fetch(c.req.raw);
-});
-
-app.get('/api/auth/session', async (c) => {
-  const sessionApp = createSessionRouter(c.env as any);
-  return sessionApp.fetch(c.req.raw);
+// Better Auth routes (sign-in, sign-up, sign-out, session). Better Auth runs
+// inside MerchantDO because the DO's SQLite storage is only reachable there.
+app.all('/api/auth/*', async (c) => {
+  const stub = c.env.MERCHANT.get(c.env.MERCHANT.idFromName('default'));
+  return stub.fetch(c.req.raw);
 });
 
 app.doc31('/openapi.json', {

@@ -24,6 +24,7 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
+import { createAuth, type BetterAuthInstance } from './lib/auth';
 
 export interface MerchantEnv {
   MERCHANT: DurableObjectNamespace<MerchantDO>;
@@ -32,6 +33,8 @@ export interface MerchantEnv {
   STORE_NAME?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  BETTER_AUTH_SECRET: string;
+  API_BASE_URL?: string;
 }
 
 export type WSEventType =
@@ -708,6 +711,7 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
   private sessions: Map<WebSocket, { topics: Set<string> }> = new Map();
   private initialized = false;
   private keysInitialized = false;
+  private auth: BetterAuthInstance | null = null;
 
   constructor(ctx: DurableObjectState, env: MerchantEnv) {
     super(ctx, env);
@@ -1520,7 +1524,33 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
       return Response.json({ ok: true, storage: 'sqlite' });
     }
 
+    if (url.pathname.startsWith('/api/auth/')) {
+      return this.handleAuth(request, url);
+    }
+
     return new Response('Not found', { status: 404 });
+  }
+
+  private async handleAuth(request: Request, url: URL): Promise<Response> {
+    this.auth ??= createAuth(this.env, this.ctx.storage);
+
+    // Compatibility endpoint used by the client: { session: null | {...} }
+    if (url.pathname === '/api/auth/session' && request.method === 'GET') {
+      const result = await this.auth.api.getSession({ headers: request.headers });
+      if (!result) return Response.json({ session: null });
+      return Response.json({
+        session: {
+          user: {
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            image: result.user.image,
+          },
+        },
+      });
+    }
+
+    return this.auth.handler(request);
   }
 
   query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): T[] {

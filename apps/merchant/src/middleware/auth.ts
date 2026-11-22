@@ -25,7 +25,12 @@
 
 import { createMiddleware } from 'hono/factory';
 import { getDb } from '../db';
-import { ApiError, now, type AuthRole, type HonoEnv } from '../types';
+import { ApiError, now, type AuthRole, type Env, type HonoEnv } from '../types';
+import { hasSessionCookie, isAdminEmail, verifySession } from '../lib/session';
+
+function merchantStub(env: Env) {
+  return env.MERCHANT.get(env.MERCHANT.idFromName('default'));
+}
 
 // ============================================================
 // AUTH MIDDLEWARE
@@ -36,7 +41,7 @@ import { ApiError, now, type AuthRole, type HonoEnv } from '../types';
  *
  * Accepts three token formats (in priority order):
  * 1. **Better Auth session cookie** — secure HttpOnly cookie set by /api/auth/*
- *    The session is verified server-side against the D1 database.
+ *    Verified by Better Auth inside MerchantDO; grants admin only for ADMIN_EMAILS.
  * 2. **Admin API key** (`sk_` prefix) — stored in the database.
  * 3. **OAuth key** (64-char hex) — scoped API key.
  */
@@ -46,32 +51,20 @@ export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   const stripeWebhookSecret = c.env.STRIPE_WEBHOOK_SECRET || null;
 
   // ── Priority 1: Better Auth session cookie ────────────────────────
-  const sessionCookie = c.req.header('cookie') || '';
-  const sessionMatch = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
-
-  if (sessionMatch) {
+  // Only sessions whose email is listed in ADMIN_EMAILS get admin; any other
+  // session (e.g. a customer) falls through to the Bearer checks below.
+  const cookieHeader = c.req.header('cookie');
+  if (hasSessionCookie(cookieHeader)) {
     try {
-      const token = sessionMatch[1];
-      const hashedToken = await hashKey(token);
-
-      const sessionResult = await db.query<any>(
-        `SELECT s.*, u.email, u.name
-         FROM sessions s
-         JOIN users u ON u.id = s.user_id
-         WHERE s.token = ? AND s.expires_at > ?
-         LIMIT 1`,
-        [hashedToken, now()]
-      );
-
-      if (sessionResult.length > 0) {
-        const row = sessionResult[0];
+      const session = await verifySession(merchantStub(c.env), cookieHeader);
+      if (session && isAdminEmail(session.email, c.env.ADMIN_EMAILS)) {
         c.set('auth', {
           role: 'admin',
           stripeSecretKey,
           stripeWebhookSecret,
-          email: row.email,
-          name: row.name,
-          userId: row.user_id,
+          email: session.email,
+          name: session.name ?? undefined,
+          userId: session.userId,
         });
         await next();
         return;
@@ -225,32 +218,16 @@ export const mailAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
  * Used for customer-facing routes like /v1/me/*, /v1/downloads, etc.
  */
 export const customerAuthMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
-  // ── Priority 1: Better Auth session cookie ────────────────────────
-  const sessionCookie = c.req.header('cookie') || '';
-  const sessionMatch = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
-
-  if (sessionMatch) {
+  const cookieHeader = c.req.header('cookie');
+  if (hasSessionCookie(cookieHeader)) {
     try {
-      const token = sessionMatch[1];
-      const hashedToken = await hashKey(token);
-      const db = getDb(c.var.db);
-
-      const sessionResult = await db.query<any>(
-        `SELECT s.*, u.email, u.name
-         FROM sessions s
-         JOIN users u ON u.id = s.user_id
-         WHERE s.token = ? AND s.expires_at > ?
-         LIMIT 1`,
-        [hashedToken, now()]
-      );
-
-      if (sessionResult.length > 0) {
-        const row = sessionResult[0];
+      const session = await verifySession(merchantStub(c.env), cookieHeader);
+      if (session) {
         c.set('auth', {
           role: 'customer',
-          email: row.email,
-          name: row.name,
-          userId: row.user_id,
+          email: session.email,
+          name: session.name ?? undefined,
+          userId: session.userId,
           stripeSecretKey: null,
           stripeWebhookSecret: null,
         });
