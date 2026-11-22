@@ -1,0 +1,104 @@
+/**
+ * Copyright (c) 2026 Ronan LE MEILLAT
+ * License: AGPL-3.0-or-later
+ *
+ * Bengal Exchange theme. The --bx-* tokens come from the storefront mock
+ * (bengal-exchange-storefront-v2.html); HeroUI v3's variables are mapped onto
+ * them, so every HeroUI component follows the theme in light and dark mode.
+ *
+ * Light: :root[data-theme="bengal"]       Dark: :root[data-theme="bengal"].dark
+ * (two-part selectors so they win over HeroUI's :root / .dark defaults).
+ */
+
+@layer base {
+  :root[data-theme="bengal"] {
+    color-scheme: light;
+
+    --bx-paper: #f7f5f0;
+    --bx-surface: #fcfbf8;
+    --bx-surface-raised: #ffffff;
+    --bx-ink: #15203a;
+    --bx-ink-soft: #2e3a55;
+    --bx-stone: #6b675d;
+    --bx-line: #e2ded4;
+    --bx-field-line: #8f8a7f; /* 3:1 on paper and field (WCAG 1.4.11) */
+    --bx-primary: #2a3f7e;
+    --bx-on-primary: #fcfbf8;
+    --bx-indigo-tint: #e6e9f2;
+    --bx-accent: #9e3b24;
+    --bx-accent-soft: #f3e3dc;
+    --bx-scrim: rgba(12, 16, 30, 0.42);
+    --bx-shadow: 0 24px 60px -28px rgba(21, 32, 58, 0.35);
+
+    --bx-max: 1240px;
+    --bx-gutter: clamp(1rem, 4vw, 2.5rem);
+  }
+
+  :root[data-theme="bengal"].dark {
+    color-scheme: dark;
+
+    --bx-paper: #0d1221;
+    --bx-surface: #151c30;
+    --bx-surface-raised: #1b2440;
+    --bx-ink: #edeff6;
+    --bx-ink-soft: #c4cadb;
+    --bx-stone: #9aa1b6;
+    --bx-line: #2a3352;
+    --bx-field-line: #6b75a0;
+    --bx-primary: #9db0f2;
+    --bx-on-primary: #0d1221;
+    --bx-indigo-tint: #1c2543;
+    --bx-accent: #eb8b73;
+    --bx-accent-soft: #3a2421;
+    --bx-scrim: rgba(3, 5, 12, 0.66);
+    --bx-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.7);
+  }
+
+  /* HeroUI variables, from the tokens above (same for both modes). */
+  :root[data-theme="bengal"],
+  :root[data-theme="bengal"].dark {
+    --radius: 4px;
+    --field-radius: 4px;
+
+    --background: var(--bx-paper);
+    --background-secondary: var(--bx-surface);
+    --background-tertiary: var(--bx-indigo-tint);
+    --foreground: var(--bx-ink);
+
+    --surface: var(--bx-surface-raised);
+    --surface-foreground: var(--bx-ink);
+    --surface-secondary: var(--bx-surface);
+    --surface-secondary-foreground: var(--bx-ink);
+    --surface-tertiary: var(--bx-indigo-tint);
+    --surface-tertiary-foreground: var(--bx-ink);
+    --surface-shadow: none;
+
+    --overlay: var(--bx-surface);
+    --overlay-foreground: var(--bx-ink);
+    --overlay-shadow: var(--bx-shadow);
+    --backdrop: var(--bx-scrim);
+
+    --muted: var(--bx-stone);
+    --border: var(--bx-line);
+    --separator: var(--bx-line);
+
+    --accent: var(--bx-primary);
+    --accent-foreground: var(--bx-on-primary);
+    --accent-soft: var(--bx-indigo-tint);
+    --accent-soft-foreground: var(--bx-primary);
+    --focus: var(--bx-accent);
+    --link: var(--bx-primary);
+
+    --default: var(--bx-indigo-tint);
+    --default-foreground: var(--bx-ink);
+
+    --field-background: var(--bx-surface-raised);
+    --field-foreground: var(--bx-ink);
+    --field-placeholder: var(--bx-stone);
+    --field-border: var(--bx-field-line);
+    --field-shadow: none;
+
+    --segment: var(--bx-surface-raised);
+    --segment-foreground: var(--bx-ink);
+  }
+}

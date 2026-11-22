@@ -72,8 +72,13 @@ CONTRIBUTING.md describes GitHub Actions workflows (`ci.yml` running typecheck +
 - **AI config:** `ai.json.enc` is encrypted with `CRYPTOKEN`. Manage it with `npm run ai:encrypt` / `ai:decrypt` / `ai:kv:push`, and never commit a decrypted `ai.json`.
 
 ## Frontend conventions (apps/client)
-- HeroUI components: use `onPress`, not `onClick`. Use `radius="none"` in the luxury theme.
-- Themes (`classic`, `luxury`) come from `GET /v1/theme/active` and are applied as `data-theme` on `<html>`.
+- HeroUI components: use `onPress`, not `onClick`.
+- **One theme, Bengal, with light and dark modes.** The pre-paint script in `index.html` sets `data-theme="bengal"` on `<html>`. Tokens live in `src/styles/themes/bengal.css`: the mock's `--bx-*` values are mapped onto HeroUI's variables, and `globals.css` exposes `bg-bx-*`/`text-bx-*`/`border-bx-*` utilities. Use those utilities or HeroUI tokens, not hard-coded colours.
+  - Old slugs (`classic`, `luxury`, `luxury-dark`, `default`, `heroui_standard`) are ignored, so every visitor gets `bengal`; an old `ui-theme=luxury-dark` is converted once to a dark choice (`migrateLegacyTheme` in `src/lib/theme.ts`, mirrored in `index.html`). The `BENGAL_EXCHANGE_THEME` (or legacy `FUFUNI_THEME`) env value is defined but not read.
+  - Dark mode is the `.dark` class on `<html>`, owned by `hooks/use-theme.ts`. The `dark:` variant follows only that class, not `prefers-color-scheme`. The mode is saved in localStorage `theme` only when the user picks Light/Dark (side menu or account preferences); until then it follows the system setting.
+  - The storefront shell (header, side menu, footer) is in `src/components/shell/`, styled by `src/styles/shell.css`. Links come from `src/config/navigation.ts`, which only allows existing routes and CMS pages.
+  - Fonts are system stacks (no web fonts); headings use `font-display`, and Bangla falls back to sans.
+- i18n: seven locales (`en-US`, `fr-FR`, `es-ES`, `zh-CN`, `ar-SA`, `he-IL`, `bn-BD`). The list is in `src/lib/languages.ts`; add each file's URL in `src/i18n.ts`. `<html lang/dir>` is set globally on every language change. `src/__tests__/i18n.test.ts` checks that every locale has exactly the en-US keys, allowing language-specific plural forms.
 - i18n locale files are in `src/locales`. Product and category titles/descriptions can be plain text or per-locale JSON (RTL is supported).
 - `apps/client/CLIENT_BLUEPRINT.md` and `apps/merchant/BACKEND_BLUEPRINT.md` contain deeper per-app design notes.
 

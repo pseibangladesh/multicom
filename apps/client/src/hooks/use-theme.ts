@@ -16,115 +16,129 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// originally written by @imoaazahmed
-
 import { useEffect, useMemo, useState } from "react";
 
-import { THEME_UPDATED_EVENT } from "@/providers/theme-provider";
+import {
+  BENGAL_THEME,
+  MODE_STORAGE_KEY,
+  createModeController,
+  type ColorMode,
+} from "@/lib/theme";
 
-const ThemeProps = {
-  key: "theme",
-  light: "light",
-  dark: "dark",
-} as const;
+/** Same-tab broadcast so every useTheme instance follows a mode change. */
+const MODE_CHANGED_EVENT = "bengal-exchange:mode-changed";
+const DARK_QUERY = "(prefers-color-scheme: dark)";
 
-/** Mirrors StoreThemeProvider's THEME_LS_KEY — keeps the two systems in sync. */
-const STORE_THEME_KEY = "ui-theme";
+/** Puts the mode on <html>: the `light`/`dark` class, the Bengal theme and colour-scheme. */
+function applyModeToDom(mode: ColorMode) {
+  const root = document.documentElement;
 
-type Theme = typeof ThemeProps.light | typeof ThemeProps.dark;
+  root.classList.remove("light", "dark");
+  root.classList.add(mode);
+  root.setAttribute("data-theme", BENGAL_THEME);
+  root.style.colorScheme = mode;
+}
+
+function announce(mode: ColorMode) {
+  applyModeToDom(mode);
+  window.dispatchEvent(new CustomEvent(MODE_CHANGED_EVENT, { detail: mode }));
+}
+
+/** One controller per page: saves only explicit choices, otherwise follows the system. */
+const controller =
+  typeof window === "undefined"
+    ? null
+    : createModeController({
+        storage: {
+          get: (k) => {
+            try {
+              return localStorage.getItem(k);
+            } catch {
+              return null;
+            }
+          },
+          set: (k, v) => {
+            try {
+              localStorage.setItem(k, v);
+            } catch {
+              // Private mode or blocked storage: the mode still applies for this visit.
+            }
+          },
+          remove: (k) => {
+            try {
+              localStorage.removeItem(k);
+            } catch {
+              // storage unavailable: nothing to remove
+            }
+          },
+        },
+        prefersDark: () => {
+          try {
+            return window.matchMedia(DARK_QUERY).matches;
+          } catch {
+            return false;
+          }
+        },
+        onSystemChange: (listener) => {
+          try {
+            const mq = window.matchMedia(DARK_QUERY);
+            const handler = (e: MediaQueryListEvent) => listener(e.matches);
+
+            mq.addEventListener("change", handler);
+
+            return () => mq.removeEventListener("change", handler);
+          } catch {
+            return () => undefined;
+          }
+        },
+        apply: announce,
+      });
+
+// A choice saved in another tab: the controller re-reads it, then every
+// useTheme instance in this tab hears the change through announce().
+if (controller) {
+  window.addEventListener("storage", (e) => {
+    if (e.key === MODE_STORAGE_KEY || e.key === null) controller.sync();
+  });
+  // Vite dev only: drop the old controller's system listener on hot reload.
+  import.meta.hot?.dispose(() => controller.dispose());
+}
 
 /**
- * Manages the application color theme (`"light"` | `"dark"`).
+ * Light / dark mode for the Bengal theme.
  *
- * The active theme is persisted in `localStorage` under the key `"theme"` and
- * applied as a CSS class on `document.documentElement`, making it compatible
- * with Tailwind CSS dark-mode class strategy.
- *
- * When a luxury theme variant is active (`data-theme="luxury-dark"` / `"luxury"`),
- * toggling also swaps the `data-theme` attribute so the two systems stay coherent
- * and the CSS cascade behaves correctly.
- *
- * @param defaultTheme - Initial theme to use when no stored preference is
- *   found. Defaults to `"light"`.
- * @returns An object with the current theme, boolean helpers (`isDark`,
- *   `isLight`), and setters (`setLightTheme`, `setDarkTheme`, `toggleTheme`).
+ * Saved in localStorage ("theme") only when the user picks Light or Dark;
+ * until then the system setting decides, and later system changes are
+ * followed. index.html applies the same rule before the first paint.
  */
-export const useTheme = (defaultTheme?: Theme) => {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const storedTheme = localStorage.getItem(ThemeProps.key) as Theme | null;
+export const useTheme = () => {
+  const [theme, setTheme] = useState<ColorMode>(
+    () => controller?.mode() ?? "light",
+  );
 
-    return storedTheme || (defaultTheme ?? ThemeProps.light);
-  });
-
-  const isDark = useMemo(() => theme === ThemeProps.dark, [theme]);
-  const isLight = useMemo(() => theme === ThemeProps.light, [theme]);
-
-  /**
-   * Apply a theme to the DOM without updating React state.
-   * Also syncs the `data-theme` attribute so luxury variants stay coherent:
-   * `"luxury"` ↔ `"luxury-dark"` when toggling.
-   */
-  const _applyToDom = (newTheme: Theme) => {
-    localStorage.setItem(ThemeProps.key, newTheme);
-    document.documentElement.classList.remove(
-      ThemeProps.light,
-      ThemeProps.dark,
-    );
-    document.documentElement.classList.add(newTheme);
-
-    // Sync luxury data-theme variants with the new dark/light intent
-    const currentDataTheme =
-      document.documentElement.getAttribute("data-theme");
-    let syncedDataTheme = currentDataTheme;
-
-    if (
-      newTheme === ThemeProps.dark &&
-      currentDataTheme &&
-      !currentDataTheme.endsWith("-dark") &&
-      currentDataTheme !== "default"
-    ) {
-      // e.g. "luxury" → "luxury-dark"
-      syncedDataTheme = `${currentDataTheme}-dark`;
-    } else if (
-      newTheme === ThemeProps.light &&
-      currentDataTheme?.endsWith("-dark")
-    ) {
-      // e.g. "luxury-dark" → "luxury"
-      syncedDataTheme = currentDataTheme.replace(/-dark$/, "");
-    }
-
-    if (syncedDataTheme !== currentDataTheme) {
-      if (syncedDataTheme) {
-        document.documentElement.setAttribute("data-theme", syncedDataTheme);
-        localStorage.setItem(STORE_THEME_KEY, syncedDataTheme);
-      } else {
-        document.documentElement.removeAttribute("data-theme");
-        localStorage.removeItem(STORE_THEME_KEY);
-      }
-      // Notify StoreThemeProvider and any useStoreTheme instance
-      window.dispatchEvent(
-        new CustomEvent(THEME_UPDATED_EVENT, { detail: syncedDataTheme }),
-      );
-    }
-  };
-
-  const _setTheme = (newTheme: Theme) => {
-    _applyToDom(newTheme);
-    setTheme(newTheme);
-  };
-
-  const setLightTheme = () => _setTheme(ThemeProps.light);
-  const setDarkTheme = () => _setTheme(ThemeProps.dark);
-
-  const toggleTheme = () =>
-    theme === ThemeProps.dark ? setLightTheme() : setDarkTheme();
-
-  // Apply to DOM on mount and whenever the theme state is updated
-  // (_applyToDom only touches DOM globals — safe to omit from deps)
+  const isDark = useMemo(() => theme === "dark", [theme]);
+  const isLight = useMemo(() => theme === "light", [theme]);
 
   useEffect(() => {
-    _applyToDom(theme);
-  }, [theme]);
+    const onLocal = (e: Event) =>
+      setTheme((e as CustomEvent<ColorMode>).detail);
+
+    window.addEventListener(MODE_CHANGED_EVENT, onLocal);
+    const mode = controller?.mode() ?? "light";
+
+    applyModeToDom(mode);
+    setTheme(mode);
+
+    return () => {
+      window.removeEventListener(MODE_CHANGED_EVENT, onLocal);
+    };
+  }, []);
+
+  const choose = (mode: ColorMode) => controller?.choose(mode);
+
+  const setLightTheme = () => choose("light");
+  const setDarkTheme = () => choose("dark");
+  const toggleTheme = () => choose(theme === "dark" ? "light" : "dark");
 
   return { theme, isDark, isLight, setLightTheme, setDarkTheme, toggleTheme };
 };

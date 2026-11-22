@@ -21,7 +21,7 @@ import { useAuth } from "@/authentication";
 import { availableLanguages } from "@/i18n";
 import { getApiBase } from "@/lib/api-base";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
-import { AVAILABLE_THEMES, useStoreTheme } from "@/providers/theme-provider";
+import { useTheme } from "@/hooks/use-theme";
 
 interface Profile {
   id: string;
@@ -38,7 +38,7 @@ interface Profile {
 export default function Preferences() {
   const { t } = useTranslation();
   const auth = useAuth() as any;
-  const { theme: currentTheme, setTheme } = useStoreTheme();
+  const { isDark, setLightTheme, setDarkTheme } = useTheme();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -251,30 +251,30 @@ export default function Preferences() {
         </Card.Header>
         <Separator />
         <Card.Content className="gap-4">
-          <Select
-            value={currentTheme ?? "default"}
-            onChange={(value) => setTheme((value as string) || null)}
+          <div
+            aria-label={t("account-mode")}
+            className="inline-flex self-start rounded-full border border-separator p-1"
+            role="group"
           >
-            <Label>{t("account-theme")}</Label>
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                {AVAILABLE_THEMES.map((slug) => (
-                  <ListBox.Item
-                    key={slug}
-                    id={slug}
-                    textValue={t(`account-theme-${slug}`)}
-                  >
-                    {t(`account-theme-${slug}`)}
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
+            <Button
+              aria-pressed={!isDark}
+              className="rounded-full"
+              size="sm"
+              variant={isDark ? "ghost" : "primary"}
+              onPress={setLightTheme}
+            >
+              {t("mode-light")}
+            </Button>
+            <Button
+              aria-pressed={isDark}
+              className="rounded-full"
+              size="sm"
+              variant={isDark ? "primary" : "ghost"}
+              onPress={setDarkTheme}
+            >
+              {t("mode-dark")}
+            </Button>
+          </div>
         </Card.Content>
       </Card>
 

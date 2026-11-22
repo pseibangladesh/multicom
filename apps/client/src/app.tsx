@@ -16,15 +16,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { Suspense } from "react";
 
-import { SiteLoading } from "@/shared/ui/feedback/site-loading";
 import { PageNotFound } from "./pages/404";
 import { AdminGuard, AuthenticationGuard, useAuth } from "./authentication";
+import CategoriesPage from "./pages/admin/categories";
 
+import { SiteLoading } from "@/shared/ui/feedback/site-loading";
 import IndexPage from "@/pages/index";
-import IndexLuxuryPage from "@/pages/index-luxury";
 import ApiPage from "@/pages/api";
 import PricingPage from "@/pages/pricing";
 import BlogPage from "@/pages/blog";
@@ -56,7 +56,7 @@ import OrderDetail from "@/pages/account/order-detail";
 import Addresses from "@/pages/account/addresses";
 import Preferences from "@/pages/account/preferences";
 import LoginPage from "@/pages/Login";
-import CategoriesPage from "./pages/admin/categories";
+import { ShellRoute } from "@/layouts/default";
 import AnalyticsPage from "@/pages/admin/analytics";
 import AdminReviewsPage from "@/pages/admin/reviews";
 import PaymentGatewaysPage from "@/pages/admin/payment-gateways";
@@ -79,126 +79,209 @@ function App() {
   return (
     <Suspense fallback={<SiteLoading />}>
       <Routes>
-        <Route element={<IndexPage />} path="/" />
-        <Route element={<IndexPage />} path="/products" />
-        <Route element={<IndexLuxuryPage />} path="/index-luxury" />
         <Route element={<LoginPage />} path="/login" />
-        <Route element={<CartPage />} path="/cart" />
-        <Route element={<SuccessPage />} path="/success" />
-        <Route element={<OrderPage />} path="/order/:id" />
-        <Route element={<ProductPage />} path="/product/:id" />
-        {/* Customer Account Routes */}
-        <Route
-          element={<AuthenticationGuard component={AccountLayout} />}
-          path="/account"
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="orders" element={<OrderHistory />} />
-          <Route path="orders/:number" element={<OrderDetail />} />
-          <Route path="addresses" element={<Addresses />} />
-          <Route path="preferences" element={<Preferences />} />
+        {/* Storefront shell stays mounted across these routes (header, side menu, footer). */}
+        <Route element={<ShellRoute />}>
+          <Route element={<IndexPage />} path="/" />
+          <Route element={<IndexPage />} path="/products" />
+          <Route element={<Navigate replace to="/" />} path="/index-luxury" />
+          <Route element={<CartPage />} path="/cart" />
+          <Route element={<SuccessPage />} path="/success" />
+          <Route element={<OrderPage />} path="/order/:id" />
+          <Route element={<ProductPage />} path="/product/:id" />
+          {/* Customer Account Routes */}
+          <Route
+            element={<AuthenticationGuard component={AccountLayout} />}
+            path="/account"
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="orders" element={<OrderHistory />} />
+            <Route path="orders/:number" element={<OrderDetail />} />
+            <Route path="addresses" element={<Addresses />} />
+            <Route path="preferences" element={<Preferences />} />
+          </Route>
+          {/* API and Admin Pages */}
+          <Route
+            element={<AuthenticationGuard component={ApiPage} />}
+            path="/api"
+          />
+          <Route
+            element={<AuthenticationGuard component={PricingPage} />}
+            path="/pricing"
+          />
+          <Route
+            element={<AuthenticationGuard component={BlogPage} />}
+            path="/blog"
+          />
+          <Route element={<AboutPage />} path="/about" />
+          <Route
+            element={
+              <AdminGuard>
+                <AdminDashboardPage />
+              </AdminGuard>
+            }
+            path="/admin"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <UsersAndPermissionsPage />
+              </AdminGuard>
+            }
+            path="/admin/users"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <CategoriesPage />
+              </AdminGuard>
+            }
+            path="/admin/categories"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <ProductsPage />
+              </AdminGuard>
+            }
+            path="/admin/products"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <CustomersPage />
+              </AdminGuard>
+            }
+            path="/admin/customers"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <InventoryPage />
+              </AdminGuard>
+            }
+            path="/admin/inventory"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <OrdersPage />
+              </AdminGuard>
+            }
+            path="/admin/orders"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <WebhooksPage />
+              </AdminGuard>
+            }
+            path="/admin/webhooks"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <EmailTemplatesPage />
+              </AdminGuard>
+            }
+            path="/admin/email-templates"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <RegionsPage />
+              </AdminGuard>
+            }
+            path="/admin/regions"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <CurrenciesPage />
+              </AdminGuard>
+            }
+            path="/admin/currencies"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <CountriesPage />
+              </AdminGuard>
+            }
+            path="/admin/countries"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <WarehousesPage />
+              </AdminGuard>
+            }
+            path="/admin/warehouses"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <ShippingRatesPage />
+              </AdminGuard>
+            }
+            path="/admin/shipping-rates"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <ShippingClassesPage />
+              </AdminGuard>
+            }
+            path="/admin/shipping-classes"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <TaxRatesPage />
+              </AdminGuard>
+            }
+            path="/admin/tax-rates"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <AnalyticsPage />
+              </AdminGuard>
+            }
+            path="/admin/analytics"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <AdminReviewsPage />
+              </AdminGuard>
+            }
+            path="/admin/reviews"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <PaymentGatewaysPage />
+              </AdminGuard>
+            }
+            path="/admin/payment-gateways"
+          />
+          <Route
+            element={
+              <AdminGuard>
+                <MarketplacesPage />
+              </AdminGuard>
+            }
+            path="/admin/marketplaces"
+          />
+          <Route
+            element={<AuthenticationGuard component={SwaggerPage} />}
+            path="/openapi"
+          />
+          <Route element={<CmsPage />} path="/pages/:handle" />
         </Route>
-        {/* API and Admin Pages */}
-        <Route
-          element={<AuthenticationGuard component={ApiPage} />}
-          path="/api"
-        />
-        <Route
-          element={<AuthenticationGuard component={PricingPage} />}
-          path="/pricing"
-        />
-        <Route
-          element={<AuthenticationGuard component={BlogPage} />}
-          path="/blog"
-        />
-        <Route element={<AboutPage />} path="/about" />
-        <Route
-          element={<AdminGuard><AdminDashboardPage /></AdminGuard>}
-          path="/admin"
-        />
-        <Route
-          element={<AdminGuard><UsersAndPermissionsPage /></AdminGuard>}
-          path="/admin/users"
-        />
-        <Route
-          element={<AdminGuard><CategoriesPage /></AdminGuard>}
-          path="/admin/categories"
-        />
-        <Route
-          element={<AdminGuard><ProductsPage /></AdminGuard>}
-          path="/admin/products"
-        />
-        <Route
-          element={<AdminGuard><CustomersPage /></AdminGuard>}
-          path="/admin/customers"
-        />
-        <Route
-          element={<AdminGuard><InventoryPage /></AdminGuard>}
-          path="/admin/inventory"
-        />
-        <Route
-          element={<AdminGuard><OrdersPage /></AdminGuard>}
-          path="/admin/orders"
-        />
-        <Route
-          element={<AdminGuard><WebhooksPage /></AdminGuard>}
-          path="/admin/webhooks"
-        />
-        <Route
-          element={<AdminGuard><EmailTemplatesPage /></AdminGuard>}
-          path="/admin/email-templates"
-        />
-        <Route
-          element={<AdminGuard><RegionsPage /></AdminGuard>}
-          path="/admin/regions"
-        />
-        <Route
-          element={<AdminGuard><CurrenciesPage /></AdminGuard>}
-          path="/admin/currencies"
-        />
-        <Route
-          element={<AdminGuard><CountriesPage /></AdminGuard>}
-          path="/admin/countries"
-        />
-        <Route
-          element={<AdminGuard><WarehousesPage /></AdminGuard>}
-          path="/admin/warehouses"
-        />
-        <Route
-          element={<AdminGuard><ShippingRatesPage /></AdminGuard>}
-          path="/admin/shipping-rates"
-        />
-        <Route
-          element={<AdminGuard><ShippingClassesPage /></AdminGuard>}
-          path="/admin/shipping-classes"
-        />
-        <Route
-          element={<AdminGuard><TaxRatesPage /></AdminGuard>}
-          path="/admin/tax-rates"
-        />
-        <Route
-          element={<AdminGuard><AnalyticsPage /></AdminGuard>}
-          path="/admin/analytics"
-        />
-        <Route
-          element={<AdminGuard><AdminReviewsPage /></AdminGuard>}
-          path="/admin/reviews"
-        />
-        <Route
-          element={<AdminGuard><PaymentGatewaysPage /></AdminGuard>}
-          path="/admin/payment-gateways"
-        />
-        <Route
-          element={<AdminGuard><MarketplacesPage /></AdminGuard>}
-          path="/admin/marketplaces"
-        />
-        <Route
-          element={<AuthenticationGuard component={SwaggerPage} />}
-          path="/openapi"
-        />
-        <Route element={<CmsPage />} path="/pages/:handle" />
         <Route element={<PageNotFound />} path="*" />
-        </Routes>
+      </Routes>
     </Suspense>
   );
 }
