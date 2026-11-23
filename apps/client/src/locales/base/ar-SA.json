@@ -1090,5 +1090,17 @@
   "account-wishlist-tab_many": "قوائم ({{count}})",
   "nav-primary": "التنقل الرئيسي",
   "brand-home": "Bengal Exchange — الصفحة الرئيسية",
-  "search-placeholder": "بحث"
+  "search-placeholder": "بحث",
+  "catalogue-load-more": "تحميل المزيد من المنتجات",
+  "login-clear-email": "مسح البريد الإلكتروني",
+  "cart-decrease-qty": "تقليل الكمية",
+  "cart-increase-qty": "زيادة الكمية",
+  "cart-order-summary": "ملخص الطلب",
+  "home-hero-title": "صُنع في بنغلاديش، ويُباع في جميع أنحاء العالم.",
+  "home-hero-text": "سلع ومنتجات رقمية ومنتجات جاهزة للتصدير من صُنّاع بنغلاديشيين. اطلب من هنا، أو تجدنا على Amazon وEtsy وeBay.",
+  "home-hero-shop-all": "تسوّق كل المنتجات",
+  "home-hero-browse-categories": "تصفّح الفئات",
+  "home-hero-glance": "لمحة سريعة",
+  "home-hero-marketplaces": "المتاجر الإلكترونية",
+  "home-hero-categories": "فئات المنتجات"
 }

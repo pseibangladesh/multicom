@@ -104,12 +104,15 @@ export const SiteHeader = forwardRef<HTMLButtonElement, SiteHeaderProps>(
 
             <div className="bx-header-end">
               <button
-                aria-label={`${t("nav-cart")} (${count})`}
                 className="bx-mobile-cart"
                 type="button"
                 onClick={onOpenCart}
               >
                 <CartGlyph />
+                {/* Named by text, not aria-label, so the visible badge matches the name. */}
+                <span className="sr-only">
+                  {t("nav-cart")} ({count})
+                </span>
                 {count > 0 && (
                   <span aria-hidden="true" className="bx-badge">
                     {count}
@@ -121,7 +124,6 @@ export const SiteHeader = forwardRef<HTMLButtonElement, SiteHeaderProps>(
                 aria-controls={menuOpen ? "bx-side-menu" : undefined}
                 aria-expanded={menuOpen}
                 aria-haspopup="dialog"
-                aria-label={t("menu")}
                 className="bx-menu-btn"
                 type="button"
                 onClick={onOpenMenu}

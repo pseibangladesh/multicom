@@ -1062,5 +1062,17 @@
   "openapi-download": "OpenAPI ডাউনলোড করুন",
   "nav-primary": "প্রধান নেভিগেশন",
   "brand-home": "Bengal Exchange — হোম",
-  "search-placeholder": "খুঁজুন"
+  "search-placeholder": "খুঁজুন",
+  "catalogue-load-more": "আরও পণ্য দেখুন",
+  "login-clear-email": "ইমেল মুছুন",
+  "cart-decrease-qty": "পরিমাণ কমান",
+  "cart-increase-qty": "পরিমাণ বাড়ান",
+  "cart-order-summary": "অর্ডারের সারাংশ",
+  "home-hero-title": "বাংলাদেশে তৈরি, বিশ্বজুড়ে বিক্রি।",
+  "home-hero-text": "বাংলাদেশি কারিগরদের তৈরি পণ্য, ডিজিটাল সামগ্রী ও রপ্তানিযোগ্য পণ্য। এখানে অর্ডার করুন, অথবা Amazon, Etsy ও eBay-তে খুঁজুন।",
+  "home-hero-shop-all": "সব পণ্য দেখুন",
+  "home-hero-browse-categories": "ক্যাটাগরি দেখুন",
+  "home-hero-glance": "এক নজরে",
+  "home-hero-marketplaces": "মার্কেটপ্লেস",
+  "home-hero-categories": "পণ্যের ক্যাটাগরি"
 }

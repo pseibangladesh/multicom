@@ -10,7 +10,7 @@ import { Link } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
 import { getBaseURL } from "@/utils/base-url";
-import { SiteLoading } from "@/shared/ui/feedback/site-loading";
+import { ContentLoading } from "@/shared/ui/feedback/content-loading";
 
 import {
   useAuth,
@@ -318,7 +318,7 @@ export const LoginLogoutLink: FC<{
  */
 export const AuthenticationGuard: FC<{ component: FC }> = ({ component }) => {
   const Component = withAuthentication(component, {
-    onRedirecting: () => <SiteLoading />,
+    onRedirecting: () => <ContentLoading />,
   });
 
   return <Component />;

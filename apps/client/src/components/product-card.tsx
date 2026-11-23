@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { Button, Card } from "@heroui/react";
 import { Star } from "lucide-react";
 import { StoreProduct } from "@/lib/store-api";
@@ -46,9 +46,10 @@ export const ProductCard: React.FC<Props> = ({
   const { t, i18n } = useTranslation();
   const { addItem } = useCart();
   const { open: openCartDrawer } = useCartDrawer();
-  const navigate = useNavigate();
 
   const displayTitle = resolveTitle(product.title, i18n.language);
+  const productHref = `/product/${product.id}`;
+  const linkState = categoryHandle ? { from: categoryHandle } : undefined;
 
   const variant =
     product.variants.find((v) => v.sku === selectedSku) ||
@@ -66,30 +67,25 @@ export const ProductCard: React.FC<Props> = ({
 
   return (
     <Card className="overflow-hidden flex flex-col h-full">
-      {/* Product image — clickable to navigate to detail page */}
-      <div
-        className="cursor-pointer"
-        role="button"
-        tabIndex={0}
-        onClick={() => navigate(`/product/${product.id}`, { state: categoryHandle ? { from: categoryHandle } : undefined })}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/product/${product.id}`, { state: categoryHandle ? { from: categoryHandle } : undefined }); }}
-      >
+      {/* Image: a mouse shortcut to the product. The title link below is the
+          one keyboard/screen-reader stop, so this duplicate is hidden from both. */}
+      <RouterLink aria-hidden tabIndex={-1} state={linkState} to={productHref}>
         <ProductImage
           src={image}
-          alt={displayTitle}
+          alt=""
           variantCount={product.variants.length}
         />
-      </div>
+      </RouterLink>
 
       <Card.Content className="flex flex-col flex-1 gap-2 p-3">
         {/* Title */}
-        <button
-          type="button"
-          className="text-left font-medium text-foreground hover:text-primary line-clamp-2 text-sm"
-          onClick={() => navigate(`/product/${product.id}`, { state: categoryHandle ? { from: categoryHandle } : undefined })}
+        <RouterLink
+          className="line-clamp-2 text-sm font-medium text-foreground hover:text-bx-primary"
+          state={linkState}
+          to={productHref}
         >
           {displayTitle}
-        </button>
+        </RouterLink>
 
         {/* Rating */}
         {(product.review_count ?? 0) > 0 && (

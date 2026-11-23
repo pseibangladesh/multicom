@@ -6,7 +6,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Card, Input, Switch, Label, Tooltip } from "@heroui/react";
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 
@@ -137,7 +136,7 @@ export default function PaymentGatewaysPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="max-w-3xl mx-auto py-12">
         <h1 className="text-3xl font-bold mb-6">
           {t("admin-payment-gateways-title") || "Payment Gateways"}
@@ -406,6 +405,6 @@ export default function PaymentGatewaysPage() {
           </Card.Content>
         </Card>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

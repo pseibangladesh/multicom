@@ -39,7 +39,6 @@ import {
 import { availableLanguages } from "@/i18n";
 import { getEditorContent, mergeLocale } from "@/utils/description";
 import { translateWithAi, type AiParams } from "@/utils/ai-client";
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { RichHtmlEditor } from "@/components/rich-html-editor";
@@ -594,7 +593,7 @@ export default function EmailTemplatesPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <DefaultLayout>
+    <>
       <div className="max-w-4xl mx-auto space-y-6 py-8 px-4">
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -986,6 +985,6 @@ export default function EmailTemplatesPage() {
           </div>
         </div>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

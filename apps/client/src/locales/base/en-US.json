@@ -1062,5 +1062,17 @@
   "openapi-download": "Download OpenAPI",
   "nav-primary": "Main navigation",
   "brand-home": "Bengal Exchange — home",
-  "search-placeholder": "Search"
+  "search-placeholder": "Search",
+  "catalogue-load-more": "Load more products",
+  "login-clear-email": "Clear email",
+  "cart-decrease-qty": "Decrease quantity",
+  "cart-increase-qty": "Increase quantity",
+  "cart-order-summary": "Order summary",
+  "home-hero-title": "Made in Bangladesh, sold across the world.",
+  "home-hero-text": "Merchandise, digital goods and export-ready products from Bangladeshi makers. Order here, or find us on Amazon, Etsy and eBay.",
+  "home-hero-shop-all": "Shop all products",
+  "home-hero-browse-categories": "Browse categories",
+  "home-hero-glance": "At a glance",
+  "home-hero-marketplaces": "Marketplaces",
+  "home-hero-categories": "Product categories"
 }

@@ -1069,5 +1069,17 @@
   "account-wishlist-tab_many": "Listas ({{count}})",
   "nav-primary": "Navegación principal",
   "brand-home": "Bengal Exchange — inicio",
-  "search-placeholder": "Buscar"
+  "search-placeholder": "Buscar",
+  "catalogue-load-more": "Cargar más productos",
+  "login-clear-email": "Borrar el correo",
+  "cart-decrease-qty": "Reducir la cantidad",
+  "cart-increase-qty": "Aumentar la cantidad",
+  "cart-order-summary": "Resumen del pedido",
+  "home-hero-title": "Hecho en Bangladés, vendido en todo el mundo.",
+  "home-hero-text": "Artículos, productos digitales y productos listos para exportar de fabricantes bangladesíes. Haz tu pedido aquí o encuéntranos en Amazon, Etsy y eBay.",
+  "home-hero-shop-all": "Ver todos los productos",
+  "home-hero-browse-categories": "Explorar categorías",
+  "home-hero-glance": "De un vistazo",
+  "home-hero-marketplaces": "Tiendas en línea",
+  "home-hero-categories": "Categorías de productos"
 }

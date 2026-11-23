@@ -1063,5 +1063,17 @@
   "checkout-no-payment-methods": "目前无法在线付款，请联系商店。",
   "nav-primary": "主导航",
   "brand-home": "Bengal Exchange — 首页",
-  "search-placeholder": "搜索"
+  "search-placeholder": "搜索",
+  "catalogue-load-more": "加载更多商品",
+  "login-clear-email": "清除邮箱",
+  "cart-decrease-qty": "减少数量",
+  "cart-increase-qty": "增加数量",
+  "cart-order-summary": "订单摘要",
+  "home-hero-title": "孟加拉国制造，畅销全球。",
+  "home-hero-text": "来自孟加拉国制造商的商品、数字产品和出口级产品。可在此下单，也可在 Amazon、Etsy 和 eBay 上找到我们。",
+  "home-hero-shop-all": "选购全部商品",
+  "home-hero-browse-categories": "浏览分类",
+  "home-hero-glance": "概览",
+  "home-hero-marketplaces": "电商平台",
+  "home-hero-categories": "商品分类"
 }

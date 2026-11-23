@@ -28,7 +28,6 @@ import { Card } from "@heroui/react";
 import { Checkbox } from "@heroui/react";
 import { Wand2, Image as ImageIcon, Trash2 } from "lucide-react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { SearchIcon } from "@/shared/ui/icons";
@@ -796,7 +795,7 @@ export default function ProductsPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="px-4 py-6">
         {/* header bar */}
         <div className="flex items-center justify-between mb-4">
@@ -1769,7 +1768,7 @@ export default function ProductsPage() {
           </Modal.Container>
         </Modal.Backdrop>
       </Modal>
-    </DefaultLayout>
+    </>
   );
 }
 

@@ -47,6 +47,8 @@ export default function Preferences() {
   });
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Required-field errors show only after the field is edited or a save is tried.
+  const [touched, setTouched] = useState({ name: false, phone: false });
   const apiBase = getApiBase();
 
   useEffect(() => {
@@ -71,6 +73,7 @@ export default function Preferences() {
 
   const handleSave = async () => {
     setFormError(null);
+    setTouched({ name: true, phone: true });
     if (!formData.name?.trim()) {
       setFormError(t("account-field-required"));
 
@@ -146,7 +149,7 @@ export default function Preferences() {
 
           <TextField
             isRequired
-            isInvalid={formData.name?.trim() === "" || formData.name === null}
+            isInvalid={touched.name && !formData.name?.trim()}
           >
             <Label>{t("account-name")}</Label>
             <Input
@@ -155,12 +158,13 @@ export default function Preferences() {
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
+              onBlur={() => setTouched((v) => ({ ...v, name: true }))}
             />
           </TextField>
 
           <TextField
             isRequired
-            isInvalid={formData.phone?.trim() === "" || formData.phone === null}
+            isInvalid={touched.phone && !formData.phone?.trim()}
           >
             <Label>{t("account-phone")}</Label>
             <Input
@@ -170,6 +174,7 @@ export default function Preferences() {
               onChange={(e) =>
                 setFormData({ ...formData, phone: e.target.value })
               }
+              onBlur={() => setTouched((v) => ({ ...v, phone: true }))}
             />
           </TextField>
 
@@ -217,7 +222,7 @@ export default function Preferences() {
         <Card.Content className="gap-4">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-bx-stone">
                 {t(
                   "account-marketing-emails-desc",
                   "Receive updates about new products and special offers",

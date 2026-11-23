@@ -11,7 +11,6 @@ import { Table } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
@@ -163,7 +162,7 @@ export default function TaxRatesPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <AdminCrudLayout
         addLabel={t("admin-tax-rates-add")}
         filterPlaceholder={t("admin-tax-rates-filter-placeholder")}
@@ -360,6 +359,6 @@ export default function TaxRatesPage() {
           </Modal.Backdrop>
         </Modal>
       </AdminCrudLayout>
-    </DefaultLayout>
+    </>
   );
 }

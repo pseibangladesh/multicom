@@ -89,7 +89,7 @@ export function SiteFooter() {
                   ·
                 </span>
                 <button
-                  className="hover:text-[var(--bx-primary)]"
+                  className="hover:text-bx-primary"
                   type="button"
                   onClick={() => setInfoOpen(true)}
                 >

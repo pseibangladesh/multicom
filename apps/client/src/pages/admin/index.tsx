@@ -9,7 +9,6 @@ import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { Card } from "@heroui/react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { formatMoney } from "@/utils/currency";
@@ -66,7 +65,7 @@ export default function AdminDashboardPage() {
   const ssl = gateways.data?.sslcommerz;
 
   return (
-    <DefaultLayout>
+    <>
       <div className="max-w-5xl mx-auto py-12 px-4">
         <h1 className="text-3xl font-bold mb-6">
           {t("admin-dashboard-title")}
@@ -156,6 +155,6 @@ export default function AdminDashboardPage() {
           </Card.Content>
         </Card>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

@@ -27,6 +27,8 @@
     --bx-indigo-tint: #e6e9f2;
     --bx-accent: #9e3b24;
     --bx-accent-soft: #f3e3dc;
+    --bx-danger: #b3261e; /* 6.3:1 with on-danger, 6.5:1 as text on white */
+    --bx-on-danger: #fcfbf8;
     --bx-scrim: rgba(12, 16, 30, 0.42);
     --bx-shadow: 0 24px 60px -28px rgba(21, 32, 58, 0.35);
 
@@ -50,6 +52,8 @@
     --bx-indigo-tint: #1c2543;
     --bx-accent: #eb8b73;
     --bx-accent-soft: #3a2421;
+    --bx-danger: #f28b82; /* 7.8:1 with on-danger, 6.4:1 as text on raised */
+    --bx-on-danger: #0d1221;
     --bx-scrim: rgba(3, 5, 12, 0.66);
     --bx-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.7);
   }
@@ -89,6 +93,9 @@
     --focus: var(--bx-accent);
     --link: var(--bx-primary);
 
+    --danger: var(--bx-danger);
+    --danger-foreground: var(--bx-on-danger);
+
     --default: var(--bx-indigo-tint);
     --default-foreground: var(--bx-ink);
 
@@ -96,6 +103,7 @@
     --field-foreground: var(--bx-ink);
     --field-placeholder: var(--bx-stone);
     --field-border: var(--bx-field-line);
+    --field-border-width: 1px; /* HeroUI default is 0px (borderless fields) */
     --field-shadow: none;
 
     --segment: var(--bx-surface-raised);

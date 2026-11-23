@@ -29,7 +29,6 @@ import { Sparkles } from "lucide-react";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { resolveTitle } from "@/utils/description";
-import DefaultLayout from "@/layouts/default";
 import {
   analyzeReviewsBatchWithAi,
   type AiParams,
@@ -187,7 +186,7 @@ export default function AdminReviewsPage() {
   );
 
   return (
-    <DefaultLayout>
+    <>
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h1 className="text-2xl font-bold">{t("admin-reviews-title")}</h1>
@@ -395,6 +394,6 @@ export default function AdminReviewsPage() {
           </div>
         )}
       </div>
-    </DefaultLayout>
+    </>
   );
 }

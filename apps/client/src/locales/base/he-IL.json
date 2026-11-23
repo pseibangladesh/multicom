@@ -1069,5 +1069,17 @@
   "account-wishlist-tab_two": "משאלות ({{count}})",
   "nav-primary": "ניווט ראשי",
   "brand-home": "Bengal Exchange — דף הבית",
-  "search-placeholder": "חיפוש"
+  "search-placeholder": "חיפוש",
+  "catalogue-load-more": "טען מוצרים נוספים",
+  "login-clear-email": "נקה דוא\"ל",
+  "cart-decrease-qty": "הפחת כמות",
+  "cart-increase-qty": "הגדל כמות",
+  "cart-order-summary": "סיכום הזמנה",
+  "home-hero-title": "מיוצר בבנגלדש, נמכר בכל העולם.",
+  "home-hero-text": "מוצרים, מוצרים דיגיטליים ומוצרים מוכנים לייצוא מיצרנים בנגלדשים. הזמינו כאן, או מצאו אותנו ב-Amazon, ב-Etsy וב-eBay.",
+  "home-hero-shop-all": "לכל המוצרים",
+  "home-hero-browse-categories": "עיון בקטגוריות",
+  "home-hero-glance": "במבט מהיר",
+  "home-hero-marketplaces": "זירות מסחר",
+  "home-hero-categories": "קטגוריות מוצרים"
 }

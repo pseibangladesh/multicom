@@ -20,7 +20,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import DefaultLayout from "@/layouts/default";
 import { useCart } from "@/hooks/use-cart";
 import { resolveTaxName } from "@/utils/description";
 
@@ -105,7 +104,7 @@ export default function SuccessPage() {
   if (!sessionId) {
     // User arrived on /success without a session_id — generic message
     return (
-      <DefaultLayout>
+      <>
         <div className="max-w-3xl mx-auto py-12 px-6">
           <div className="text-center">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-green-500/10 rounded-full mb-6">
@@ -135,23 +134,23 @@ export default function SuccessPage() {
             </div>
           </div>
         </div>
-      </DefaultLayout>
+      </>
     );
   }
 
   if (loading) {
     return (
-      <DefaultLayout>
+      <>
         <div className="max-w-3xl mx-auto py-12 px-6 text-center">
           <p className="text-default-500">{t("loading")}</p>
         </div>
-      </DefaultLayout>
+      </>
     );
   }
 
   if (error || !order) {
     return (
-      <DefaultLayout>
+      <>
         <div className="max-w-3xl mx-auto py-12 px-6 text-center">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-500/10 rounded-full mb-6">
             <svg
@@ -178,7 +177,7 @@ export default function SuccessPage() {
             </Link>
           </div>
         </div>
-      </DefaultLayout>
+      </>
     );
   }
 
@@ -194,7 +193,7 @@ export default function SuccessPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="max-w-2xl mx-auto py-12 px-6">
         {/* Header */}
         <div className="text-center mb-8">
@@ -312,6 +311,6 @@ export default function SuccessPage() {
           </Link>
         </div>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

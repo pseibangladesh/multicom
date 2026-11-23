@@ -96,6 +96,9 @@ i18n
   .init<HttpBackendOptions>({
     lng: initialLanguage,
     fallbackLng: FALLBACK_LANGUAGE,
+    // Load only the exact codes (e.g. "fr-FR"), not "fr" as well: every short
+    // code used to map to the en-US file, which was then fetched twice.
+    load: "currentOnly",
 
     ns: ["base"],
     defaultNS: "base",

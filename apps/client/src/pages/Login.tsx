@@ -10,6 +10,7 @@ import { TextField, Label, Input, Card, Button } from "@heroui/react";
 import { X } from "lucide-react";
 
 import { useAuth } from "@/authentication";
+import { ContentLoading } from "@/shared/ui/feedback/content-loading";
 
 const MIN_PASSWORD_LENGTH = 8; // matches emailAndPassword.minPasswordLength on the server
 
@@ -77,15 +78,24 @@ export default function LoginPage() {
     }
   };
 
+  // Until the session is known, don't flash the form at a signed-in visitor.
+  if (isLoading) {
+    return (
+      <div className="min-h-dvh bg-bx-paper">
+        <ContentLoading />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
+    <div className="flex min-h-dvh items-center justify-center bg-bx-paper p-4 text-bx-ink">
+      <Card className="w-full max-w-md border border-bx-line bg-bx-surface-raised shadow-none">
         <Card.Header className="flex gap-3 flex-col justify-center">
           <div className="text-center">
-            <h1 className="text-3xl font-bold">
+            <h1 className="font-display text-3xl text-bx-ink">
               {isSignUp ? t("login-signup-title") : t("login-title")}
             </h1>
-            <p className="text-gray-500 mt-2">
+            <p className="mt-2 text-bx-stone">
               {isSignUp ? t("login-signup-subtitle") : t("login-subtitle")}
             </p>
           </div>
@@ -128,8 +138,8 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setEmail("")}
-                    className="ml-2 p-1 text-gray-400 hover:text-gray-600"
-                    aria-label="Clear email"
+                    className="ml-2 p-1 text-bx-stone hover:text-bx-ink"
+                    aria-label={t("login-clear-email")}
                   >
                     <X size={18} />
                   </button>
@@ -159,7 +169,9 @@ export default function LoginPage() {
                 className="bg-red-50 border border-red-200 rounded-lg p-3 dark:bg-red-950/40 dark:border-red-900"
                 role="alert"
               >
-                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  {error}
+                </p>
               </div>
             )}
 
@@ -173,8 +185,8 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="pt-4 border-t text-center text-sm">
-            <p className="text-gray-600 mb-2">
+          <div className="border-t border-bx-line pt-4 text-center text-sm">
+            <p className="mb-2 text-bx-stone">
               {isSignUp ? t("login-have-account") : t("login-new-customer")}
             </p>
             <Button variant="tertiary" onPress={switchMode} className="w-full">

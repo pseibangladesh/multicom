@@ -531,8 +531,14 @@
     .bx-wordmark {
       font-size: 1.2rem;
     }
+    /* Hidden visually but still the button's name (no aria-label to mismatch). */
     .bx-menu-btn .bx-menu-label {
-      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
     .bx-menu-btn {
       padding: 0.4rem;

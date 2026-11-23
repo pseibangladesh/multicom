@@ -85,9 +85,12 @@ export function WishlistButton({
 
   return (
     <>
+      {/* The Button is the tooltip trigger itself: no wrapper element, so no
+          nested interactive control, and it carries its own accessible name. */}
       <Tooltip>
-        <Tooltip.Trigger>
           <Button
+            aria-label={tooltipContent}
+            aria-pressed={isFav}
             isIconOnly={isIconOnly}
             className={`${
               isFav ? 'text-red-500' : 'text-default-400'
@@ -98,12 +101,12 @@ export function WishlistButton({
             onPress={onWishlistToggle}
           >
             <Heart
+              aria-hidden
               className="w-5 h-5"
               fill={isFav ? 'currentColor' : 'none'}
               strokeWidth={2}
             />
           </Button>
-        </Tooltip.Trigger>
         <Tooltip.Content>
           {tooltipContent}
         </Tooltip.Content>

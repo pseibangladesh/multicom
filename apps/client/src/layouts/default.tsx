@@ -18,7 +18,7 @@
 
 import type React from "react";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { useCallback, useState } from "react";
 import { Outlet } from "react-router-dom";
 
 import { CartDrawer } from "@/components/cart-drawer";
@@ -28,33 +28,17 @@ import { SiteHeader } from "@/components/shell/site-header";
 import { useCartDrawer } from "@/contexts/cart-drawer-context";
 import { LoginModal } from "@/features/auth/components/login-modal";
 
-/** True below a mounted shell, so a page's own <DefaultLayout> does not add a second one. */
-const ShellContext = createContext(false);
-
-/** Layout route: the shell stays mounted while the page inside changes. */
+/**
+ * Layout route for every storefront, account and admin page (src/app.tsx):
+ * the shell (header, side menu, cart drawer, footer) stays mounted while the
+ * page inside changes. Pages render only their own content.
+ */
 export function ShellRoute() {
   return (
-    <DefaultLayout>
+    <Shell>
       <Outlet />
-    </DefaultLayout>
+    </Shell>
   );
-}
-
-/**
- * Storefront shell: Bengal header, side menu, cart drawer, footer.
- * Pages still wrap themselves in <DefaultLayout>; under ShellRoute that
- * wrapper only renders its children.
- */
-export default function DefaultLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const insideShell = useContext(ShellContext);
-
-  if (insideShell) return <>{children}</>;
-
-  return <Shell>{children}</Shell>;
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -68,34 +52,32 @@ function Shell({ children }: { children: React.ReactNode }) {
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   return (
-    <ShellContext.Provider value>
-      <div className="relative flex min-h-dvh flex-col bg-[var(--bx-paper)] text-[var(--bx-ink)]">
-        <SiteHeader
-          menuOpen={menuOpen}
-          onOpenCart={openCart}
-          onOpenMenu={() => setMenuOpen(true)}
-        />
-        <SideMenu
-          isOpen={menuOpen}
-          onClose={closeMenu}
-          onLogin={() => setLoginOpen(true)}
-        />
-        <LoginModal isOpen={loginOpen} onClose={() => setLoginOpen(false)} />
-        <CartDrawer
-          isOpen={isCartOpen}
-          onClose={(v) => {
-            if (!v) closeCart();
-          }}
-        />
-        <main
-          className="bx-wrap grow pb-16 pt-8 outline-none"
-          id="main"
-          tabIndex={-1}
-        >
-          {children}
-        </main>
-        <SiteFooter />
-      </div>
-    </ShellContext.Provider>
+    <div className="relative flex min-h-dvh flex-col bg-bx-paper text-bx-ink">
+      <SiteHeader
+        menuOpen={menuOpen}
+        onOpenCart={openCart}
+        onOpenMenu={() => setMenuOpen(true)}
+      />
+      <SideMenu
+        isOpen={menuOpen}
+        onClose={closeMenu}
+        onLogin={() => setLoginOpen(true)}
+      />
+      <LoginModal isOpen={loginOpen} onClose={() => setLoginOpen(false)} />
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={(v) => {
+          if (!v) closeCart();
+        }}
+      />
+      <main
+        className="bx-wrap min-h-dvh grow pb-16 pt-8 outline-none" /* footer starts below the fold: no shift when content loads (CLS) */
+        id="main"
+        tabIndex={-1}
+      >
+        {children}
+      </main>
+      <SiteFooter />
+    </div>
   );
 }

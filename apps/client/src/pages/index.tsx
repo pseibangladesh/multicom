@@ -18,19 +18,21 @@
 
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { Spinner } from "@heroui/react";
-
-import DefaultLayout from "@/layouts/default";
-
-import { useState, useCallback, useEffect, useRef } from "react";
-
-import { StoreProduct, searchProducts, getProductsPage, getCategoryProductsPage } from "@/lib/store-api";
-import { ProductCard } from "@/components/product-card";
-import { CategoryNav } from "@/components/category-nav";
-import { useCategories } from "@/hooks/use-categories";
-import { resolveTitle } from "@/utils/description";
+import { Button, Spinner } from "@heroui/react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
+import {
+  StoreProduct,
+  searchProducts,
+  getProductsPage,
+  getCategoryProductsPage,
+} from "@/lib/store-api";
+import { ProductCard } from "@/components/product-card";
+import { CategoryNav } from "@/components/category-nav";
+import { HomeHero } from "@/components/home-hero";
+import { useCategories } from "@/hooks/use-categories";
+import { resolveTitle } from "@/utils/description";
 
 export default function IndexPage() {
   const { t, i18n } = useTranslation();
@@ -39,14 +41,18 @@ export default function IndexPage() {
   const [searchParams] = useSearchParams();
   const term = searchParams.get("q") || "";
   const categoryHandle = searchParams.get("category") || "";
+  const isLanding = !term && !categoryHandle;
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  // Index of the first product added by "Load more": focus moves there once it renders.
+  const [focusFrom, setFocusFrom] = useState<number | null>(null);
 
   // Resolve localised category name for the page heading
   const { data: categories } = useCategories();
   const categoryName = categoryHandle
     ? resolveTitle(
-        categories?.find((c) => c.handle === categoryHandle)?.name ?? categoryHandle,
+        categories?.find((c) => c.handle === categoryHandle)?.name ??
+          categoryHandle,
         i18n.language,
       )
     : "";
@@ -57,7 +63,7 @@ export default function IndexPage() {
     isLoading: searchLoading,
     isError: searchError,
   } = useQuery<StoreProduct[], Error>({
-    queryKey: ['search', term],
+    queryKey: ["search", term],
     queryFn: () => searchProducts(term),
     enabled: !!term,
   });
@@ -71,11 +77,14 @@ export default function IndexPage() {
     isLoading: categoryLoading,
     isError: categoryError,
   } = useInfiniteQuery({
-    queryKey: ['category-products', categoryHandle],
-    queryFn: ({ pageParam }) => getCategoryProductsPage(categoryHandle, pageParam as string | null),
+    queryKey: ["category-products", categoryHandle],
+    queryFn: ({ pageParam }) =>
+      getCategoryProductsPage(categoryHandle, pageParam as string | null),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) =>
-      lastPage.pagination.has_more ? lastPage.pagination.next_cursor : undefined,
+      lastPage.pagination.has_more
+        ? lastPage.pagination.next_cursor
+        : undefined,
     enabled: !!categoryHandle && !term,
   });
 
@@ -88,11 +97,13 @@ export default function IndexPage() {
     isLoading: browseLoading,
     isError: browseError,
   } = useInfiniteQuery({
-    queryKey: ['products'],
+    queryKey: ["products"],
     queryFn: ({ pageParam }) => getProductsPage(pageParam as string | null),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) =>
-      lastPage.pagination.has_more ? lastPage.pagination.next_cursor : undefined,
+      lastPage.pagination.has_more
+        ? lastPage.pagination.next_cursor
+        : undefined,
     enabled: !term && !categoryHandle,
   });
 
@@ -102,56 +113,72 @@ export default function IndexPage() {
       ? (categoryData?.pages.flatMap((p) => p.items) ?? [])
       : (browseData?.pages.flatMap((p) => p.items) ?? []);
 
-  const productsLoading = term ? searchLoading : categoryHandle ? categoryLoading : browseLoading;
-  const productsError = term ? searchError : categoryHandle ? categoryError : browseError;
+  const productsLoading = term
+    ? searchLoading
+    : categoryHandle
+      ? categoryLoading
+      : browseLoading;
+  const productsError = term
+    ? searchError
+    : categoryHandle
+      ? categoryError
+      : browseError;
   const hasNextPage = categoryHandle ? categoryHasNextPage : browseHasNextPage;
-  const fetchNextPage = categoryHandle ? categoryFetchNextPage : browseFetchNextPage;
-  const isFetchingNextPage = categoryHandle ? categoryIsFetchingNextPage : browseIsFetchingNextPage;
+  const fetchNextPage = categoryHandle
+    ? categoryFetchNextPage
+    : browseFetchNextPage;
+  const isFetchingNextPage = categoryHandle
+    ? categoryIsFetchingNextPage
+    : browseIsFetchingNextPage;
 
-  const [selectedVariants, setSelectedVariants] =
-    useState<Record<string, string>>({});
+  const [selectedVariants, setSelectedVariants] = useState<
+    Record<string, string>
+  >({});
 
   const handleVariantChange = (productId: string, sku: string) => {
     setSelectedVariants((prev) => ({ ...prev, [productId]: sku }));
   };
 
-  const handleIntersect = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-        void fetchNextPage();
-      }
-    },
-    [hasNextPage, isFetchingNextPage, fetchNextPage],
-  );
+  // "Load more" instead of infinite scroll, so the footer stays reachable.
+  const loadMore = () => {
+    setFocusFrom(safeProducts.length);
+    void fetchNextPage();
+  };
 
   useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || term) return;
-    const observer = new IntersectionObserver(handleIntersect, {
-      rootMargin: '200px',
-    });
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [handleIntersect, term]);
+    if (focusFrom === null || safeProducts.length <= focusFrom) return;
+    const links = gridRef.current?.querySelectorAll<HTMLAnchorElement>(
+      'a:not([aria-hidden="true"])',
+    );
+
+    links?.[focusFrom]?.focus();
+    setFocusFrom(null);
+  }, [focusFrom, safeProducts.length]);
 
   return (
-    <DefaultLayout>
-      <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
+    <>
+      {isLanding && <HomeHero />}
+      <div className="mx-auto flex max-w-7xl gap-6 py-6">
         {/* Sidebar — categories navigation (hidden on mobile) */}
         <aside className="hidden md:block w-56 shrink-0">
           <CategoryNav showImages={false} />
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0">
-          {/* Page heading */}
-          <h1 className="text-2xl font-semibold mb-6">
-            {term
-              ? t("search-results-for", { term })
-              : categoryHandle
-                ? categoryName
-                : t("shop-products-title")}
-          </h1>
+        <div className="flex-1 min-w-0">
+          {/* Page heading: on the landing page the hero owns the <h1>. */}
+          {isLanding ? (
+            <h2
+              className="mb-6 scroll-mt-24 font-display text-3xl text-bx-ink"
+              id="catalogue"
+            >
+              {t("shop-products-title")}
+            </h2>
+          ) : (
+            <h1 className="mb-6 font-display text-3xl text-bx-ink">
+              {term ? t("search-results-for", { term }) : categoryName}
+            </h1>
+          )}
 
           {/* State: loading */}
           {productsLoading && (
@@ -167,13 +194,18 @@ export default function IndexPage() {
 
           {/* State: empty */}
           {!productsLoading && !productsError && safeProducts.length === 0 && (
-            <p className="text-center text-default-500">{t("admin-products-empty")}</p>
+            <p className="text-center text-default-500">
+              {t("admin-products-empty")}
+            </p>
           )}
 
           {/* Product grid */}
           {safeProducts.length > 0 && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div
+                ref={gridRef}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+              >
                 {safeProducts.map((product) => (
                   <ProductCard
                     key={product.id}
@@ -185,18 +217,21 @@ export default function IndexPage() {
                 ))}
               </div>
 
-              {/* Infinite scroll sentinel */}
-              {!term && (
-                <div ref={sentinelRef} className="mt-8 flex justify-center">
-                  {isFetchingNextPage && (
-                    <Spinner size="sm" />
-                  )}
+              {!term && hasNextPage && (
+                <div className="mt-8 flex justify-center">
+                  <Button
+                    isPending={isFetchingNextPage}
+                    variant="outline"
+                    onPress={loadMore}
+                  >
+                    {t("catalogue-load-more")}
+                  </Button>
                 </div>
               )}
             </>
           )}
-        </main>
+        </div>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

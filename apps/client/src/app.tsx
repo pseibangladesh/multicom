@@ -20,10 +20,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Suspense } from "react";
 
 import { PageNotFound } from "./pages/404";
-import { AdminGuard, AuthenticationGuard, useAuth } from "./authentication";
+import { AdminGuard, AuthenticationGuard } from "./authentication";
 import CategoriesPage from "./pages/admin/categories";
 
-import { SiteLoading } from "@/shared/ui/feedback/site-loading";
+import { ContentLoading } from "@/shared/ui/feedback/content-loading";
 import IndexPage from "@/pages/index";
 import ApiPage from "@/pages/api";
 import PricingPage from "@/pages/pricing";
@@ -64,12 +64,8 @@ import MarketplacesPage from "@/pages/admin/marketplaces";
 import AdminDashboardPage from "@/pages/admin/index";
 
 function App() {
-  const { isLoading } = useAuth();
-
-  if (isLoading) {
-    return <SiteLoading />;
-  }
-
+  // No app-wide loading screen: public pages render while the session loads,
+  // and protected routes show ContentLoading inside the shell (guards).
   // Gérer les erreurs
   // Note: we no longer block the whole app when the user is unauthenticated.
   // Individual routes that require auth use <AuthenticationGuard> instead.
@@ -77,7 +73,7 @@ function App() {
   // Pages visitors just see an "authentication error" message.
 
   return (
-    <Suspense fallback={<SiteLoading />}>
+    <Suspense fallback={<ContentLoading />}>
       <Routes>
         <Route element={<LoginPage />} path="/login" />
         {/* Storefront shell stays mounted across these routes (header, side menu, footer). */}

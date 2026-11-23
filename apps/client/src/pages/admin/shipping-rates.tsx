@@ -29,7 +29,6 @@ import { Switch } from "@heroui/react";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
 import { SearchIcon } from "@/shared/ui/icons";
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { formatMoney } from "@/utils/currency";
@@ -610,7 +609,7 @@ export default function ShippingRatesPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">
@@ -1511,6 +1510,6 @@ export default function ShippingRatesPage() {
           </Modal.Backdrop>
         </Modal>
       </div>
-    </DefaultLayout>
+    </>
   );
 }
