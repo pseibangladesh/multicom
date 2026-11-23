@@ -25,7 +25,7 @@
 // apps/merchant/src/routes/mail.ts
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
-import { authMiddleware, mailAccessOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, type HonoEnv } from '../types';
 import { sendMailgunEmail } from '../mailgun';
 
@@ -55,7 +55,7 @@ const sendMail = createRoute({
   tags: ['Mail'],
   summary: 'Send a test email via Mailgun',
   security: [{ bearerAuth: ['mail:api'] }],
-  middleware: [mailAccessOnly] as const,
+  middleware: [adminOnly] as const,
   request: {
     body: {
       content: {

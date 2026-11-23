@@ -18,7 +18,7 @@ import {
 } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
-import { availableLanguages } from "@/i18n";
+import { useOfferedLanguages } from "@/lib/storefront-languages";
 import { getApiBase } from "@/lib/api-base";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
 import { useTheme } from "@/hooks/use-theme";
@@ -37,6 +37,7 @@ interface Profile {
  */
 export default function Preferences() {
   const { t } = useTranslation();
+  const offeredLanguages = useOfferedLanguages();
   const auth = useAuth() as any;
   const { isDark, setLightTheme, setDarkTheme } = useTheme();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -195,7 +196,7 @@ export default function Preferences() {
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                {availableLanguages.map((locale) => (
+                {offeredLanguages.map((locale) => (
                   <ListBox.Item
                     key={locale.code}
                     id={locale.code}

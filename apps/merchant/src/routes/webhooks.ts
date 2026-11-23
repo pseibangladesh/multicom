@@ -26,6 +26,7 @@
 import { Hono } from 'hono';
 import Stripe from 'stripe';
 import { getDb } from '../db';
+import { recalcCustomerStats, upsertCustomerByEmail } from '../lib/customers';
 import { getStripeSettings } from '../lib/payment-config';
 import { ApiError, uuid, now, generateOrderNumber, type HonoEnv } from '../types';
 import { dispatchWebhooks } from '../lib/webhooks';
@@ -191,43 +192,12 @@ webhooks.post('/stripe', async (c) => {
               }
             : null);
 
-        // Upsert customer (create or update on email match)
-        let customerId: string | null = null;
-        const [existingCustomer] = await db.query<any>(
-          `SELECT id, order_count, total_spent_cents FROM customers WHERE email = ?`,
-          [customerEmail]
-        );
-
-        if (existingCustomer) {
-          // Update existing customer
-          customerId = existingCustomer.id;
-          await db.run(
-            `UPDATE customers SET 
-              name = COALESCE(?, name),
-              phone = COALESCE(?, phone),
-              order_count = order_count + 1,
-              total_spent_cents = total_spent_cents + ?,
-              last_order_at = ?,
-              updated_at = ?
-            WHERE id = ?`,
-            [customerName, shippingPhone, session.amount_total ?? 0, now(), now(), customerId]
-          );
-        } else {
-          // Create new customer
-          customerId = uuid();
-          await db.run(
-            `INSERT INTO customers (id, email, name, phone, order_count, total_spent_cents, last_order_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?)`,
-            [
-              customerId,
-              customerEmail,
-              customerName,
-              shippingPhone,
-              session.amount_total ?? 0,
-              now(),
-            ]
-          );
-        }
+        // The customer record for this email (created if new). Totals are
+        // recalculated from the orders once the order exists (lib/customers.ts).
+        const customerId: string | null = await upsertCustomerByEmail(db, customerEmail, {
+          name: customerName,
+          phone: shippingPhone,
+        });
 
         // Attach the verified shipping address to the Stripe Customer so it appears correctly
         // in the Stripe dashboard (non-blocking – a failure here must not abort the webhook).
@@ -424,6 +394,8 @@ webhooks.post('/stripe', async (c) => {
 
         // Credit AI token packages included in this order.
         // Runs non-blocking so a failure here never aborts the webhook.
+        await recalcCustomerStats(db, customerId);
+
         if (customerId) {
           c.executionCtx.waitUntil(
             (async () => {

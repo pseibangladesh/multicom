@@ -21,6 +21,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useCart } from "@/hooks/use-cart";
+import { forgetCheckoutSource, shouldClearCart } from "@/lib/checkout-source";
 import { resolveTaxName } from "@/utils/description";
 
 // Shape of the order returned by GET /v1/orders/lookup
@@ -72,10 +73,17 @@ export default function SuccessPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Decided once per visit: a Buy now order leaves the cart as it was.
+  const [clearCart] = useState(() => shouldClearCart(searchParams));
+
   useEffect(() => {
-    // Clear local cart when landing on the success page
-    clear();
-  }, [clear]);
+    forgetCheckoutSource();
+  }, []);
+
+  useEffect(() => {
+    // Clear local cart when landing on the success page (cart checkouts only)
+    if (clearCart) clear();
+  }, [clear, clearCart]);
 
   useEffect(() => {
     if (!sessionId) return;

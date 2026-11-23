@@ -12,7 +12,7 @@
   source_file_hashes:
     apps/merchant/src/routes/setup.ts: d420780a7f62cd976b551e4648abe5426af604127f67dc7b51f137ea98ed6789
 -->
-<!--mcp-tags: ["setup","backend","api","auth0","commerce"]-->
+<!--mcp-tags: ["setup","backend","api","commerce"]-->
 
 ## Setup & Initialization Reference
 
@@ -71,7 +71,6 @@ Initializes the store with basic configuration and admin user.
 **Behavior:**
 - Creates the initial admin user
 - Sets up store info (name, default currency, default country)
-- Calls Auth0 Management API to invite the admin user
 - Can only be called when no admin exists yet (returns 409 if already initialized)
 
 **Example:**
@@ -113,42 +112,12 @@ app.openapi(setupInit, async (c) => {
     [adminEmail, now()]
   );
 
-  // Call Auth0 Management API to invite admin
-  if (process.env.AUTH0_MANAGEMENT_CLIENT_ID) {
-    await inviteAuth0User(adminEmail);
-  }
-
   return c.json({ ok: true }, 200);
 });
 ```
 
-### Auth0 Management API Interaction
-During setup, the system interacts with Auth0 in two ways:
-
-1. **Admin Invitation:** When `/v1/setup/init` is called, it invites the admin user via Auth0 Management API.
-2. **Tenant Configuration:** If `AUTH0_MANAGEMENT_CLIENT_ID` is set and the tenant isn't configured, it automatically deploys the Auth0 configuration.
-
-**Example Auth0 Invitation:**
-```typescript
-async function inviteAuth0User(email: string) {
-  const response = await fetch('https://YOUR_AUTH0_DOMAIN.api.auth0.com/api/v2/users', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.AUTH0_MANAGEMENT_API_TOKEN}`,
-    },
-    body: JSON.stringify({
-      email,
-      connection: 'Username-Password-Authentication',
-      password: generateRandomPassword(),
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to invite admin user to Auth0');
-  }
-}
-```
+### Admin Login
+Admins are the emails listed in the `ADMIN_EMAILS` env var. To create the Better Auth login for one of them (or reset its password), call `POST /v1/setup/admin-user` with an `sk_` key. ADMIN_EMAILS users are treated as email-verified, so they can sign in at `/login` straight away.
 
 ### Store Info Management
 After initial setup, store information is managed separately via:
@@ -175,13 +144,11 @@ The frontend setup wizard (located in `apps/client/src/pages/setup/`) guides the
    - Select default currency
    - Choose default country
 
-2. **Admin Invitation:**
-   - Enter admin email address
-   - System sends invitation via Auth0
+2. **Admin email:**
+   - Enter the admin email address (it must be in `ADMIN_EMAILS`)
 
-3. **Auth0 Verification:**
-   - Verify Auth0 tenant configuration
-   - Confirm admin user creation
+3. **Admin login:**
+   - Create the admin's password (`POST /v1/setup/admin-user`)
 
 **Frontend Example:**
 ```typescript
@@ -233,7 +200,7 @@ const SetupWizard = () => {
         />
       )}
       {step === 3 && (
-        <Auth0VerifyStep onComplete={handleSubmit} />
+        <AdminLoginStep onComplete={handleSubmit} />
       )}
     </div>
   );

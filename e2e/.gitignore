@@ -1,4 +1,4 @@
-# Fichiers de session Auth0 — JAMAIS committer
+# Session files (Better Auth cookies) — NEVER commit
 fixtures/storage-state.json
 fixtures/storage-state-*.json
 fixtures/*.zip

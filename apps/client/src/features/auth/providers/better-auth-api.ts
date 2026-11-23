@@ -8,7 +8,19 @@ import { getApiBase } from "@/lib/api-base";
 export const authUrl = (path: string): string =>
   `${getApiBase()}/api/auth${path}`;
 
-/** POSTs JSON; throws an Error carrying the server's message on failure. */
+/** A failed Better Auth call: the server's message, plus its error code (e.g. EMAIL_NOT_VERIFIED). */
+export class AuthApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(message);
+    this.name = "AuthApiError";
+  }
+}
+
+/** POSTs JSON; throws AuthApiError on failure. */
 export async function authPost(path: string, body: unknown): Promise<void> {
   const resp = await fetch(authUrl(path), {
     method: "POST",
@@ -18,8 +30,15 @@ export async function authPost(path: string, body: unknown): Promise<void> {
   });
 
   if (!resp.ok) {
-    const data = await resp.json().catch(() => null);
+    const data = (await resp.json().catch(() => null)) as {
+      message?: string;
+      code?: string;
+    } | null;
 
-    throw new Error(data?.message || `HTTP ${resp.status}`);
+    throw new AuthApiError(
+      data?.message || `HTTP ${resp.status}`,
+      resp.status,
+      data?.code,
+    );
   }
 }

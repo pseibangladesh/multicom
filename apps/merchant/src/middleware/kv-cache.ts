@@ -10,7 +10,7 @@
  * params, so paginated/filtered responses are cached independently.
  *
  * kvInvalidateMiddleware purges all matching prefixes on successful mutations
- * (POST/PATCH/DELETE) by iterating KV list() pages — covers paginated keys too.
+ * (POST/PUT/PATCH/DELETE) by iterating KV list() pages — covers paginated keys too.
  */
 import { Context, Next } from 'hono';
 import type { HonoEnv } from '../types';
@@ -47,7 +47,7 @@ function getCacheTtl(pathname: string, c: HonoCtx): number {
  *
  * Bypass rules:
  * - Non-GET methods — mutations must always hit the DO.
- * - Admin tokens (`sk_...`, Auth0 JWTs) — admin reads may include unpublished
+ * - Admin and OAuth tokens (`sk_...`, 64-hex) — admin reads may include unpublished
  *   data or per-key access levels; never serve them cached public content.
  *
  * Allowed (cached):
@@ -106,7 +106,7 @@ export const kvCacheMiddleware = async (c: HonoCtx, next: Next) => {
  * Delete all KV cache entries whose key begins with the given prefix.
  * Pages through kv.list() until list_complete is true.
  */
-async function purgeByPrefix(kv: KVNamespace, prefix: string): Promise<void> {
+export async function purgeByPrefix(kv: KVNamespace, prefix: string): Promise<void> {
   let cursor: string | undefined;
   do {
     const result = await kv.list({ prefix, ...(cursor ? { cursor } : {}) });
@@ -116,14 +116,14 @@ async function purgeByPrefix(kv: KVNamespace, prefix: string): Promise<void> {
 }
 
 /**
- * On successful mutations (POST/PATCH/DELETE), invalidate all KV cache entries
+ * On successful mutations (POST/PUT/PATCH/DELETE), invalidate all KV cache entries
  * for the products and categories namespaces — including paginated variants.
  */
 export const kvInvalidateMiddleware = async (c: HonoCtx, next: Next) => {
   await next();
 
   if (
-    ['POST', 'PATCH', 'DELETE'].includes(c.req.method) &&
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method) &&
     c.res.status >= 200 &&
     c.res.status < 300
   ) {
@@ -137,6 +137,8 @@ export const kvInvalidateMiddleware = async (c: HonoCtx, next: Next) => {
         purgeByPrefix(kv, `cache:${origin}/ucp/v1/products`),
         purgeByPrefix(kv, `cache:${origin}/ucp/v1/categories`),
         purgeByPrefix(kv, `cache:${origin}/.well-known/ucp`),
+        // home sections embed products and categories
+        purgeByPrefix(kv, `cache:${origin}/v1/storefront/home`),
       ])
     );
   }

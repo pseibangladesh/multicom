@@ -8,7 +8,6 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -23,14 +22,12 @@ import {
 import { paymentBadges } from "@/lib/payment-badges";
 import { enabledPaymentMethods, getPaymentMethods } from "@/lib/store-api";
 import { GithubIcon } from "@/shared/ui/icons";
-import { UserTechnicalInfoModal } from "@/shared/ui/user-technical-info";
 
 const SOCIAL_ICONS: Record<string, typeof GithubIcon> = { github: GithubIcon };
 
 export function SiteFooter() {
   const { t } = useTranslation();
-  const { user, isAuthenticated, refreshAccessToken } = useAuth();
-  const [infoOpen, setInfoOpen] = useState(false);
+  const { user, isAuthenticated } = useAuth();
   const { data: methods, isPending: paymentsLoading } = useQuery({
     queryKey: ["payment-methods"],
     queryFn: getPaymentMethods,
@@ -88,13 +85,9 @@ export function SiteFooter() {
                 <span aria-hidden="true" className="bx-dot">
                   ·
                 </span>
-                <button
-                  className="hover:text-bx-primary"
-                  type="button"
-                  onClick={() => setInfoOpen(true)}
-                >
+                <RouterLink className="hover:text-bx-primary" to="/account">
                   {user.name}
-                </button>
+                </RouterLink>
               </>
             )}
           </div>
@@ -142,19 +135,6 @@ export function SiteFooter() {
           )}
         </div>
       </div>
-
-      {user && (
-        <UserTechnicalInfoModal
-          accessToken={isAuthenticated ? "session" : null}
-          isOpen={infoOpen}
-          tokenPayload={null}
-          user={user}
-          onClose={() => setInfoOpen(false)}
-          onTokenRefreshed={async () => {
-            await refreshAccessToken();
-          }}
-        />
-      )}
     </footer>
   );
 }

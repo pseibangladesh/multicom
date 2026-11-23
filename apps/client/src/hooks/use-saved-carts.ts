@@ -4,18 +4,11 @@
  */
 
 import { useCallback } from "react";
-import { decodeJwt } from "jose";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/authentication";
-import { useTokenRefresh } from "@/hooks/use-token-refresh";
-import { getStoreMetadata } from "@/lib/store-metadata";
-import { useTokenUserData } from "@/hooks/use-token-user-data";
 import { getApiBase } from "@/lib/api-base";
 
-/**
- * SavedCartSnapshot — Complete cart snapshot stored in customer metadata
- * Allows reconstruction of cart without database fetch
- */
 export interface SavedCartSnapshot {
   id: string;
   items: Array<{
@@ -39,7 +32,7 @@ export interface SavedCartSnapshot {
 }
 
 export interface UseSavedCartsReturn {
-  savedCarts: (SavedCartSnapshot | string)[]; // Support both new snapshots and legacy IDs
+  savedCarts: SavedCartSnapshot[];
   isLoading: boolean;
   isError: boolean;
   toggleSavedCart: (cartId: string) => Promise<void>;
@@ -47,126 +40,73 @@ export interface UseSavedCartsReturn {
   getSavedCart: (cartId: string) => SavedCartSnapshot | undefined;
 }
 
-const SAVED_CARTS_UPDATED_EVENT = "bengal-exchange:saved-carts-updated";
+/** Query key of a user's saved carts (per user, so accounts never share a cache). */
+export const savedCartsKey = (userId: string | undefined) =>
+  ["me", userId, "saved-carts"] as const;
 
 /**
- * Lightweight token parser function.
- * Extracts saved carts from the user_metadata of the JWT access_token.
- */
-const STORE_URL = import.meta.env.STORE_URL;
-
-export function getSavedCartsFromToken(
-  token: string | null,
-): (SavedCartSnapshot | string)[] {
-  if (!token) return [];
-  try {
-    const payload = decodeJwt(token) as any;
-    const userMetadata = payload["extra_user_info/user_metadata"];
-    const storeMetadata = getStoreMetadata(userMetadata, STORE_URL);
-
-    // Support both new snapshot format and legacy string ID format
-    if (Array.isArray(storeMetadata?.saved_carts)) {
-      return storeMetadata.saved_carts;
-    }
-
-    // fallback to legacy root key for backward compatibility
-    if (Array.isArray(userMetadata?.saved_carts)) {
-      return userMetadata.saved_carts;
-    }
-
-    return [];
-  } catch (error) {
-    console.error(
-      "[useSavedCarts] Error decoding token for saved carts:",
-      error,
-    );
-
-    return [];
-  }
-}
-
-/**
- * Custom React hook to manage the user's saved carts.
- *
- * Features:
- * - Extremely lightweight: 100% derived from the JWT user_metadata
- * - Stores complete cart snapshots (items, totals) for offline reconstruction
- * - Uses `useTokenRefresh` to keep JWT synced after mutations
- * - Uses a CustomEvent for fast cross-component reactivity without heavy contexts/query caches
+ * The signed-in customer's saved carts, stored on the server
+ * (GET/POST/DELETE /v1/me/saved-carts), so they are the same on every device.
+ * Empty when signed out.
  */
 export function useSavedCarts(): UseSavedCartsReturn {
   const auth = useAuth();
-  const { refreshToken } = useTokenRefresh();
   const apiBase = getApiBase();
+  const queryClient = useQueryClient();
+  const userId = auth.user?.id;
+  const key = savedCartsKey(userId);
 
-  const {
-    data: savedCarts,
-    isLoading,
-    isError,
-    setData: setSavedCarts,
-  } = useTokenUserData(getSavedCartsFromToken, SAVED_CARTS_UPDATED_EVENT);
+  const query = useQuery<SavedCartSnapshot[], Error>({
+    queryKey: key,
+    queryFn: async () => {
+      const data = (await auth.getJson(`${apiBase}/v1/me/saved-carts`)) as {
+        saved_carts?: SavedCartSnapshot[];
+      };
 
-  const toggleSavedCart = useCallback(
-    async (cartId: string) => {
-      if (!auth.isAuthenticated) {
-        console.warn(
-          "[useSavedCarts] Attempted to toggle without authentication",
-        );
-
-        return;
-      }
-
-      const saved = savedCarts.some((sc) => {
-        if (typeof sc === "string") return sc === cartId;
-
-        return (sc as SavedCartSnapshot).id === cartId;
-      });
-
-      try {
-        if (saved) {
-          await auth.deleteJson(`${apiBase}/v1/me/saved-carts/${cartId}`);
-        } else {
-          await auth.postJson(`${apiBase}/v1/me/saved-carts`, { cartId });
-        }
-
-        const newToken = await refreshToken();
-        const newSavedCarts = getSavedCartsFromToken(newToken || null);
-
-        setSavedCarts(newSavedCarts);
-        window.dispatchEvent(
-          new CustomEvent(SAVED_CARTS_UPDATED_EVENT, { detail: newSavedCarts }),
-        );
-      } catch (error) {
-        console.error("[useSavedCarts] Mutation error:", error);
-      }
+      return data.saved_carts ?? [];
     },
-    [auth, refreshToken, savedCarts, apiBase],
-  );
+    enabled: auth.isAuthenticated && !!userId,
+    staleTime: 60_000,
+  });
+  const savedCarts = auth.isAuthenticated ? (query.data ?? []) : [];
 
   const isSaved = useCallback(
-    (cartId: string) =>
-      savedCarts.some((sc) => {
-        if (typeof sc === "string") return sc === cartId;
-
-        return (sc as SavedCartSnapshot).id === cartId;
-      }),
+    (cartId: string) => savedCarts.some((sc) => sc.id === cartId),
     [savedCarts],
   );
 
-  const getSavedCart = useCallback(
-    (cartId: string) =>
-      savedCarts.find((sc) => {
-        if (typeof sc === "string") return false;
+  const mutation = useMutation<void, Error, string>({
+    mutationFn: async (cartId) => {
+      if (isSaved(cartId)) {
+        await auth.deleteJson(
+          `${apiBase}/v1/me/saved-carts/${encodeURIComponent(cartId)}`,
+        );
+      } else {
+        await auth.postJson(`${apiBase}/v1/me/saved-carts`, { cartId });
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+    onError: (error) =>
+      console.error("[useSavedCarts] Could not update saved carts:", error),
+  });
 
-        return (sc as SavedCartSnapshot).id === cartId;
-      }) as SavedCartSnapshot | undefined,
+  const toggleSavedCart = useCallback(
+    async (cartId: string) => {
+      if (!auth.isAuthenticated) return;
+      await mutation.mutateAsync(cartId).catch(() => {});
+    },
+    [auth.isAuthenticated, mutation],
+  );
+
+  const getSavedCart = useCallback(
+    (cartId: string) => savedCarts.find((sc) => sc.id === cartId),
     [savedCarts],
   );
 
   return {
     savedCarts,
-    isLoading,
-    isError,
+    isLoading: auth.isAuthenticated && (query.isLoading || mutation.isPending),
+    isError: query.isError,
     toggleSavedCart,
     isSaved,
     getSavedCart,

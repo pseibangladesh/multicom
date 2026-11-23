@@ -17,11 +17,10 @@
  */
 
 import { Navigate, Route, Routes } from "react-router-dom";
-import { Suspense } from "react";
+import { Suspense, lazy } from "react";
 
 import { PageNotFound } from "./pages/404";
 import { AdminGuard, AuthenticationGuard } from "./authentication";
-import CategoriesPage from "./pages/admin/categories";
 
 import { ContentLoading } from "@/shared/ui/feedback/content-loading";
 import IndexPage from "@/pages/index";
@@ -30,20 +29,6 @@ import PricingPage from "@/pages/pricing";
 import BlogPage from "@/pages/blog";
 import AboutPage from "@/pages/about";
 import CmsPage from "@/pages/cms-page";
-import UsersAndPermissionsPage from "@/pages/admin/users-and-permissions";
-import ProductsPage from "@/pages/admin/products";
-import CustomersPage from "@/pages/admin/customers";
-import InventoryPage from "@/pages/admin/inventory";
-import OrdersPage from "@/pages/admin/orders";
-import WebhooksPage from "@/pages/admin/webhooks";
-import EmailTemplatesPage from "@/pages/admin/email-templates";
-import RegionsPage from "@/pages/admin/regions";
-import CurrenciesPage from "@/pages/admin/currencies";
-import CountriesPage from "@/pages/admin/countries";
-import WarehousesPage from "@/pages/admin/warehouses";
-import ShippingRatesPage from "@/pages/admin/shipping-rates";
-import ShippingClassesPage from "@/pages/admin/shipping-classes";
-import TaxRatesPage from "@/pages/admin/tax-rates";
 import { SwaggerPage } from "@/pages/swagger";
 import CartPage from "@/pages/cart";
 import ProductPage from "@/pages/product";
@@ -57,11 +42,34 @@ import Addresses from "@/pages/account/addresses";
 import Preferences from "@/pages/account/preferences";
 import LoginPage from "@/pages/Login";
 import { ShellRoute } from "@/layouts/default";
-import AnalyticsPage from "@/pages/admin/analytics";
-import AdminReviewsPage from "@/pages/admin/reviews";
-import PaymentGatewaysPage from "@/pages/admin/payment-gateways";
-import MarketplacesPage from "@/pages/admin/marketplaces";
-import AdminDashboardPage from "@/pages/admin/index";
+
+// Admin code is only downloaded when an admin opens /admin.
+const BuyNowPage = lazy(() => import("@/pages/buy-now"));
+const CategoriesPage = lazy(() => import("@/pages/admin/categories"));
+const UsersAndPermissionsPage = lazy(() => import("@/pages/admin/users-and-permissions"));
+const ProductsPage = lazy(() => import("@/pages/admin/products"));
+const CustomersPage = lazy(() => import("@/pages/admin/customers"));
+const InventoryPage = lazy(() => import("@/pages/admin/inventory"));
+const OrdersPage = lazy(() => import("@/pages/admin/orders"));
+const WebhooksPage = lazy(() => import("@/pages/admin/webhooks"));
+const EmailTemplatesPage = lazy(() => import("@/pages/admin/email-templates"));
+const RegionsPage = lazy(() => import("@/pages/admin/regions"));
+const CurrenciesPage = lazy(() => import("@/pages/admin/currencies"));
+const CountriesPage = lazy(() => import("@/pages/admin/countries"));
+const WarehousesPage = lazy(() => import("@/pages/admin/warehouses"));
+const ShippingRatesPage = lazy(() => import("@/pages/admin/shipping-rates"));
+const ShippingClassesPage = lazy(() => import("@/pages/admin/shipping-classes"));
+const TaxRatesPage = lazy(() => import("@/pages/admin/tax-rates"));
+const AnalyticsPage = lazy(() => import("@/pages/admin/analytics"));
+const AdminReviewsPage = lazy(() => import("@/pages/admin/reviews"));
+const PaymentGatewaysPage = lazy(() => import("@/pages/admin/payment-gateways"));
+const MarketplacesPage = lazy(() => import("@/pages/admin/marketplaces"));
+const AdminDashboardPage = lazy(() => import("@/pages/admin/index"));
+const BannersPage = lazy(() => import("@/pages/admin/banners"));
+const ApiKeysPage = lazy(() => import("@/pages/admin/api-keys"));
+const LanguagesPage = lazy(() => import("@/pages/admin/languages"));
+const AiAgentsPage = lazy(() => import("@/pages/admin/ai-agents"));
+const AdminLayout = lazy(() => import("@/layouts/admin-layout"));
 
 function App() {
   // No app-wide loading screen: public pages render while the session loads,
@@ -82,6 +90,7 @@ function App() {
           <Route element={<IndexPage />} path="/products" />
           <Route element={<Navigate replace to="/" />} path="/index-luxury" />
           <Route element={<CartPage />} path="/cart" />
+          <Route element={<BuyNowPage />} path="/buy-now" />
           <Route element={<SuccessPage />} path="/success" />
           <Route element={<OrderPage />} path="/order/:id" />
           <Route element={<ProductPage />} path="/product/:id" />
@@ -113,163 +122,36 @@ function App() {
           <Route
             element={
               <AdminGuard>
-                <AdminDashboardPage />
+                <AdminLayout />
               </AdminGuard>
             }
             path="/admin"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <UsersAndPermissionsPage />
-              </AdminGuard>
-            }
-            path="/admin/users"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <CategoriesPage />
-              </AdminGuard>
-            }
-            path="/admin/categories"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <ProductsPage />
-              </AdminGuard>
-            }
-            path="/admin/products"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <CustomersPage />
-              </AdminGuard>
-            }
-            path="/admin/customers"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <InventoryPage />
-              </AdminGuard>
-            }
-            path="/admin/inventory"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <OrdersPage />
-              </AdminGuard>
-            }
-            path="/admin/orders"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <WebhooksPage />
-              </AdminGuard>
-            }
-            path="/admin/webhooks"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <EmailTemplatesPage />
-              </AdminGuard>
-            }
-            path="/admin/email-templates"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <RegionsPage />
-              </AdminGuard>
-            }
-            path="/admin/regions"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <CurrenciesPage />
-              </AdminGuard>
-            }
-            path="/admin/currencies"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <CountriesPage />
-              </AdminGuard>
-            }
-            path="/admin/countries"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <WarehousesPage />
-              </AdminGuard>
-            }
-            path="/admin/warehouses"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <ShippingRatesPage />
-              </AdminGuard>
-            }
-            path="/admin/shipping-rates"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <ShippingClassesPage />
-              </AdminGuard>
-            }
-            path="/admin/shipping-classes"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <TaxRatesPage />
-              </AdminGuard>
-            }
-            path="/admin/tax-rates"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <AnalyticsPage />
-              </AdminGuard>
-            }
-            path="/admin/analytics"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <AdminReviewsPage />
-              </AdminGuard>
-            }
-            path="/admin/reviews"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <PaymentGatewaysPage />
-              </AdminGuard>
-            }
-            path="/admin/payment-gateways"
-          />
-          <Route
-            element={
-              <AdminGuard>
-                <MarketplacesPage />
-              </AdminGuard>
-            }
-            path="/admin/marketplaces"
-          />
+          >
+            <Route index element={<AdminDashboardPage />} />
+            <Route element={<UsersAndPermissionsPage />} path="users" />
+            <Route element={<CategoriesPage />} path="categories" />
+            <Route element={<ProductsPage />} path="products" />
+            <Route element={<CustomersPage />} path="customers" />
+            <Route element={<InventoryPage />} path="inventory" />
+            <Route element={<OrdersPage />} path="orders" />
+            <Route element={<WebhooksPage />} path="webhooks" />
+            <Route element={<EmailTemplatesPage />} path="email-templates" />
+            <Route element={<RegionsPage />} path="regions" />
+            <Route element={<CurrenciesPage />} path="currencies" />
+            <Route element={<CountriesPage />} path="countries" />
+            <Route element={<WarehousesPage />} path="warehouses" />
+            <Route element={<ShippingRatesPage />} path="shipping-rates" />
+            <Route element={<ShippingClassesPage />} path="shipping-classes" />
+            <Route element={<TaxRatesPage />} path="tax-rates" />
+            <Route element={<AnalyticsPage />} path="analytics" />
+            <Route element={<AdminReviewsPage />} path="reviews" />
+            <Route element={<PaymentGatewaysPage />} path="payment-gateways" />
+            <Route element={<MarketplacesPage />} path="marketplaces" />
+            <Route element={<BannersPage />} path="banners" />
+            <Route element={<ApiKeysPage />} path="api-keys" />
+            <Route element={<LanguagesPage />} path="languages" />
+            <Route element={<AiAgentsPage />} path="ai-agents" />
+          </Route>
           <Route
             element={<AuthenticationGuard component={SwaggerPage} />}
             path="/openapi"

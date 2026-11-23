@@ -20,6 +20,7 @@ import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { Star } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { WishlistButton } from "./wishlist-button";
 import { ProductImage } from "./product-image";
@@ -35,6 +36,7 @@ import { formatMoney } from "@/utils/currency";
 import { useCartDrawer } from "@/contexts/cart-drawer-context";
 import { useCart } from "@/hooks/use-cart";
 import { StoreProduct } from "@/lib/store-api";
+import { buyNowHref } from "@/lib/checkout-source";
 
 interface Props {
   product: StoreProduct;
@@ -49,9 +51,16 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
   const { t, i18n } = useTranslation();
   const { addItem } = useCart();
   const { open: openCartDrawer } = useCartDrawer();
+  const navigate = useNavigate();
   const reviewsRef = useRef<HTMLDivElement>(null);
 
   // Local state for managing variant selection
+  // Photo picked from the thumbnails, remembered per variant so picking a
+  // variant shows that variant's image again.
+  const [photoChoice, setPhotoChoice] = useState<{
+    sku: string;
+    index: number;
+  } | null>(null);
   const [selectedSku, setSelectedSku] = useState<string>(
     product.variants[0]?.sku || "",
   );
@@ -75,10 +84,32 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
     .map((t) => t.trim())
     .filter(Boolean);
 
-  const image =
-    variant?.image_url ||
-    product.image_url ||
-    "https://placehold.co/400x400/1a1a1a/666?text=No+Image";
+  // Photos to show: the selected variant's own image first (when it has one
+  // that isn't already in the gallery), then the product gallery.
+  const gallery = (product.images ?? []).map((img) => ({
+    url: img.url,
+    alt: img.alt ? resolveTitle(img.alt, i18n.language) : "",
+  }));
+  const photos =
+    variant?.image_url && !gallery.some((g) => g.url === variant.image_url)
+      ? [{ url: variant.image_url, alt: "" }, ...gallery]
+      : gallery.length > 0
+        ? gallery
+        : product.image_url
+          ? [{ url: product.image_url, alt: "" }]
+          : [];
+  // A variant's image is shown when that variant is picked.
+  const variantPhotoIndex = variant?.image_url
+    ? Math.max(
+        0,
+        photos.findIndex((p) => p.url === variant.image_url),
+      )
+    : 0;
+  const shownIndex = Math.min(
+    photoChoice?.sku === selectedSku ? photoChoice.index : variantPhotoIndex,
+    Math.max(0, photos.length - 1),
+  );
+  const shown = photos[shownIndex];
 
   // Resolve description for current locale
   const descriptionHtml = resolveDescription(
@@ -125,10 +156,44 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
       <div className="grid items-start gap-8 md:grid-cols-2 md:gap-12">
         <div className="group md:sticky md:top-24">
           <ProductImage
-            src={image}
-            alt={displayTitle}
+            alt={shown?.alt || displayTitle}
+            src={shown?.url}
             variantCount={product.variants.length}
           />
+          {photos.length > 1 && (
+            <ul
+              aria-label={t("product-photos")}
+              className="flex gap-2 overflow-x-auto pb-1"
+            >
+              {photos.map((p, i) => (
+                <li key={p.url} className="shrink-0">
+                  <button
+                    aria-current={i === shownIndex ? "true" : undefined}
+                    aria-label={t("product-photo-show", {
+                      n: i + 1,
+                      total: photos.length,
+                    })}
+                    className={`block h-16 w-16 overflow-hidden rounded-md border-2 bg-bx-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-bx-primary focus-visible:ring-offset-2 md:h-20 md:w-20 ${
+                      i === shownIndex
+                        ? "border-bx-primary"
+                        : "border-transparent hover:border-bx-line"
+                    }`}
+                    type="button"
+                    onClick={() =>
+                      setPhotoChoice({ sku: selectedSku, index: i })
+                    }
+                  >
+                    <img
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      src={p.url}
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div>
@@ -290,9 +355,46 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
             </div>
           )}
 
+          {/* Options and availability of the selected variant */}
+          {(variant?.color || variant?.size || variant?.availability) && (
+            <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+              {variant.color && (
+                <>
+                  <dt className="text-bx-stone">{t("product-color")}</dt>
+                  <dd className="text-bx-ink">{variant.color}</dd>
+                </>
+              )}
+              {variant.size && (
+                <>
+                  <dt className="text-bx-stone">{t("product-size")}</dt>
+                  <dd className="text-bx-ink">{variant.size}</dd>
+                </>
+              )}
+              {variant.availability && (
+                <>
+                  <dt className="text-bx-stone">{t("product-availability")}</dt>
+                  <dd
+                    className={
+                      variant.availability === "out_of_stock"
+                        ? "font-medium text-danger"
+                        : "font-medium text-bx-primary"
+                    }
+                  >
+                    {variant.availability === "out_of_stock"
+                      ? t("availability-out-of-stock")
+                      : variant.availability === "preorder"
+                        ? t("availability-preorder")
+                        : t("availability-in-stock")}
+                  </dd>
+                </>
+              )}
+            </dl>
+          )}
+
           {/* Add to cart + save */}
           <div className="flex items-center gap-2">
             <Button
+              isDisabled={variant?.availability === "out_of_stock"}
               onPress={() => {
                 addItem({
                   sku: selectedSku,
@@ -310,7 +412,22 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
               variant="primary"
               className="flex-1 rounded-md"
             >
-              {t("add-to-cart")}
+              {variant?.availability === "out_of_stock"
+                ? t("availability-out-of-stock")
+                : variant?.availability === "preorder"
+                  ? t("availability-preorder-btn")
+                  : t("add-to-cart")}
+            </Button>
+            {/* Straight to a checkout of this one product; the cart is untouched. */}
+            <Button
+              className="flex-1 rounded-md"
+              isDisabled={!variant || variant.availability === "out_of_stock"}
+              variant="secondary"
+              onPress={() => navigate(buyNowHref(product.id, selectedSku))}
+            >
+              {variant?.availability === "preorder"
+                ? t("product-preorder-now")
+                : t("product-buy-now")}
             </Button>
             <WishlistButton productId={product.id} />
           </div>

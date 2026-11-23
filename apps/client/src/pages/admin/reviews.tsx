@@ -18,9 +18,9 @@
 
 // apps/client/src/pages/admin/reviews.tsx
 // Admin page to moderate product reviews (approve / reject).
-// Users with AI_PERMISSION can use AI-assisted analysis, including batch processing.
+// Admins can use AI-assisted analysis, including batch processing.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Chip } from "@heroui/react";
@@ -37,14 +37,13 @@ import {
 
 export default function AdminReviewsPage() {
   const { t, i18n } = useTranslation();
-  const { getJson, patchJson, hasPermission } = useSecuredApi();
+  const { getJson, patchJson, isAdmin: canUseAi } = useSecuredApi();
   const apiBase = getApiBase();
 
   // Per-row moderation state
   const [moderating, setModerating] = useState<string | null>(null);
 
   // AI permission + analysis state
-  const [canUseAi, setCanUseAi] = useState(false);
   const [aiAnalyses, setAiAnalyses] = useState<
     Map<string, ReviewAnalysisResult>
   >(new Map());
@@ -56,14 +55,6 @@ export default function AdminReviewsPage() {
 
   // Batch selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  const aiPermission = (import.meta as any).env?.AI_PERMISSION || "ai:api";
-
-  useEffect(() => {
-    hasPermission(aiPermission)
-      .then(setCanUseAi)
-      .catch(() => setCanUseAi(false));
-  }, [hasPermission, aiPermission]);
 
   const { data, isLoading, refetch } = useQuery<{ items: any[] }>({
     queryKey: ["admin-reviews"],

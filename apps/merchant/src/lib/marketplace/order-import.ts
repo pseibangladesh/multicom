@@ -19,6 +19,7 @@
  * what is available is deducted and the shortfall is reported (oversold).
  */
 import type { Database } from '../../db';
+import { recalcCustomerStats } from '../customers';
 import { uuid } from '../../types';
 import { commitSale, getAvailableQty, reserveInventory } from '../inventory';
 import { resolveBuyerEmail } from './buyer';
@@ -196,11 +197,7 @@ async function importOne(db: Database, channelId: string, order: MarketOrder, re
       `UPDATE marketplace_orders SET internal_order_id = ?, status = ?, updated_at = datetime('now') WHERE id = ?`,
       [orderId, order.status, claimId],
     );
-    await db.run(
-      `UPDATE customers SET order_count = order_count + 1, total_spent_cents = total_spent_cents + ?,
-         last_order_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
-      [order.totalCents, customerId],
-    );
+    await recalcCustomerStats(db, customerId);
   } catch (err) {
     // Undo in FK order so the next run can retry this order from scratch.
     await db.run(`DELETE FROM marketplace_order_lines WHERE marketplace_order_id = ?`, [claimId]).catch(() => {});

@@ -50,6 +50,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { SignJWT, jwtVerify } from 'jose';
 import { getDb } from '../db';
+import { resolveCustomer } from '../lib/customers';
 import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { ApiError, type HonoEnv } from '../types';
 
@@ -146,10 +147,7 @@ customerApp.openapi(listOrderDownloads, async (c) => {
   const db = getDb(c.var.db);
 
   // Resolve customer by Better Auth session user_id → email match
-  const [customer] = await db.query<any>(
-    `SELECT id FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
+  const customer = await resolveCustomer(db, userId);
 
   if (!customer) throw ApiError.unauthorized('Customer not found');
 

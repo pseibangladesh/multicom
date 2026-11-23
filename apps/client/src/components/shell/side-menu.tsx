@@ -28,8 +28,8 @@ import {
 import { useAuth } from "@/authentication";
 import { MENU_INFO_LINKS } from "@/config/navigation";
 import { useTheme } from "@/hooks/use-theme";
-import { applyLanguage, availableLanguages, languageDirection } from "@/i18n";
-import { getBaseURL } from "@/utils/base-url";
+import { applyLanguage, languageDirection } from "@/i18n";
+import { useOfferedLanguages } from "@/lib/storefront-languages";
 
 interface SideMenuProps {
   isOpen: boolean;
@@ -45,6 +45,7 @@ const INFO_ICONS: Record<string, () => ReactElement> = {
 
 export function SideMenu({ isOpen, onClose, onLogin }: SideMenuProps) {
   const { t, i18n } = useTranslation();
+  const offeredLanguages = useOfferedLanguages();
   const { isAuthenticated, user, logout } = useAuth();
   const { isDark, setLightTheme, setDarkTheme } = useTheme();
   const location = useLocation();
@@ -65,14 +66,7 @@ export function SideMenu({ isOpen, onClose, onLogin }: SideMenuProps) {
 
   const logOut = () => {
     onClose();
-    void logout({
-      logoutParams: {
-        returnTo: new URL(
-          getBaseURL() || "/",
-          window.location.origin,
-        ).toString(),
-      },
-    });
+    void logout(); // back to the store's home page
   };
 
   return (
@@ -154,7 +148,7 @@ export function SideMenu({ isOpen, onClose, onLogin }: SideMenuProps) {
                     value={i18n.language}
                     onChange={(e) => void applyLanguage(e.target.value)}
                   >
-                    {availableLanguages.map((l) => (
+                    {offeredLanguages.map((l) => (
                       <option key={l.code} lang={l.code} value={l.code}>
                         {l.nativeName}
                       </option>

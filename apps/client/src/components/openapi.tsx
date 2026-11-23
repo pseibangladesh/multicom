@@ -123,7 +123,7 @@ export function OpenAPI({
   /**
    * whenever a bearer token is provided by the parent, apply it
    * to the UI. the parent is responsible for refreshing/obtaining
-   * a token (e.g. via Auth0) so this component has no SDK
+   * a token (e.g. an API key) so this component has no SDK
    * dependency.
    */
   useEffect(() => {

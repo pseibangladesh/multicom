@@ -11,6 +11,7 @@ import { Card } from "@heroui/react";
 
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
+import { ADMIN_NAV } from "@/config/admin-nav";
 import { formatMoney } from "@/utils/currency";
 
 interface DashboardOrder {
@@ -66,8 +67,8 @@ export default function AdminDashboardPage() {
 
   return (
     <>
-      <div className="max-w-5xl mx-auto py-12 px-4">
-        <h1 className="text-3xl font-bold mb-6">
+      <div>
+        <h1 className="mb-6 font-display text-3xl text-bx-ink">
           {t("admin-dashboard-title")}
         </h1>
 
@@ -93,6 +94,43 @@ export default function AdminDashboardPage() {
             </RouterLink>
           ))}
         </div>
+
+        {/* Every admin module, from the same list as the sidebar */}
+        <section aria-labelledby="admin-all-modules" className="mb-8">
+          <h2
+            className="mb-4 text-lg font-semibold text-bx-ink"
+            id="admin-all-modules"
+          >
+            {t("admin-dashboard-all-modules")}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {ADMIN_NAV.filter((g) => g.labelKey !== "admin-nav-overview").map(
+              (group) => (
+                <div
+                  key={group.labelKey}
+                  className="rounded-md border border-bx-line bg-bx-surface-raised p-4"
+                >
+                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-bx-stone">
+                    {t(group.labelKey)}
+                  </h3>
+                  <ul className="flex flex-col gap-1">
+                    {group.items.map(({ href, icon: Icon, labelKey }) => (
+                      <li key={href}>
+                        <RouterLink
+                          className="flex items-center gap-2 rounded px-1 py-1 text-sm text-bx-ink hover:text-bx-primary hover:underline"
+                          to={href}
+                        >
+                          <Icon aria-hidden className="h-4 w-4 text-bx-stone" />
+                          {t(labelKey)}
+                        </RouterLink>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ),
+            )}
+          </div>
+        </section>
 
         <Card>
           <Card.Header className="flex items-center justify-between">

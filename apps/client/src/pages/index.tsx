@@ -17,9 +17,9 @@
  */
 
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { Button, Spinner } from "@heroui/react";
-import { useState, useEffect, useRef } from "react";
+import { Fragment, useState, useEffect, useRef } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
 import {
@@ -30,6 +30,10 @@ import {
 } from "@/lib/store-api";
 import { ProductCard } from "@/components/product-card";
 import { CategoryNav } from "@/components/category-nav";
+import { ShowcaseRow } from "@/components/showcase-row";
+import { CategoryRow } from "@/components/category-row";
+import { BestSellersRow } from "@/components/best-sellers-row";
+import { useHomeSections } from "@/lib/home-sections";
 import { HomeHero } from "@/components/home-hero";
 import { useCategories } from "@/hooks/use-categories";
 import { resolveTitle } from "@/utils/description";
@@ -49,6 +53,16 @@ export default function IndexPage() {
 
   // Resolve localised category name for the page heading
   const { data: categories } = useCategories();
+  // ?category= for a category shoppers can't see (showcase-only, inactive,
+  // deleted): say so instead of showing a load error.
+  const categoryUnknown =
+    !!categoryHandle &&
+    !term &&
+    categories !== undefined &&
+    !categories.some((c) => c.handle === categoryHandle);
+
+  // Landing page: the sections from Admin → Page builder, in order.
+  const { sections } = useHomeSections(isLanding);
   const categoryName = categoryHandle
     ? resolveTitle(
         categories?.find((c) => c.handle === categoryHandle)?.name ??
@@ -85,7 +99,7 @@ export default function IndexPage() {
       lastPage.pagination.has_more
         ? lastPage.pagination.next_cursor
         : undefined,
-    enabled: !!categoryHandle && !term,
+    enabled: !!categoryHandle && !term && !categoryUnknown,
   });
 
   // Browse mode — active when no search term and no category
@@ -155,83 +169,128 @@ export default function IndexPage() {
     setFocusFrom(null);
   }, [focusFrom, safeProducts.length]);
 
+  if (categoryUnknown) {
+    return (
+      <div className="mx-auto max-w-7xl py-6">
+        <h1 className="mb-4 font-display text-3xl text-bx-ink">
+          {t("category-not-found")}
+        </h1>
+        <p className="mb-4 text-bx-ink-soft">{t("category-not-found-body")}</p>
+        <RouterLink className="text-bx-accent underline" to="/">
+          {t("buy-now-continue-shopping")}
+        </RouterLink>
+      </div>
+    );
+  }
+
+  const catalogue = (
+    <div className="mx-auto flex max-w-7xl gap-6 py-6">
+      {/* Sidebar — categories navigation (hidden on mobile) */}
+      <aside className="hidden md:block w-56 shrink-0">
+        <CategoryNav showImages={false} />
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 min-w-0">
+        {/* Page heading: on the landing page the hero owns the <h1>. */}
+        {isLanding ? (
+          <h2
+            className="mb-6 scroll-mt-24 font-display text-3xl text-bx-ink"
+            id="catalogue"
+          >
+            {t("shop-products-title")}
+          </h2>
+        ) : (
+          <h1 className="mb-6 font-display text-3xl text-bx-ink">
+            {term ? t("search-results-for", { term }) : categoryName}
+          </h1>
+        )}
+
+        {/* State: loading */}
+        {productsLoading && (
+          <div className="flex justify-center items-center py-20">
+            <Spinner size="lg" />
+          </div>
+        )}
+
+        {/* State: error */}
+        {productsError && !productsLoading && (
+          <p className="text-center text-danger">{t("products-error")}</p>
+        )}
+
+        {/* State: empty */}
+        {!productsLoading && !productsError && safeProducts.length === 0 && (
+          <p className="text-center text-default-500">
+            {t("admin-products-empty")}
+          </p>
+        )}
+
+        {/* Product grid */}
+        {safeProducts.length > 0 && (
+          <>
+            <div
+              ref={gridRef}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+            >
+              {safeProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  selectedSku={selectedVariants[product.id]}
+                  onSelectVariant={handleVariantChange}
+                  categoryHandle={categoryHandle || undefined}
+                />
+              ))}
+            </div>
+
+            {!term && hasNextPage && (
+              <div className="mt-8 flex justify-center">
+                <Button
+                  isPending={isFetchingNextPage}
+                  variant="outline"
+                  onPress={loadMore}
+                >
+                  {t("catalogue-load-more")}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  if (!isLanding) return catalogue;
+
+  // "Shop by category" then "Best sellers" go right under the first banner,
+  // or first if there is no banner.
+  const bannerIndex = sections.findIndex((s) => s.type === "banner");
+
   return (
     <>
-      {isLanding && <HomeHero />}
-      <div className="mx-auto flex max-w-7xl gap-6 py-6">
-        {/* Sidebar — categories navigation (hidden on mobile) */}
-        <aside className="hidden md:block w-56 shrink-0">
-          <CategoryNav showImages={false} />
-        </aside>
-
-        {/* Main content */}
-        <div className="flex-1 min-w-0">
-          {/* Page heading: on the landing page the hero owns the <h1>. */}
-          {isLanding ? (
-            <h2
-              className="mb-6 scroll-mt-24 font-display text-3xl text-bx-ink"
-              id="catalogue"
-            >
-              {t("shop-products-title")}
-            </h2>
+      {bannerIndex === -1 && (
+        <>
+          <CategoryRow />
+          <BestSellersRow />
+        </>
+      )}
+      {sections.map((section, i) => (
+        <Fragment key={section.id}>
+          {section.type === "banner" ? (
+            <HomeHero />
+          ) : section.type === "catalogue" ? (
+            catalogue
           ) : (
-            <h1 className="mb-6 font-display text-3xl text-bx-ink">
-              {term ? t("search-results-for", { term }) : categoryName}
-            </h1>
+            <ShowcaseRow section={section} />
           )}
-
-          {/* State: loading */}
-          {productsLoading && (
-            <div className="flex justify-center items-center py-20">
-              <Spinner size="lg" />
-            </div>
-          )}
-
-          {/* State: error */}
-          {productsError && !productsLoading && (
-            <p className="text-center text-danger">{t("products-error")}</p>
-          )}
-
-          {/* State: empty */}
-          {!productsLoading && !productsError && safeProducts.length === 0 && (
-            <p className="text-center text-default-500">
-              {t("admin-products-empty")}
-            </p>
-          )}
-
-          {/* Product grid */}
-          {safeProducts.length > 0 && (
+          {i === bannerIndex && (
             <>
-              <div
-                ref={gridRef}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-              >
-                {safeProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    selectedSku={selectedVariants[product.id]}
-                    onSelectVariant={handleVariantChange}
-                    categoryHandle={categoryHandle || undefined}
-                  />
-                ))}
-              </div>
-
-              {!term && hasNextPage && (
-                <div className="mt-8 flex justify-center">
-                  <Button
-                    isPending={isFetchingNextPage}
-                    variant="outline"
-                    onPress={loadMore}
-                  >
-                    {t("catalogue-load-more")}
-                  </Button>
-                </div>
-              )}
+              <CategoryRow />
+              <BestSellersRow />
             </>
           )}
-        </div>
-      </div>
+        </Fragment>
+      ))}
     </>
   );
 }

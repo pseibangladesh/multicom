@@ -83,21 +83,14 @@ export default function EmailTemplatesPage() {
   const { t, i18n } = useTranslation();
   const apiBase = getApiBase();
   const queryClient = useQueryClient();
-  const { getJson, putJson, postJson, hasPermission } = useSecuredApi();
+  const { getJson, putJson, postJson, isAdmin } = useSecuredApi();
 
   const [selectedEvent, setSelectedEvent] = useState<OrderEmailEvent>("global");
   const [savedEvent, setSavedEvent] = useState<OrderEmailEvent | null>(null);
 
-  // ── Mail permission ───────────────────────────────────────────────────
-  const [canSendTest, setCanSendTest] = useState(false);
-  const mailPermission =
-    (import.meta as any).env?.MAIL_PERMISSION || "mail:api";
-
-  useEffect(() => {
-    hasPermission(mailPermission)
-      .then(setCanSendTest)
-      .catch(() => setCanSendTest(false));
-  }, [hasPermission, mailPermission]);
+  // Sending test mail and AI help are admin-only on the server too.
+  const canSendTest = isAdmin;
+  const canUseAi = isAdmin;
 
   // ── Locale selector ────────────────────────────────────────────────────
   const defaultLocale =
@@ -110,17 +103,8 @@ export default function EmailTemplatesPage() {
       : defaultLocale;
   });
 
-  // ── AI permission ─────────────────────────────────────────────────────
-  const [canUseAi, setCanUseAi] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isTranslatingSubject, setIsTranslatingSubject] = useState(false);
-  const aiPermission = (import.meta as any).env?.AI_PERMISSION || "ai:api";
-
-  useEffect(() => {
-    hasPermission(aiPermission)
-      .then(setCanUseAi)
-      .catch(() => setCanUseAi(false));
-  }, [hasPermission, aiPermission]);
 
   // ── Test email state ──────────────────────────────────────────────────
   const [testEmailAddress, setTestEmailAddress] = useState("");
@@ -929,7 +913,7 @@ export default function EmailTemplatesPage() {
                     )}
                   </div>
 
-                  {/* Send test email (requires MAIL_PERMISSION) */}
+                  {/* Send test email (admin only) */}
                   {canSendTest && (
                     <div className="border-t pt-4 space-y-3">
                       <p className="text-xs font-semibold text-default-500 uppercase tracking-wide">

@@ -18,7 +18,7 @@
 
 import type React from "react";
 
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import { Outlet } from "react-router-dom";
 
 import { CartDrawer } from "@/components/cart-drawer";
@@ -26,6 +26,8 @@ import { SideMenu } from "@/components/shell/side-menu";
 import { SiteFooter } from "@/components/shell/site-footer";
 import { SiteHeader } from "@/components/shell/site-header";
 import { useCartDrawer } from "@/contexts/cart-drawer-context";
+import { ContentLoading } from "@/shared/ui/feedback/content-loading";
+import { useLanguagePolicy } from "@/lib/storefront-languages";
 import { LoginModal } from "@/features/auth/components/login-modal";
 
 /**
@@ -34,9 +36,13 @@ import { LoginModal } from "@/features/auth/components/login-modal";
  * page inside changes. Pages render only their own content.
  */
 export function ShellRoute() {
+  useLanguagePolicy(); // Admin → Languages: default and switched-off languages
   return (
     <Shell>
-      <Outlet />
+      {/* Lazy pages (admin) load inside the shell, so header and footer stay. */}
+      <Suspense fallback={<ContentLoading />}>
+        <Outlet />
+      </Suspense>
     </Shell>
   );
 }

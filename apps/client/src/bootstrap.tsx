@@ -12,6 +12,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./app.tsx";
 import "./i18n";
 import { Provider } from "./provider.tsx";
+import { CartProvider } from "./hooks/use-cart";
+import { CartDrawerProvider } from "./contexts/cart-drawer-context";
 import { CookieConsentProvider } from "./contexts/cookie-consent-context.tsx";
 import { AuthenticationProvider } from "./authentication";
 
@@ -32,8 +34,13 @@ export function renderApp(root: Root) {
             <CookieConsentProvider>
               <AuthenticationProvider>
                 <QueryClientProvider client={queryClient}>
-                  <CookieConsent />
-                  <App />
+                  {/* Inside auth: each signed-in user has their own cart. */}
+                  <CartProvider>
+                    <CartDrawerProvider>
+                      <CookieConsent />
+                      <App />
+                    </CartDrawerProvider>
+                  </CartProvider>
                 </QueryClientProvider>
               </AuthenticationProvider>
             </CookieConsentProvider>

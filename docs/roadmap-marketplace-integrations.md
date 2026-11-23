@@ -28,7 +28,7 @@ This roadmap details the implementation of marketplace integrations for Etsy, eB
 
 **Key principles:**
 - Build a unified `IMarketplaceClient` interface; all platforms implement it
-- Reuse existing auth middleware (API keys + Auth0 JWT) for admin routes
+- Reuse existing auth middleware (API keys + admin sessions) for admin routes
 - Store all credentials encrypted in R2 or KV; never in plain text
 - Implement per-platform rate limiting with Cloudflare KV sliding windows
 - Webhooks receive external events → enqueue → process asynchronously
@@ -140,7 +140,7 @@ Create migration `037_marketplace_channels.sql` applied in `do.ts`:
 CREATE TABLE IF NOT EXISTS marketplace_channels (
   id TEXT PRIMARY KEY,
   platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
-  store_id TEXT NOT NULL,            -- Auth0 sub or admin user ID who owns this channel
+  store_id TEXT NOT NULL,            -- admin user ID who owns this channel
   external_shop_id TEXT,             -- Etsy shop_id, eBay userId, Amazon SellerId
   config_json TEXT NOT NULL DEFAULT '{}',  -- JSON: settings, flags, last_sync_at
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'error')),

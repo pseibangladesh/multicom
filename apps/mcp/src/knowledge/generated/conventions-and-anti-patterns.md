@@ -76,8 +76,8 @@ Never use `useEffect` to synchronize state; use React Query for server state, de
 const { data } = useQuery('key', fetchData);
 ```
 
-### Auth0 Token Storage
-Never store the Auth0 access token in localStorage or sessionStorage; the Auth0 React SDK stores it in memory.
+### Session Storage
+Never keep session tokens in localStorage or sessionStorage. The Better Auth session is an HttpOnly cookie; send requests with `credentials: "include"` (`useSecuredApi()` does this).
 
 ### Permission Strings
 Never hardcode permission strings; use `import.meta.env.PERMISSIONS` (frontend) or the permissions array from the JWT (backend middleware).
@@ -87,13 +87,8 @@ Never hardcode permission strings; use `import.meta.env.PERMISSIONS` (frontend) 
 const permissions = import.meta.env.PERMISSIONS;
 ```
 
-### Auth0 Management API
-Never call the Auth0 Management API from the frontend without using the `getAuth0ManagementToken()` helper; raw Management API tokens must not be exposed in the browser.
-
-```typescript
-// Correct
-const token = await getAuth0ManagementToken();
-```
+### Customer Identity
+Never trust a customer id or email sent by the client on `/v1/me/*` routes; derive the customer from the session with `resolveCustomer()`.
 
 ### Admin Route Protection
 Always wrap admin routes in `AuthenticationGuardWithPermission` in `app.tsx`; never rely only on UI hiding.
@@ -179,8 +174,8 @@ Always add new i18n keys to `en-US.json` first (master language), then to all ot
 const translation = t('new_key');
 ```
 
-### Auth0 user_metadata
-Avoid adding fields to the Auth0 `user_metadata` for data that should be in the DB; `user_metadata` is for client-managed preferences only (wishlist, UI prefs).
+### Per-customer Data
+Wishlist, saved carts, the cart and preferences belong on the server under `/v1/me/*`, not in localStorage, so they follow the customer to any device.
 
 ### dangerouslySetInnerHTML
 Do not use `dangerouslySetInnerHTML` outside of `renderDescription()`; all user-generated HTML has already been sanitized by the backend.
@@ -207,14 +202,14 @@ Never use the `radius` prop on Button — use Tailwind classes (e.g., `rounded-n
 ### Using useEffect for State Synchronization
 Never use `useEffect` to synchronize state — use React Query for server state, derive UI state from props/query data.
 
-### Storing Auth0 Access Token in localStorage/sessionStorage
-Never store the Auth0 access token in localStorage or sessionStorage — the Auth0 React SDK stores it in memory.
+### Storing Session Tokens in localStorage/sessionStorage
+Never do it — the session is an HttpOnly cookie.
 
 ### Hardcoding Permission Strings
 Never hardcode permission strings — use `import.meta.env.PERMISSIONS` (frontend) or the permissions array from the JWT (backend middleware).
 
-### Direct Auth0 Management API Calls
-Never call the Auth0 Management API from the frontend without going through the `getAuth0ManagementToken()` helper — raw Management API tokens must not be exposed in the browser.
+### Taking the Customer from the Request Body
+Never do it — use `resolveCustomer(db, auth.userId)`.
 
 ### Relying Only on UI Hiding for Admin Routes
 Never rely only on UI hiding for admin routes — always wrap admin routes in `AuthenticationGuardWithPermission` in `app.tsx`.
@@ -240,8 +235,8 @@ Never use a plain `<input type="file">` for image uploads — always use the `Im
 ### Missing i18n Keys in en-US.json
 Never use `t()` without a translation key that exists in `en-US.json` — always add new i18n keys to `en-US.json` first (master language), then to all other locale files.
 
-### Misusing Auth0 user_metadata
-Never add fields to the Auth0 `user_metadata` for data that should be in the DB — `user_metadata` is for client-managed preferences only (wishlist, UI prefs).
+### Keeping Customer Data in the Browser
+Never keep a signed-in customer's data in localStorage; it would show up for the next person on a shared browser.
 
 ### Improper Use of dangerouslySetInnerHTML
 Never use `dangerouslySetInnerHTML` outside of `renderDescription()` — all user-generated HTML has already been sanitized by the backend.

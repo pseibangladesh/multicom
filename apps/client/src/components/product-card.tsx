@@ -145,6 +145,7 @@ export const ProductCard: React.FC<Props> = ({
         {/* Actions */}
         <div className="flex gap-2 mt-2 items-center">
           <Button
+            isDisabled={variant.availability === "out_of_stock"}
             onPress={() => {
               addItem({
                 sku: variant.sku,
@@ -160,7 +161,11 @@ export const ProductCard: React.FC<Props> = ({
             className="rounded-md flex-1 text-sm"
             size="sm"
           >
-            {t("add-to-cart")}
+            {variant.availability === "out_of_stock"
+              ? t("availability-out-of-stock")
+              : variant.availability === "preorder"
+                ? t("availability-preorder-btn")
+                : t("add-to-cart")}
           </Button>
           <WishlistButton productId={product.id} size="sm" />
         </div>

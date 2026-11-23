@@ -12,131 +12,48 @@
   source_file_hashes:
     apps/client/src/hooks/use-wishlist.ts: 5f81fa0ccca254095d593a9ae2e4d4890f135cfc78b287a128ee336a91c7f3c8
 -->
-<!--mcp-tags: ["user","auth0","frontend","backend","commerce"]-->
+<!--mcp-tags: ["user","account","frontend","backend","commerce"]-->
 
 ## User Preferences & Wishlist Reference
 
-### Wishlist Storage
-Wishlist data is stored in Auth0's `user_metadata` under the key `"wishlist"` as an array of product IDs. This approach is chosen over SQL storage because:
-- Wishlist is inherently user-specific data
-- Auth0 provides built-in JWT integration for easy client-side access
-- No complex queries or relationships are required
+All per-customer state is stored **on the server**, keyed by the signed-in session, so it is the same on every device and never left behind in a shared browser. Every route uses `customerAuthMiddleware` + `resolveCustomer()`, so a customer can only reach their own data.
 
-The data structure in Auth0 user_metadata:
-```typescript
-{
-  "wishlist": ["prod_123", "prod_456"]
-}
-```
+### Wishlist
 
-### useWishlist() Hook
-The hook returns an object with the following properties:
+- Stored in `customers.metadata.wishlist` (array of product ids).
+- `GET /v1/me/wishlist` → `{ wishlist }`
+- `POST /v1/me/wishlist { productId }` → `{ wishlist }`
+- `DELETE /v1/me/wishlist/:productId` → `{ wishlist }`
 
-```typescript
-interface UseWishlistReturn {
-  wishlist: string[]; // Array of product IDs
-  isLoading: boolean;
-  isError: boolean;
-  addToWishlist: (productId: string) => Promise<void>;
-  removeFromWishlist: (productId: string) => Promise<void>;
-  isInWishlist: (productId: string) => boolean;
-  toggleWishlist: (productId: string) => Promise<void>; // Convenience method
-}
-```
+`useWishlist()` (`apps/client/src/hooks/use-wishlist.ts`) is a React Query hook keyed `["me", userId, "wishlist"]`:
 
-**Usage Example with Heart Button:**
 ```tsx
-import { useWishlist } from "@/hooks/use-wishlist";
-import { HeartIcon } from "@heroicons/react/24/outline";
+const { wishlist, isLoading, isError, toggle, isFavorite } = useWishlist();
 
-function ProductCard({ productId }: { productId: string }) {
-  const { isInWishlist, toggleWishlist } = useWishlist();
-  const isFavorite = isInWishlist(productId);
-
-  return (
-    <button
-      onClick={() => toggleWishlist(productId)}
-      className="p-2 rounded-full hover:bg-gray-100"
-    >
-      <HeartIcon
-        className={`h-6 w-6 ${isFavorite ? "text-red-500 fill-red-500" : "text-gray-400"}`}
-      />
-    </button>
-  );
-}
+<Button isIconOnly onPress={() => toggle(product.id)}>
+  <Heart fill={isFavorite(product.id) ? "currentColor" : "none"} />
+</Button>
 ```
 
-### Auth0 Management API Call
-Wishlist mutations use the Auth0 Management API with these details:
-- Endpoint: `PATCH /api/v2/users/:userId/metadata`
-- Token obtained via `getAuth0ManagementToken()` helper
-- Token cached in memory for 60 seconds
+Signed out, the list is empty; `WishlistButton` opens the login modal instead.
 
-Example API call:
-```typescript
-const managementToken = await getAuth0ManagementToken();
-await fetch(`${auth0Domain}/api/v2/users/${userId}/metadata`, {
-  method: 'PATCH',
-  headers: {
-    'Authorization': `Bearer ${managementToken}`,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    wishlist: updatedProductIds
-  })
-});
-```
+### Account cart
 
-### Saved Cart
-Saved carts are stored in the `saved_carts` SQL table with these endpoints:
-- `GET /v1/me/saved-cart` - Retrieve saved cart
-- `PUT /v1/me/saved-cart` - Upsert saved cart
-- `DELETE /v1/me/saved-cart` - Delete saved cart
+- Table `customer_carts` (one row per customer, `items` JSON).
+- `GET /v1/me/cart` → `{ items }`; `PUT /v1/me/cart { items }` (max 100 lines, qty 1–999).
+- `CartProvider` (`hooks/use-cart.tsx`):
+  - signed out: cart kept in localStorage (`merchant_cart:guest`);
+  - on sign-in: loads the account cart, merges the guest cart into it (same SKU → quantities summed), saves, and clears the guest copy;
+  - while signed in: changes are saved to the server (debounced 400 ms, flushed on page hide).
 
-Auto-save behavior:
-- Loads automatically on user login
-- Saves changes with 2-second debounce
+### Saved carts
 
-### CartProvider Integration
-The `CartProvider` in `apps/client/src/contexts/cart-context.tsx` handles:
-```typescript
-// Auto-load on login
-useEffect(() => {
-  if (auth.isAuthenticated) {
-    loadSavedCart();
-  }
-}, [auth.isAuthenticated]);
+- Snapshots in `customers.metadata`.
+- `GET /v1/me/saved-carts` → `{ saved_carts }` (newest first)
+- `POST /v1/me/saved-carts` saves a cart; it must belong to the customer's email (404 otherwise).
+- `DELETE /v1/me/saved-carts/:cartId`
+- Hook: `useSavedCarts()`.
 
-// Auto-save with debounce
-const debouncedSave = useDebounce(saveToServer, 2000);
-useEffect(() => {
-  if (auth.isAuthenticated) {
-    debouncedSave();
-  }
-}, [cartItems]);
-```
+### Preferences
 
-### User Preferences
-Preferences are stored in the `user_preferences` table with these endpoints:
-- `GET /v1/me/preferences` - Retrieve preferences
-- `PUT /v1/me/preferences` - Update preferences
-
-Stored fields include:
-```typescript
-interface UserPreferences {
-  locale: string; // e.g., "en-US"
-  currencyDisplay: string; // e.g., "USD"
-  // ... other preference fields
-}
-```
-
-Both endpoints require `customerAuthMiddleware`. Example usage:
-```typescript
-const { data: preferences } = useFetch<UserPreferences>("/v1/me/preferences");
-
-// Update preferences
-await fetch("/v1/me/preferences", {
-  method: "PUT",
-  body: JSON.stringify({ locale: "fr-FR" })
-});
-```
+`GET /v1/me/preferences` and `PUT /v1/me/preferences`, stored on the customer record.

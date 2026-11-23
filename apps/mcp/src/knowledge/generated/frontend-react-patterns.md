@@ -97,7 +97,7 @@ import { ProductTagsPage } from "@/pages/admin/product-tags";
 
 ## Navbar Permission System
 
-The navbar automatically shows/hides items based on Auth0 permissions by filtering `siteConfig().navItems`:
+The navigation shows admin-only items (`adminOnly: true` in `siteConfig().navItems`) only to admin sessions (`user.is_admin`, i.e. ADMIN_EMAILS):
 
 ```typescript
 // Public items (permissions: [])

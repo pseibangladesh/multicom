@@ -84,7 +84,7 @@ async function encryptSecret(plain: string, password: string): Promise<string> {
   return btoa(String.fromCharCode(...salt, ...ct));
 }
 
-async function setup(opts: { currency?: string; onHand?: number } = {}) {
+async function setup(opts: { currency?: string; onHand?: number; source?: 'cart' | 'buy_now' } = {}) {
   const { merchant } = createMerchantDb();
   const run = (sql: string, params: unknown[] = []) => merchant.run(sql, params);
 
@@ -96,9 +96,9 @@ async function setup(opts: { currency?: string; onHand?: number } = {}) {
   run(`INSERT INTO inventory (id, sku, on_hand, reserved) VALUES ('i1', 'TEE-1', ?, 0)`, [opts.onHand ?? 10]);
   run(`INSERT INTO customers (id, email) VALUES ('c1', 'buyer@example.com')`);
   run(
-    `INSERT INTO carts (id, status, customer_email, currency, shipping_cents, expires_at)
-     VALUES (?, 'open', 'buyer@example.com', ?, 0, '2099-01-01T00:00:00Z')`,
-    [CART_ID, opts.currency ?? 'BDT']
+    `INSERT INTO carts (id, status, customer_email, currency, shipping_cents, expires_at, source)
+     VALUES (?, 'open', 'buyer@example.com', ?, 0, '2099-01-01T00:00:00Z', ?)`,
+    [CART_ID, opts.currency ?? 'BDT', opts.source ?? 'cart']
   );
   run(
     `INSERT INTO cart_items (id, cart_id, sku, title, qty, unit_price_cents) VALUES ('ci1', ?, 'TEE-1', 'Tee', 2, 75000)`,
@@ -306,5 +306,116 @@ describe('SSLCommerz return redirect', () => {
       `https://shop.test/success?gateway=sslcommerz&tran_id=${encodeURIComponent(order.sslcommerz_tran_id)}`
     );
     expect(q(`SELECT status FROM orders`)[0].status).toBe('pending'); // only the IPN marks paid
+  });
+});
+
+describe('SSLCommerz return for Buy now', () => {
+  const BUY_NOW = { productId: 'p1', sku: 'TEE-1', qty: 2 };
+  const back = (result: string, tranId: string, fields: Record<string, string> = {}) => ({
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ tran_id: tranId, value_a: CART_ID, ...fields }).toString(),
+  });
+
+  it('buy-now return targets', () => {
+    expect(sslcommerzReturnLocation('https://shop.test/', 'success', 'TXN-1', BUY_NOW)).toBe(
+      'https://shop.test/success?gateway=sslcommerz&tran_id=TXN-1&source=buy_now',
+    );
+    expect(sslcommerzReturnLocation('https://shop.test', 'fail', 'TXN-1', BUY_NOW)).toBe(
+      'https://shop.test/buy-now?product=p1&sku=TEE-1&qty=2&payment=failed',
+    );
+    expect(sslcommerzReturnLocation('https://shop.test', 'cancel', 'TXN-1', BUY_NOW)).toBe(
+      'https://shop.test/buy-now?product=p1&sku=TEE-1&qty=2&payment=cancelled',
+    );
+    expect(sslcommerzReturnLocation('https://shop.test', 'fail', null, { productId: 'a b', sku: 'S&K=U', qty: 1 })).toBe(
+      'https://shop.test/buy-now?product=a+b&sku=S%26K%3DU&qty=1&payment=failed',
+    );
+  });
+
+  it('sends a failed or cancelled Buy now payment back to the Buy now page', async () => {
+    const { raw, order } = await checkedOut({ source: 'buy_now' });
+    const fail = await raw('/v1/webhooks/sslcommerz/return/fail', back('fail', order.sslcommerz_tran_id));
+    expect(fail.status).toBe(303);
+    expect(fail.headers.get('location')).toBe('https://shop.test/buy-now?product=p1&sku=TEE-1&qty=2&payment=failed');
+    const cancel = await raw('/v1/webhooks/sslcommerz/return/cancel', back('cancel', order.sslcommerz_tran_id));
+    expect(cancel.headers.get('location')).toBe('https://shop.test/buy-now?product=p1&sku=TEE-1&qty=2&payment=cancelled');
+  });
+
+  it('still finds the Buy now page after the FAILED IPN reopened the cart', async () => {
+    const { raw, ipn, order, q } = await checkedOut({ source: 'buy_now' });
+    await ipn({ tran_id: order.sslcommerz_tran_id, status: 'FAILED' });
+    expect(q(`SELECT stripe_checkout_session_id FROM carts`)[0].stripe_checkout_session_id).toBeNull();
+    const res = await raw('/v1/webhooks/sslcommerz/return/fail', back('fail', order.sslcommerz_tran_id));
+    expect(res.headers.get('location')).toBe('https://shop.test/buy-now?product=p1&sku=TEE-1&qty=2&payment=failed');
+  });
+
+  it('marks a successful Buy now return so the success page keeps the cart', async () => {
+    const { raw, order, q } = await checkedOut({ source: 'buy_now' });
+    const res = await raw('/v1/webhooks/sslcommerz/return/success', back('success', order.sslcommerz_tran_id, { status: 'VALID' }));
+    expect(res.headers.get('location')).toBe(
+      `https://shop.test/success?gateway=sslcommerz&tran_id=${encodeURIComponent(order.sslcommerz_tran_id)}&source=buy_now`,
+    );
+    expect(q(`SELECT status FROM orders`)[0].status).toBe('pending'); // only the IPN marks paid
+  });
+
+  it('a GET return with the query string works the same', async () => {
+    const { raw, order } = await checkedOut({ source: 'buy_now' });
+    const qs = new URLSearchParams({ tran_id: order.sslcommerz_tran_id, value_a: CART_ID }).toString();
+    const res = await raw(`/v1/webhooks/sslcommerz/return/cancel?${qs}`);
+    expect(res.headers.get('location')).toBe('https://shop.test/buy-now?product=p1&sku=TEE-1&qty=2&payment=cancelled');
+  });
+
+  it('keeps the Buy now flag on success even when the product is gone', async () => {
+    const { raw, order, q } = await checkedOut({ source: 'buy_now' });
+    q(`DELETE FROM variants WHERE sku = 'TEE-1'`);
+    const ok = await raw('/v1/webhooks/sslcommerz/return/success', back('success', order.sslcommerz_tran_id));
+    expect(ok.headers.get('location')).toContain('&source=buy_now');
+    // fail can't rebuild the Buy now page without the product: today's target
+    const fail = await raw('/v1/webhooks/sslcommerz/return/fail', back('fail', order.sslcommerz_tran_id));
+    expect(fail.headers.get('location')).toBe('https://shop.test/cart?payment=failed');
+  });
+
+  it('keeps the Buy now flag after the success IPN expired the cart', async () => {
+    const { raw, order, q } = await checkedOut({ source: 'buy_now' });
+    q(`UPDATE carts SET status = 'expired'`); // what the VALID IPN does
+    const res = await raw('/v1/webhooks/sslcommerz/return/success', back('success', order.sslcommerz_tran_id));
+    expect(res.headers.get('location')).toContain('&source=buy_now');
+  });
+
+  it('without value_a after a FAILED IPN, falls back to the cart page', async () => {
+    const { raw, ipn, order } = await checkedOut({ source: 'buy_now' });
+    await ipn({ tran_id: order.sslcommerz_tran_id, status: 'FAILED' });
+    const res = await raw('/v1/webhooks/sslcommerz/return/fail', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ tran_id: order.sslcommerz_tran_id }).toString(),
+    });
+    expect(res.headers.get('location')).toBe('https://shop.test/cart?payment=failed');
+  });
+
+  it('cart checkouts keep today\'s targets', async () => {
+    const { raw, order } = await checkedOut();
+    const res = await raw('/v1/webhooks/sslcommerz/return/fail', back('fail', order.sslcommerz_tran_id));
+    expect(res.headers.get('location')).toBe('https://shop.test/cart?payment=failed');
+  });
+
+  it('unknown tran_id keeps today\'s targets', async () => {
+    const { raw } = await checkedOut({ source: 'buy_now' });
+    expect((await raw('/v1/webhooks/sslcommerz/return/fail', back('fail', 'TXN-none'))).headers.get('location')).toBe(
+      'https://shop.test/cart?payment=failed',
+    );
+    expect((await raw('/v1/webhooks/sslcommerz/return/success', back('success', 'TXN-none'))).headers.get('location')).toBe(
+      'https://shop.test/success?gateway=sslcommerz&tran_id=TXN-none',
+    );
+    const none = await raw('/v1/webhooks/sslcommerz/return/fail', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: '' });
+    expect(none.headers.get('location')).toBe('https://shop.test/cart?payment=failed');
+  });
+
+  it('ignores a value_a that points at someone else\'s Buy now cart', async () => {
+    const { raw, order, q } = await checkedOut();
+    // A different shopper's buy-now cart
+    q(`INSERT INTO carts (id, status, customer_email, currency, expires_at, source) VALUES ('other', 'open', 'x@example.com', 'BDT', '2099-01-01T00:00:00Z', 'buy_now')`);
+    const res = await raw('/v1/webhooks/sslcommerz/return/fail', back('fail', order.sslcommerz_tran_id, { value_a: 'other' }));
+    expect(res.headers.get('location')).toBe('https://shop.test/cart?payment=failed');
   });
 });

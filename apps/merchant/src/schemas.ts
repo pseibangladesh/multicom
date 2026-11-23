@@ -24,6 +24,8 @@
  */
 
 import { z } from '@hono/zod-openapi';
+import { MAX_PRODUCT_IMAGES, ProductImageSchema } from './lib/product-images';
+import { CategoryVisibility } from './lib/category-visibility';
 
 // ============================================================
 // COMMON SCHEMAS
@@ -83,6 +85,9 @@ export const VariantResponse = z.object({
   tax_rate_percentage: z.number().int().default(0).openapi({ example: 20, description: 'Effective tax rate percentage for the variant' }),
   tax_display_name: z.string().nullable().openapi({ example: 'TVA', description: 'Localized tax name (from tax rate) for display' }),
   tax_inclusive: z.boolean().default(false).openapi({ example: false, description: 'If true price is tax-included (TTC); false means HT' }),
+  color: z.string().nullable().default(null).openapi({ example: 'Black' }),
+  size: z.string().nullable().default(null).openapi({ example: 'M' }),
+  availability: z.enum(['in_stock', 'out_of_stock', 'preorder']).default('in_stock').openapi({ example: 'in_stock' }),
 }).openapi('Variant');
 
 /** Request body for creating a new variant. */
@@ -110,6 +115,12 @@ export const CreateVariantBody = z.object({
   compare_at_price_cents: z.number().int().min(0).optional().openapi({ example: 4999, description: 'Original price shown crossed-out (must be > price_cents)' }),
   tax_code: z.string().optional().openapi({ example: 'txcd_99999999', description: 'Stripe Tax product code' }),
   thumbnail_url: z.string().url().nullable().optional().openapi({ description: 'Small WebP thumbnail (data URI for <1 MB, R2 URL for ≥1 MB)' }),
+  // Options + merchant availability switch (migration 040)
+  color: z.string().max(60).nullable().optional().openapi({ example: 'Black', description: 'Colour option shown to shoppers' }),
+  size: z.string().max(60).nullable().optional().openapi({ example: 'M', description: 'Size option shown to shoppers' }),
+  availability: z.enum(['in_stock', 'out_of_stock', 'preorder']).optional().openapi({
+    description: 'in_stock: sold while inventory lasts; out_of_stock: not sold even if inventory remains; preorder: labelled Pre-order, still limited by inventory',
+  }),
 }).openapi('CreateVariant');
 
 /** Request body for partially updating a variant (all fields optional). */
@@ -132,6 +143,12 @@ export const UpdateVariantBody = z.object({
   compare_at_price_cents: z.number().int().min(0).nullable().optional(),
   tax_code: z.string().nullable().optional(),
   thumbnail_url: z.string().url().nullable().optional(),
+  // Options + merchant availability switch (migration 040)
+  color: z.string().max(60).nullable().optional().openapi({ example: 'Black', description: 'Colour option shown to shoppers' }),
+  size: z.string().max(60).nullable().optional().openapi({ example: 'M', description: 'Size option shown to shoppers' }),
+  availability: z.enum(['in_stock', 'out_of_stock', 'preorder']).optional().openapi({
+    description: 'in_stock: sold while inventory lasts; out_of_stock: not sold even if inventory remains; preorder: labelled Pre-order, still limited by inventory',
+  }),
 }).openapi('UpdateVariant');
 
 /** Path parameters for variant-price routes: `productId / variantId / currencyId`. */
@@ -197,6 +214,8 @@ export const ProductResponse = z.object({
   shipping_class_id: z.string().uuid().nullable().optional().openapi({ example: null, description: 'Default shipping class for all variants (overridden by variant-level class)' }),
   status: ProductStatus,
   created_at: z.string().datetime(),
+  image_url: z.string().nullable().default(null).openapi({ example: 'https://example.com/v1/images/abc.webp', description: 'Cover image: the first entry of images' }),
+  images: z.array(ProductImageSchema).default([]).openapi({ description: 'Product photos in display order; the first is the cover' }),
   variants: z.array(VariantResponse),
   categories: z.array(z.lazy(() => CategoryResponse)).nullable().optional().openapi({ description: 'Categories this product belongs to' }),
   // Enrichment fields (stored as JSON strings for multilingual support)
@@ -220,6 +239,12 @@ export const CreateProductBody = z.object({
   vendor: z.string().optional().openapi({ example: '{"en-US":"Acme Corp","fr-FR":"Corp Acme"}', description: 'Brand or manufacturer name (JSON object with locale keys, or plain string for migration)' }),
   tags: z.string().optional().openapi({ example: '{"en-US":"cotton, summer","fr-FR":"coton, été"}', description: 'Tags as comma-separated values per locale (JSON object with locale keys, or plain string for migration)' }),
   handle: z.string().optional().openapi({ example: '{"en-US":"classic-cotton-t-shirt","fr-FR":"t-shirt-classique-coton"}', description: 'URL slug per locale (JSON object with locale keys, or plain string for migration). Must be lowercase letters, numbers and hyphens.' }),
+  images: z
+    .array(ProductImageSchema)
+    .max(MAX_PRODUCT_IMAGES)
+    .refine((a) => new Set(a.map((i) => i.url)).size === a.length, { message: 'Each image can only be added once' })
+    .optional()
+    .openapi({ description: `Product photos in display order (max ${MAX_PRODUCT_IMAGES}); the first is the cover. Replaces the whole list.` }),
 }).openapi('CreateProduct');
 
 /** Request body for PATCH /v1/products/:id. All product fields optional. */
@@ -232,6 +257,12 @@ export const UpdateProductBody = z.object({
   vendor: z.string().nullable().optional().openapi({ example: '{"en-US":"Acme Corp","fr-FR":"Corp Acme"}', description: 'Brand or manufacturer name (JSON object with locale keys, or plain string for migration)' }),
   tags: z.string().nullable().optional().openapi({ example: '{"en-US":"cotton, summer","fr-FR":"coton, été"}', description: 'Tags as comma-separated values per locale (JSON object with locale keys, or plain string for migration)' }),
   handle: z.string().nullable().optional().openapi({ example: '{"en-US":"classic-cotton-t-shirt","fr-FR":"t-shirt-classique-coton"}', description: 'URL slug per locale (JSON object with locale keys, or plain string for migration). Must be lowercase letters, numbers and hyphens.' }),
+  images: z
+    .array(ProductImageSchema)
+    .max(MAX_PRODUCT_IMAGES)
+    .refine((a) => new Set(a.map((i) => i.url)).size === a.length, { message: 'Each image can only be added once' })
+    .optional()
+    .openapi({ description: `Product photos in display order (max ${MAX_PRODUCT_IMAGES}); the first is the cover. Replaces the whole list.` }),
 }).openapi('UpdateProduct');
 
 /** Query parameters for the product list endpoint. */
@@ -356,6 +387,7 @@ export const CartResponse = z.object({
   region_id: z.string().uuid().nullable().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
   customer_email: z.string().email(),
   locale: z.string().default('en-US').openapi({ example: 'en-US', description: 'User preferred language for localized strings' }),
+  source: z.enum(['cart', 'buy_now']).optional().openapi({ example: 'cart' }),
   items: z.array(CartItem),
   discount: CartDiscount.optional(),
   shipping: z.object({
@@ -374,6 +406,10 @@ export const CreateCartBody = z.object({
   customer_email: z.string().email().openapi({ example: 'customer@example.com' }),
   locale: z.string().optional().openapi({ example: 'fr-FR', description: 'User preferred language for localized strings' }),
   region_id: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440000', description: 'Optional region for this cart' }),
+  source: z.enum(['cart', 'buy_now']).optional().openapi({
+    example: 'buy_now',
+    description: "'buy_now' for the one-product Buy now checkout; payment returns then go back to the Buy now page. Default 'cart'.",
+  }),
 }).openapi('CreateCart');
 
 /** Request body for POST /v1/carts/:id/items. */
@@ -1284,6 +1320,7 @@ export const CategoryResponse = z.object({
   thumbnail_url: z.string().url().nullable().optional().openapi({ description: 'Small WebP thumbnail (data URI for <1 MB, R2 URL for ≥1 MB)' }),
   position: z.number().int().openapi({ example: 0, description: 'Sort order' }),
   status: z.enum(['active', 'inactive']).openapi({ example: 'active' }),
+  visibility: CategoryVisibility.default('listed'),
   created_at: z.string().datetime().openapi({ example: '2026-03-27T10:00:00Z' }),
   updated_at: z.string().datetime().openapi({ example: '2026-03-27T10:00:00Z' }),
 }).openapi('Category');
@@ -1311,6 +1348,7 @@ export const CreateCategoryBody = z.object({
   image_url: z.string().url().optional().openapi({ example: 'https://example.com/category.jpg' }),
   thumbnail_url: z.string().url().nullable().optional().openapi({ description: 'Small WebP thumbnail (data URI for <1 MB, R2 URL for ≥1 MB)' }),
   position: z.number().int().optional().default(0).openapi({ example: 0 }),
+  visibility: CategoryVisibility.optional(),
 }).openapi('CreateCategory');
 
 /** Request body for PATCH /v1/categories/:id. All fields optional. */
@@ -1329,6 +1367,7 @@ export const UpdateCategoryBody = z.object({
   thumbnail_url: z.string().url().nullable().optional().openapi({ description: 'Small WebP thumbnail (data URI for <1 MB, R2 URL for ≥1 MB)' }),
   position: z.number().int().optional().openapi({ example: 0 }),
   status: z.enum(['active', 'inactive']).optional().openapi({ example: 'active' }),
+  visibility: CategoryVisibility.optional(),
 }).openapi('UpdateCategory');
 
 /** Request body to bulk-assign products to a category. */

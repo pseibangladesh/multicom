@@ -6,35 +6,23 @@ A lightweight, API-first backend for products, inventory, checkout, and orders�
 
 ## Quick Start
 
-### Auth0 helper endpoints
+### Sign-in (Better Auth)
 
-Two administrative helper routes have been merged into this worker from the
-original template.  They are used by the admin UI and other maintenance
-scripts:
+People sign in with **Better Auth** (email + password), which runs inside the
+`MerchantDO` Durable Object; the Worker forwards `/api/auth/*` to it and the
+session is an HttpOnly cookie. New accounts must confirm their email address
+before they can sign in. The confirmation (and password-reset) emails go out
+through Mailgun, so production needs these variables:
 
-- `POST /v1/__auth0/token` – obtains a Management API access token.
-- `POST /v1/__auth0/autopermissions` – grants configured permissions to the
-  current Auth0 user if they are missing.
+- `BETTER_AUTH_SECRET` – signs sessions (required).
+- `ADMIN_EMAILS` – comma-separated emails that get admin access (they are
+  treated as confirmed, so they can't be locked out).
+- `MAILGUN_API_KEY`, `MAILGUN_DOMAIN` (and optionally `MAILGUN_BASE_URL`,
+  `MAILGUN_USER`) – without them, links are only printed to the worker log.
 
-Both handlers require the calling credential to be an **admin** (i.e. either a
-`sk_` key or a JWT with the appropriate permission).  No additional API-key
-capabilities are necessary unless you set `ADMIN_AUTH0_PERMISSION`, in which
-case that permission must also be present on the token.
-
-The following environment variables control them:
-
-- `AUTH0_DOMAIN` – your Auth0 tenant domain (required).
-- `AUTH0_AUDIENCE` – expected audience claim (required).
-- `ADMIN_AUTH0_PERMISSION` – optional additional permission string that must
-  appear on the caller’s JWT.
-- `AUTH0_AUTOMATIC_PERMISSIONS` – list of permissions to add when the
-  autopermissions route is invoked.
-
+See `docs/authentication.md` for the details.
 
 ### Running the built‑in tests
-
-A small Vitest suite ensures that the special `AUTH0_TEST_TOKEN` defined in
-`.env` is accepted anywhere an `sk_` key is required.  To execute them:
 
 ```bash
 # from the monorepo root (npm 9+ resolves workspaces automatically)
@@ -43,8 +31,9 @@ npm install          # if you haven't already
 npm run test
 ```
 
-The environment loader automatically picks up `../.env`, so make sure the
-`AUTH0_TEST_TOKEN` variable is present (the template already includes one).
+Most suites run the real `MerchantDO` on `node:sqlite` (see
+`tests/helpers/merchant-db.ts`). A few integration suites call a running
+worker and need `MERCHANT_SK` / `MERCHANT_PK` in `../../.env`.
 
 The tests stub the Durable Object and database, and they simply assert that
 admin endpoints no longer return 401 when the token is presented.
@@ -98,16 +87,9 @@ All endpoints require `Authorization: Bearer <key>` header.
   they are hashed and matched against the `api_keys` table.
 - **OAuth tokens** stored in the database continue to work as long as they
   consist of a 64‑char hexadecimal string.
-- **Auth0 JWTs (new)** may also be presented.  Any bearer value that looks like
-  a JSON Web Token (three segments separated by `.`) is validated using the
-  tenant’s JWKS URL.  Such tokens must have the audience defined in
-  `AUTH0_AUDIENCE` and include the permission listed in
-  `ADMIN_STORE_PERMISSION` (defaults to `admin:store`).  On success they are
-  mapped to the `admin` role.
-
-  To enable this behaviour you must set the environment variables
-  `AUTH0_DOMAIN` and `AUTH0_AUDIENCE` when running the worker.  Optionally set
-  `ADMIN_STORE_PERMISSION` if you prefer a different scope.
+- **Better Auth session cookies** (people). A session gets admin access only
+  if its email is in `ADMIN_EMAILS`; customer routes (`/v1/me/*`) need a
+  confirmed email.
 
 - `pk_...` → Public key. Can create carts and checkout.
 - `sk_...` → Admin key. Full access to everything.

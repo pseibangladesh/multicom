@@ -42,8 +42,8 @@ function merchantStub(env: Env) {
  * Accepts three token formats (in priority order):
  * 1. **Better Auth session cookie** — secure HttpOnly cookie set by /api/auth/*
  *    Verified by Better Auth inside MerchantDO; grants admin only for ADMIN_EMAILS.
- * 2. **Admin API key** (`sk_` prefix) — stored in the database.
- * 3. **OAuth key** (64-char hex) — scoped API key.
+ * 2. **OAuth token** (64-char hex) — scoped, for AI agents.
+ * 3. **API key** (`sk_` admin / `pk_` public) — hashed in the database.
  */
 export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   const db = getDb(c.var.db);
@@ -131,83 +131,17 @@ export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   await next();
 });
 
-// ── Role-gate middleware (unchanged from previous implementation) ──
+// ── Role gate ───────────────────────────────────────────────────────
 
-export const superAdminOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('authadmin')) {
-      console.warn('Superadmin access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('Superadmin access required');
-    }
-  } else if (auth.role !== 'authadmin') {
-    console.warn('Superadmin access required, but user has role:', auth.role);
-    throw ApiError.forbidden('Superadmin access required');
-  }
-
-  await next();
-});
-
-export const databaseAdminOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('databaseadmin')) {
-      console.warn('Database admin access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('Database admin access required');
-    }
-  } else if (auth.role !== 'databaseadmin') {
-    console.warn('Database admin access required, but user has role:', auth.role);
-    throw ApiError.forbidden('Database admin access required');
-  }
-
-  await next();
-});
-
-export const aiAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('aiadmin')) {
-      console.warn('AI admin access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('AI admin access required');
-    }
-  } else if (auth.role !== 'aiadmin') {
-    console.warn('AI admin access required, but user has role:', auth.role);
-    throw ApiError.forbidden('AI admin access required');
-  }
-
-  await next();
-});
-
+/**
+ * Admin only: an ADMIN_EMAILS session or an `sk_` key. Everything an admin can
+ * do (catalogue, setup and migrations, mail, AI settings) uses this one gate.
+ */
 export const adminOnly = createMiddleware<HonoEnv>(async (c, next) => {
   const auth = c.get('auth');
 
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('admin')) {
-      console.warn('Admin access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('Admin access required');
-    }
-  } else if (auth.role !== 'admin') {
-    console.warn('Admin access required, but user has role:', auth.role);
+  if (auth.role !== 'admin') {
     throw ApiError.forbidden('Admin access required');
-  }
-
-  await next();
-});
-
-export const mailAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('mail')) {
-      console.warn('Mail API access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('Mail API access required');
-    }
-  } else if (auth.role !== 'mail') {
-    console.warn('Mail API access required, but user has role:', auth.role);
-    throw ApiError.forbidden('Mail API access required');
   }
 
   await next();
@@ -222,6 +156,12 @@ export const customerAuthMiddleware = createMiddleware<HonoEnv>(async (c, next) 
   if (hasSessionCookie(cookieHeader)) {
     try {
       const session = await verifySession(merchantStub(c.env), cookieHeader);
+      // Customer data is matched by email (including guest orders), so only a
+      // verified email may see it. Sign-in already requires one; this also
+      // covers sessions created before that rule existed.
+      if (session && session.emailVerified === false) {
+        throw ApiError.forbidden('Please verify your email address first');
+      }
       if (session) {
         c.set('auth', {
           role: 'customer',
@@ -235,6 +175,7 @@ export const customerAuthMiddleware = createMiddleware<HonoEnv>(async (c, next) 
         return;
       }
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       console.warn('Better Auth session verification failed:', err);
     }
   }

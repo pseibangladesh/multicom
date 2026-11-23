@@ -21,7 +21,6 @@
     "@heroui/react-mcp": "^1.1.0",
     "fast-glob": "^3.3.3",
     "jiti": "^2.7.0",
-    "jose": "^6.2.3",
     "turbo": "^2.9.12",
     "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.11.0",

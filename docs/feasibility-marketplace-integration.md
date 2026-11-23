@@ -47,7 +47,7 @@ The Multicom project is a **Cloudflare-based headless commerce platform** built 
 - **Runtime:** Cloudflare Workers + Durable Objects (SQL via SQLite)
 - **Storage:** D1 (SQLite), R2 (images/files), KV (caching)
 - **API Framework:** Hono with `@hono/zod-openapi` (OpenAPI/Swagger)
-- **Authentication:** Auth0 (OAuth 2.0 + JWT), API keys, customer auth
+- **Authentication:** Better Auth sessions (admins = ADMIN_EMAILS), API keys, OAuth tokens
 - **Payment:** Stripe Checkout + webhooks
 - **Data Model:** Products → Variants (SKUs) → Inventory → Carts → Orders
 

@@ -15,7 +15,6 @@
 7. [Role-Based Access Control](#7-role-based-access-control)
 8. [Frontend Integration](#8-frontend-integration)
 9. [Data Model](#9-data-model)
-10. [Migration from Auth0](#10-migration-from-auth0)
 
 ---
 
@@ -29,7 +28,7 @@ Multicom uses a **multi-layer authentication system** that supports three distin
 | 2 | API keys | `sk_*` (admin) / `pk_*` (public) | Server-to-server integrations |
 | 3 | OAuth tokens | 64-character hex string | Third-party marketplace integrations |
 
-All methods are handled by middleware in the Cloudflare Worker, checked in priority order. **Better Auth replaces the previous Auth0 JWT flow** — customers now sign up/log in with email/password directly on the platform rather than through an external identity provider.
+All methods are handled by middleware in the Cloudflare Worker, checked in priority order. People sign up and sign in with email + password directly on the platform (Better Auth); there is no external identity provider. New accounts must confirm their email address first.
 
 ---
 
@@ -104,31 +103,27 @@ Request → Authorization: Bearer <64-char-hex>
 
 ## 3. Session-Based Auth (Better Auth)
 
-### 3.1 Sign Up / Sign In Flow
+### 3.1 Sign Up, Email Confirmation and Sign In
+
+Email + password accounts must confirm their address before they can sign in (`requireEmailVerification: true` in `apps/merchant/src/lib/auth.ts`). This stops anyone from signing up with someone else's email and taking over the guest orders placed with it.
 
 ```
-Customer                              Backend Worker                  D1 Database
-   │                                    │                              │
-   │  POST /api/auth/signup/email       │                              │
-   │  { email, password }               │                              │
-   │──► createAuthRouter()             │                              │
-   │        │                           │                              │
-   │        ▼                          │                              │
-   │   betterAuth.handler()            │                              │
-   │        │                           │                              │
-   │        ├──► Validate email format  │                              │
-   │        ├──► Hash password (bcrypt) │                              │
-   │        ├──► INSERT INTO "user"    │◄────────────────── Creates user
-   │        │                            │                              │
-   │        ├──► Create session          │                              │
-   │        │   INSERT INTO "session"   │◄────────────────── Stores hash
-   │        │                            │                              │
-   │        └──► Set HttpOnly cookie     │                              │
-   │              better-auth.session_token=*** (raw)                │
-   │                                    │                              │
+Customer                          Worker → MerchantDO (Better Auth)        Mailgun
+   │ POST /api/auth/sign-up/email     │                                     │
+   │ { name, email, password,         │── INSERT INTO "user" (unverified)   │
+   │   callbackURL }                  │── sendVerificationEmail ───────────►│── email with link
+   │◄── 200, no session cookie        │                                     │
+   │                                  │                                     │
+   │ GET /api/auth/verify-email?token=…&callbackURL=…                       │
+   │─────────────────────────────────►│── email_verified = 1                │
+   │◄── 302 to callbackURL + session cookie (autoSignInAfterVerification)   │
 ```
 
-The same flow applies to sign-in (`POST /api/auth/signin/email`), except the password is verified against the stored hash instead of creating a new user.
+- **Sign in** (`POST /api/auth/sign-in/email`): a wrong password gives 401. An unconfirmed account gives **403 `EMAIL_NOT_VERIFIED`**, and a new link is sent (`sendOnSignIn`).
+- **Resend** (`POST /api/auth/send-verification-email { email, callbackURL }`).
+- **Links** expire after 24 h. An invalid or expired link redirects to `callbackURL?error=…`; the storefront `/login` page shows "link invalid or expired".
+- **Emails** are built by `lib/auth-email.ts` and sent through Mailgun (`MAILGUN_API_KEY`, `MAILGUN_DOMAIN`). Without Mailgun, the link is logged with `console.warn` — fine for local development, but **production must configure Mailgun** or customers can't confirm their accounts. Password-reset emails use the same path.
+- **Admins** (`ADMIN_EMAILS`) are marked confirmed automatically when the auth instance starts and when their login is created, so they can't be locked out.
 
 ### 3.2 Session Verification in Middleware
 
@@ -168,31 +163,13 @@ if (sessionMatch) {
 
 ### 3.3 Customer Authentication Middleware
 
-For customer-facing routes (`/v1/me/*`), a separate `customerAuthMiddleware` in the same file handles session verification with role `customer`:
+For customer-facing routes (`/v1/me/*`, downloads, reviews, AI tokens), `customerAuthMiddleware` in `apps/merchant/src/middleware/auth.ts` verifies the Better Auth session through the DO (`lib/session.ts`) and:
 
-```typescript
-// apps/merchant/src/middleware/auth.ts (lines 227-266)
-export const customerAuthMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
-  const sessionCookie = c.req.header('cookie') || '';
-  const sessionMatch = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
+- rejects API keys as a customer identity (401);
+- rejects sessions whose email is not confirmed (**403** "Please verify your email address first");
+- sets `c.var.auth = { role: 'customer', userId, email, name, … }`.
 
-  if (sessionMatch) {
-    // ... same hash + DB lookup as above ...
-    if (sessionResult.length > 0) {
-      c.set('auth', {
-        role: 'customer',
-        email: row.email,
-        name: row.name,
-        userId: row.user_id,
-        stripeSecretKey: null,
-        stripeWebhookSecret: null,
-      });
-    }
-  }
-
-  throw ApiError.unauthorized('Missing or invalid session');
-});
-```
+`middleware/customer-auth.ts` only re-exports it for older imports.
 
 ### 3.4 Better Auth Configuration
 
@@ -417,64 +394,52 @@ Order view tokens are included in order confirmation emails as tracking links:
 | `oauth` | 64-char hex token | Marketplace sync routes | `authMiddleware` + `requireScope()` |
 | `customer` | Better Auth session | Customer portal (`/v1/me/*`, `/v1/downloads`) | `customerAuthMiddleware` |
 
-### 7.2 Role-Gate Middlewares
+### 7.2 Role Gate
 
-Defined in `apps/merchant/src/middleware/auth.ts`:
+Defined in `apps/merchant/src/middleware/auth.ts`. There is one admin gate; setup and migrations, mail and AI settings use it too:
 
 ```typescript
 export const adminOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('admin')) throw ApiError.forbidden(...);
-  } else if (auth.role !== 'admin') {
-    throw ApiError.forbidden(...);
-  }
+  if (c.get('auth').role !== 'admin') throw ApiError.forbidden('Admin access required');
   await next();
 });
-
-export const aiAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  // Checks for 'aiadmin' role
-});
-
-export const mailAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  // Checks for 'mail' role
-});
 ```
+
+OAuth routes use `requireScope(...scopes)`.
 
 ### 7.3 Customer Account Resolution
 
-When a Better Auth session is verified, the middleware sets `auth.userId` (the `user.id`). Customer-facing routes resolve the corresponding `customers` row:
+Customer routes never take a customer id or email from the request. They call `resolveCustomer(db, auth.userId)` from `apps/merchant/src/lib/customers.ts`, which:
 
-```typescript
-// apps/merchant/src/routes/me.ts — resolveCustomer()
-async function resolveCustomer(db: any, userId: string) {
-  // Find customer by email match with Better Auth user
-  const customerResult = await db.query<any>(
-    `SELECT * FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
+1. refuses users whose email isn't confirmed (403);
+2. finds the `customers` row by `auth_provider_id = userId`;
+3. otherwise claims the row with the same email (case-insensitive), e.g. one created by a guest checkout, setting `auth_provider = 'better-auth'` and `auth_provider_id`; or creates a new row;
+4. links earlier guest orders placed with that email (`orders.customer_id`);
+5. recomputes the customer's stats from the orders table and returns the row.
 
-  if (customerResult.length > 0) return customerResult[0];
+The other helpers in the same file keep the account's totals right whatever path an order takes:
 
-  // Auto-provision: create customer row on first session login
-  const userResult = await db.query<any>(
-    `SELECT email, name FROM "user" WHERE id = ? LIMIT 1`,
-    [userId]
-  );
+| Helper | Used by | Does |
+|---|---|---|
+| `recalcCustomerStats(db, customerId)` | everything below | `order_count`, `total_spent_cents` (orders in `paid`/`processing`/`shipped`/`delivered`/`partially_refunded`, minus their refunds) and `last_order_at`, computed from orders |
+| `upsertCustomerByEmail(db, email, details)` | Stripe webhook, admin order create | find or create the customer for an email |
+| `linkOrderToCustomer(db, orderId, details)` | SSLCommerz IPN, UCP checkout | attach an order to the customer for its email, then recalc |
+| `refreshOrderCustomer(db, orderId)` | refunds, order status changes | recalc the order's customer |
 
-  if (userResult.length > 0) {
-    const customerId = uuid();
-    await db.run(
-      `INSERT INTO customers (id, email, auth_provider, auth_provider_id, ...)
-       VALUES (?, ?, 'better-auth', ?, ..., ?, ?)`,
-      [customerId, userRow.email.toLowerCase(), userId, ...]
-    );
-    return (await db.query(`SELECT * FROM customers WHERE id = ?`, [customerId]))[0];
-  }
+### 7.4 Data Stored per Customer
 
-  throw ApiError.unauthorized('User not found in Better Auth');
-}
-```
+Everything a customer sees in their account is in the database, so it is the same on every device:
+
+| Data | Where | Endpoints |
+|---|---|---|
+| Profile, addresses | `customers`, `customer_addresses` | `/v1/me/profile`, `/v1/me/addresses` |
+| Orders, money spent | `orders`, `refunds`, `customers` stats | `/v1/me/orders`, `/v1/me/profile` |
+| Cart | `customer_carts` (migration 043) | `GET`/`PUT /v1/me/cart` |
+| Wishlist | `customers.metadata.wishlist` | `/v1/me/wishlist` |
+| Saved carts | `customers.metadata` | `/v1/me/saved-carts` |
+| Preferences | customer record | `/v1/me/preferences` |
+
+The storefront keeps only a **guest** cart in localStorage. On sign-in it merges the guest cart into the account cart and clears the local copy.
 
 ---
 
@@ -529,16 +494,15 @@ export const useLocalProvider = (): AuthProvider => {
 
 ### 8.3 Auth Components
 
-The auth components (`LoginButton`, `LogoutButton`, `AuthenticationGuard`, etc.) in `apps/client/src/features/auth/components/auth-components.tsx` wrap the provider hooks:
+Exported from `@/authentication`:
 
-```typescript
-export function AuthenticationGuard({ children, fallback }) {
-  const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <Loading />;
-  if (!isAuthenticated) return fallback ?? <LoginModal />;
-  return children;
-}
-```
+- `AuthenticationGuard` (prop `component`) — sends signed-out visitors to `/login?returnTo=…`.
+- `AdminGuard` — wraps `/admin`; only `user.is_admin` sessions (ADMIN_EMAILS) get in.
+- `useAuth()` — `user`, `isAuthenticated`, `isLoading`, `isAdmin`, `signInEmail`, `signUpEmail`, `resendVerification`, `refreshSession`, `logout`, and the JSON helpers.
+- `useSecuredApi()` — the JSON helpers plus `isAdmin`.
+- `EmailNotVerifiedError` — thrown by `signInEmail` on 403 `EMAIL_NOT_VERIFIED`.
+
+`EmailAuthForm` (`features/auth/components/email-auth-form.tsx`) is the sign-in / create-account form used by the `/login` page and `LoginModal`. After sign-up, or a sign-in refused for an unconfirmed email, it shows "check your email" with a resend button. `signUpEmail` and `signInEmail` pass `callbackURL = <store>/login?verified=1[&returnTo=…]`, so the confirmation link signs the user in and brings them back.
 
 ---
 
@@ -626,43 +590,3 @@ CREATE TABLE oauth_tokens (
   refresh_expires_at TEXT NOT NULL
 );
 ```
-
----
-
-## 10. Migration from Auth0
-
-### 10.1 Migration Script
-
-The script `apps/merchant/scripts/migrate-auth0-to-better-auth.ts` maps existing Auth0 customers to Better Auth users:
-
-```bash
-npx tsx scripts/migrate-auth0-to-better-auth.ts
-npx tsx scripts/migrate-auth0-to-better-auth.ts --dry  # preview only
-```
-
-### 10.2 Migration Steps
-
-1. **Run migration 037** — Creates `user`, `session`, and `account` tables in D1.
-2. **Run the migration script** — For each customer with `auth_provider IS NOT NULL`:
-   - Inserts a row into `"user"` preserving email, name, locale, and metadata.
-   - If the customer was Auth0-linked (`auth_provider = 'auth0'`), creates a session with a random token (hashed) valid for 30 days.
-   - Updates `customers.auth_provider = 'better-auth'`.
-3. **Deploy updated worker** — The new auth middleware reads from the Better Auth tables instead of verifying Auth0 JWTs.
-
-### 10.3 What Changed
-
-| Before (Auth0) | After (Better Auth) |
-|-----------------|---------------------|
-| External identity provider (Auth0 tenant) | Built-in email/password on platform |
-| JWT tokens with JWKS verification | Session cookies with DB hash lookup |
-| `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` env vars | `BETTER_AUTH_SECRET`, `API_BASE_URL`, `ADMIN_EMAILS` |
-| Auth0 hosted login page | Platform sign-in at `/api/auth/signin/email` |
-| Admin permissions via Auth0 scopes | Role-based access (`admin`, `customer`) |
-| Management API proxy routes | Removed (no external IAM) |
-
-### 10.4 What Stayed the Same
-
-- **API keys** (`sk_*` / `pk_*`) — unchanged, still verified by SHA-256 hash lookup
-- **OAuth tokens** (64-char hex) — unchanged, still scoped for marketplace integrations
-- **Order view tokens** — unchanged, still HMAC-HS256 JWTs signed with `ORDER_TOKEN_SECRET`
-- **Customer data schema** — the `customers` table is preserved; Better Auth adds a parallel `user` table

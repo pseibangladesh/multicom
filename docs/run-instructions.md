@@ -81,7 +81,9 @@ STRIPE_SECRET_KEY=sk_live_your_stripe_key_here
 STRIPE_PUBLISHABLE_KEY=pk_live_your_publishable_key_here
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 
-# === OPTIONAL: Email (Mailgun) ===
+# === Email (Mailgun) — required in production ===
+# Customers must confirm their email before they can sign in, and the link is
+# sent with Mailgun. Without it (local dev) the link is printed in the worker log.
 MAILGUN_USER=your_mailgun_user_here
 MAILGUN_API_KEY=your_mailgun_api_key_here
 MAILGUN_DOMAIN=your_mailgun_domain_here

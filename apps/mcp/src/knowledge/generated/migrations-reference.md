@@ -163,14 +163,14 @@ const getOrderByToken = (tokenHash: string) => {
 
 ## Customers & Authentication Domain
 
-Bengal Exchange supports both guest checkout and authenticated users (primarily via Auth0). Migration 025 added critical indexes for high-performance JWT-to-customer resolution.
+Bengal Exchange supports both guest checkout and signed-in customers (Better Auth). Migration 025 added the indexes used to resolve a session's user to a customer row (the file name still says auth0sub: migrations are history and are never renamed).
 
 ### Table: customers
 | Column | Type | Nullable | Migration | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | TEXT | NO | 003 | UUID |
 | `email` | TEXT | NO | 003 | Indexed in 025 |
-| `auth_provider_id` | TEXT | YES | 003 | Stores Auth0 'sub' claim |
+| `auth_provider_id` | TEXT | YES | 003 | Better Auth user id |
 | `order_count` | INTEGER | NO | 003 | Denormalized stat |
 | `total_spent_cents` | INTEGER | NO | 003 | Denormalized stat |
 
@@ -178,14 +178,14 @@ Bengal Exchange supports both guest checkout and authenticated users (primarily 
 | Column | Type | Nullable | Migration | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | INTEGER | NO | 026 | Auto-increment PK |
-| `auth0_user_id` | TEXT | NO | 026 | Links to external Auth |
+| `user_id` | TEXT | NO | 026 | Better Auth user id (renamed from `auth0_user_id` in 038) |
 | `cart_id` | TEXT | NO | 026 | FK to `carts` |
 
 ```sql
--- Migration 025 Index usage: Finding a customer by Auth0 sub
+-- Migration 025 index usage: finding the customer for a session's user
 -- This is used in the /v1/me/profile endpoint
 SELECT id, email, name FROM customers 
-WHERE auth_provider_id = 'auth0|67890abcd' 
+WHERE auth_provider_id = 'usr_67890abcd' 
 LIMIT 1;
 ```
 

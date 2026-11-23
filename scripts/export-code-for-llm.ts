@@ -628,7 +628,7 @@ async function main() {
 
         const indexFile = path.join(path.dirname(outFile), "llms.txt");
         let idx = `Bengal Exchange e-commerce framework — source index (${now})\n`;
-        idx += `Stack: React 19 + Vite (client) · Hono on Cloudflare Workers (API) · Durable Objects (SQLite) · Stripe · Auth0\n\n`;
+        idx += `Stack: React 19 + Vite (client) · Hono on Cloudflare Workers (API) · Durable Objects (SQLite) · Stripe · Better Auth\n\n`;
         idx += `FILES\n`;
         for (const p of allPaths) idx += `  ${p}\n`;
 

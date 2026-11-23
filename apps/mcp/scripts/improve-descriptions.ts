@@ -28,9 +28,7 @@ const DESCRIPTIONS: Record<string, string> = {
   'api-error-patterns':
     'ApiError class and static helpers (notFound, unauthorized, invalidRequest, conflict…), Hono-to-JSON conversion, and frontend error-handling patterns.',
   'auth-patterns':
-    'Backend authMiddleware, RBAC guards (adminOnly, superAdminOnly, databaseAdminOnly…), and the frontend AuthenticationGuardWithPermission wrapper used to gate admin pages.',
-  'auth0-tenant-setup':
-    'Auth0 tenant deployment — auto-install script, resource-server scopes, RBAC roles, social connections, and the Auth0 Deploy CLI workflow.',
+    'Better Auth sessions with email verification, authMiddleware/customerAuthMiddleware, the adminOnly guard (ADMIN_EMAILS), API keys and OAuth tokens, and the frontend AuthenticationGuard/AdminGuard.',
   'checkout-and-ucp':
     'Checkout flow and the Universal Commerce Protocol (UCP) — Stripe Checkout integration, UCP sessions, browse/catalog endpoints consumed by AI shopping agents.',
   'cloudflare-worker-patterns':
@@ -63,8 +61,6 @@ const DESCRIPTIONS: Record<string, string> = {
     'Stock tracking per variant × warehouse — inventory table, reserveStock/releaseStock/deductStock helpers in lib/inventory.ts, and the admin adjustment UI.',
   'invoice-and-pdf':
     'Client-side PDF invoice generation with jsPDF — invoice layout, order-view tokens for public access, and the download entry point.',
-  'jwt-user-metadata-patterns':
-    'Auth0 JWT custom claims — user_metadata vs app_metadata, useTokenUserData hook, store-metadata propagation, and per-user theme storage.',
   'localized-content-patterns':
     'Multilingual content model — LocalizedText type, useLocalizedTextInput hook, and the renderLocalized utility used across product and category surfaces.',
   'mcp-server-quickstart':
@@ -90,9 +86,9 @@ const DESCRIPTIONS: Record<string, string> = {
   'theming-and-layouts':
     'Theme and layout system — ThemeProvider, the Default and Luxury layouts, CMS-driven content blocks, and siteConfig integration.',
   'use-secured-api':
-    'useSecuredApi React hook for authenticated calls — getJson, postJson, putJson, patchJson, deleteJson, postForm, plus Auth0 bearer injection.',
+    'useSecuredApi React hook for authenticated calls — getJson, postJson, putJson, patchJson, deleteJson, postForm (session cookie included), plus the isAdmin hint.',
   'user-preferences-and-wishlist':
-    'Per-user state — wishlist stored in Auth0 user_metadata, saved carts, and the custom hooks that wrap the metadata updates.',
+    'Per-customer state on the server — wishlist, saved carts, the account cart and preferences under /v1/me/*, and the React Query hooks that use them.',
   'webhooks-outbound':
     'Outbound webhooks — endpoint registration, delivery retry logic, and the HMAC signature scheme used by consumers to verify authenticity.',
 };

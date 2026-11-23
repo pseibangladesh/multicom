@@ -8,7 +8,7 @@ that runs entirely on free-tier cloud services.
 1. Fork the repository
 2. `npm install` at the root (npm workspaces)
 3. Copy `_sensitive_datas/wrangler.example.toml` → `apps/merchant/wrangler.toml`
-4. Fill in your Auth0, Stripe, Mailgun credentials
+4. Fill in `.env`: `BETTER_AUTH_SECRET`, `ADMIN_EMAILS`, Stripe and Mailgun credentials (see `docs/run-instructions.md`)
 5. `npm run dev` — starts the Cloudflare Worker locally + Vite SPA
 
 ## Architecture Decision Records (ADR)
@@ -19,7 +19,7 @@ that runs entirely on free-tier cloud services.
 | HTTP framework | Hono | Native Workers support, OpenAPI built-in |
 | Database | Durable Objects SQLite | Per-tenant isolation, no external DB |
 | UI library | HeroUI v3 | Full Tailwind theming, accessible, Drawer/Modal |
-| Auth | Auth0 | Free tier, passwordless, social providers |
+| Auth | Better Auth (in the Durable Object) | No external service; email + password with email verification, sessions in DO SQLite |
 | Commerce protocol | UCP | AI-agent interoperability standard |
 
 ## How to Add a Feature

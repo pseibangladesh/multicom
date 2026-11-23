@@ -17,211 +17,30 @@
  */
 
 import { useTranslation } from "react-i18next";
-import { Button, Card, Input, RadioGroup, Radio } from "@heroui/react";
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Button, Card } from "@heroui/react";
+import { useState } from "react";
 
 import { useCart } from "@/hooks/use-cart";
-import {
-  createCart,
-  addItemsToCart,
-  checkoutCart,
-  checkoutCartSslcommerz,
-  enabledPaymentMethods,
-  getAvailableShippingRates,
-  getPaymentMethods,
-  type PaymentMethodId,
-} from "@/lib/store-api";
-import { paymentReturnMessageKey } from "@/lib/payment-return";
+import { createCart, addItemsToCart } from "@/lib/store-api";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitleWithVariant } from "@/utils/description";
-import ShippingAddressForm from "@/components/shipping-address-form";
-import ShippingRateSelector from "@/components/shipping-rate-selector";
 import { useAuth } from "@/authentication";
 import { SaveCartButton } from "@/components/save-cart-button";
-import { CheckoutAuthPrompt } from "@/components/checkout-auth-prompt";
-import { SavedAddressesSelector } from "@/components/saved-addresses-selector";
-
-type CheckoutStep =
-  | "initial"
-  | "shipping-address"
-  | "shipping-rate"
-  | "payment-method"
-  | "processing";
+import {
+  CheckoutFlow,
+  type CheckoutStep,
+} from "@/components/checkout/checkout-flow";
 
 const FALLBACK_IMG = "https://placehold.co/400x400/1a1a1a/666?text=No+Image";
 
 export default function CartPage() {
   const { t, i18n } = useTranslation();
   const { items, updateQuantity, removeItem, clear, totalCents } = useCart();
-  const { user, isAuthenticated } = useAuth() as any;
+  const { user } = useAuth() as any;
 
-  // Checkout workflow state
+  // Mirrors the checkout's step and server cart (for the totals below).
   const [step, setStep] = useState<CheckoutStep>("initial");
-  const [email, setEmail] = useState("");
   const [currentCart, setCurrentCart] = useState<any>(null);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [searchParams] = useSearchParams();
-
-  // Back from SSLCommerz after a failed/cancelled payment: the order was
-  // cancelled and the cart reopened by the IPN, so explain and let them retry.
-  useEffect(() => {
-    const key = paymentReturnMessageKey(searchParams.get("payment"));
-
-    if (key) setCheckoutError(t(key));
-  }, [searchParams, t]);
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  // true = show manual ShippingAddressForm; false = show SavedAddressesSelector (if authenticated)
-  const [showManualAddressForm, setShowManualAddressForm] = useState(false);
-
-  // Payment method selection
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("stripe");
-  // null while loading; then only the gateways switched on in Admin → Payment Gateways.
-  const [availableMethods, setAvailableMethods] = useState<
-    PaymentMethodId[] | null
-  >(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    getPaymentMethods()
-      .then((m) => {
-        if (cancelled) return;
-        const ids = enabledPaymentMethods(m);
-
-        setAvailableMethods(ids);
-        if (ids.length > 0)
-          setPaymentMethod((current) =>
-            ids.includes(current) ? current : ids[0],
-          );
-      })
-      .catch((err) => {
-        console.error("Failed to load payment methods", err);
-        // Older backend without /v1/payment-methods: keep the previous behaviour.
-        if (!cancelled) setAvailableMethods(["stripe", "sslcommerz"]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Pre-fill email from authenticated user for a smoother post-login return
-  useEffect(() => {
-    if (user?.email && !email) {
-      setEmail(user.email);
-    }
-  }, [user?.email]);
-
-  /**
-   * Called when user clicks "Continue to Address".
-   * If the user is not authenticated, shows the auth prompt first.
-   * Otherwise jumps straight to creating the cart.
-   */
-  const handleInitialCheckoutClick = () => {
-    if (!email || !email.includes("@")) {
-      setCheckoutError(t("checkout-invalid-email"));
-
-      return;
-    }
-    setCheckoutError(null);
-
-    if (!isAuthenticated) {
-      setShowAuthPrompt(true);
-    } else {
-      void proceedToAddressStep();
-    }
-  };
-
-  /**
-   * Creates the cart on the backend and moves to the shipping-address step.
-   */
-  const proceedToAddressStep = async () => {
-    setShowAuthPrompt(false);
-    setShowManualAddressForm(false);
-    try {
-      const cart = await createCart(email, i18n.language);
-
-      setCurrentCart(cart);
-      const updatedCart = await addItemsToCart(
-        cart.id,
-        items.map((i) => ({ sku: i.sku, qty: i.qty })),
-      );
-
-      setCurrentCart(updatedCart);
-
-      // Detect digital-only carts
-      let isDigitalOnly = false;
-
-      try {
-        const { items: rates } = await getAvailableShippingRates(cart.id);
-
-        isDigitalOnly = rates.length === 0;
-      } catch {
-        isDigitalOnly = false;
-      }
-
-      if (isDigitalOnly) {
-        await proceedToPayment(cart.id, "initial");
-      } else {
-        setStep("shipping-address");
-      }
-    } catch (err: any) {
-      setCheckoutError(err?.message || t("checkout-failed"));
-      console.error("Checkout error:", err);
-    }
-  };
-
-  const handleShippingAddressSuccess = async (cart: any) => {
-    setCurrentCart(cart);
-    setStep("shipping-rate");
-  };
-
-  /** Redirect to payment gateway for the given cart id. */
-  const proceedToPayment = async (
-    cartId: string,
-    fallbackStep: CheckoutStep = "shipping-rate",
-  ) => {
-    setStep("processing");
-    try {
-      if (paymentMethod === "sslcommerz") {
-        const { gateway_url } = await checkoutCartSslcommerz(cartId);
-
-        window.location.href = gateway_url;
-      } else {
-        // Stripe checkout (existing flow)
-        const storeUrl = (import.meta.env.STORE_URL || "").replace(/\/$/, "");
-        const { checkout_url } = await checkoutCart(
-          cartId,
-          `${storeUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
-          window.location.href,
-        );
-
-        window.location.href = checkout_url;
-      }
-    } catch (err: any) {
-      setCheckoutError(err?.message || t("checkout-failed"));
-      setStep(fallbackStep);
-      console.error("Checkout error:", err);
-    }
-  };
-
-  const handleShippingRateSelect = async (cart: any) => {
-    setCurrentCart(cart);
-    // After selecting shipping rate, show payment method selection
-    setStep("payment-method");
-  };
-
-  const handleBackToAddresses = () => {
-    setStep("shipping-address");
-  };
-
-  const handleBackToCart = () => {
-    setStep("initial");
-    setCurrentCart(null);
-    setCheckoutError(null);
-    setShowManualAddressForm(false);
-  };
 
   return (
     <>
@@ -318,192 +137,39 @@ export default function CartPage() {
                 </div>
               )}
 
-              {/* Step 1: Email input */}
-              {step === "initial" && (
-                <Card className="border border-bx-line bg-bx-surface-raised shadow-none">
-                  <Card.Header>
-                    <h2 className="font-display text-xl text-bx-ink">
-                      {t("checkout")}
-                    </h2>
-                  </Card.Header>
-                  <Card.Content className="space-y-4">
-                    <div>
-                      <label
-                        htmlFor="email"
-                        className="mb-2 block text-sm text-bx-ink-soft"
-                      >
-                        {t("email-label")}
-                      </label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleInitialCheckoutClick();
-                        }}
-                        fullWidth
-                        placeholder="customer@example.com"
-                      />
-                    </div>
+              <CheckoutFlow
+                items={items}
+                source="cart"
+                cancelUrl={window.location.href}
+                onStepChange={setStep}
+                onCartChange={setCurrentCart}
+                initialActions={
+                  <>
+                    <Button variant="danger" onClick={() => clear()}>
+                      {t("cart-clear")}
+                    </Button>
+                    <SaveCartButton
+                      cartId={currentCart?.id}
+                      onBeforeSave={async (): Promise<string> => {
+                        if (!user?.email)
+                          throw new Error("Authentication required");
+                        const cart = await createCart(
+                          user.email,
+                          i18n.language,
+                        );
 
-                    {checkoutError && (
-                      <p className="text-red-400 text-sm">{checkoutError}</p>
-                    )}
+                        setCurrentCart(cart);
+                        await addItemsToCart(
+                          cart.id,
+                          items.map((i) => ({ sku: i.sku, qty: i.qty })),
+                        );
 
-                    <p className="text-sm text-default-500">
-                      {t("checkout-continue-note")}
-                    </p>
-
-                    <div className="flex flex-wrap justify-between gap-3">
-                      <div className="flex gap-2">
-                        <Button variant="danger" onClick={() => clear()}>
-                          {t("cart-clear")}
-                        </Button>
-                        <SaveCartButton
-                          cartId={currentCart?.id}
-                          onBeforeSave={async (): Promise<string> => {
-                            if (!user?.email)
-                              throw new Error("Authentication required");
-                            const cart = await createCart(
-                              user.email,
-                              i18n.language,
-                            );
-
-                            setCurrentCart(cart);
-                            await addItemsToCart(
-                              cart.id,
-                              items.map((i) => ({ sku: i.sku, qty: i.qty })),
-                            );
-
-                            return cart.id;
-                          }}
-                        />
-                      </div>
-                      <Button
-                        variant="primary"
-                        onClick={handleInitialCheckoutClick}
-                        isDisabled={!email}
-                      >
-                        {t("continue-to-address") || "Continue to Address"}
-                      </Button>
-                    </div>
-                  </Card.Content>
-                </Card>
-              )}
-
-              {/* Step 2: Shipping address */}
-              {step === "shipping-address" &&
-                currentCart &&
-                (isAuthenticated && !showManualAddressForm ? (
-                  <SavedAddressesSelector
-                    cartId={currentCart.id}
-                    onSuccess={handleShippingAddressSuccess}
-                    onAddNew={() => setShowManualAddressForm(true)}
-                  />
-                ) : (
-                  <ShippingAddressForm
-                    cartId={currentCart.id}
-                    onSuccess={handleShippingAddressSuccess}
-                  />
-                ))}
-
-              {/* Step 3: Shipping rate selection */}
-              {step === "shipping-rate" && currentCart && (
-                <ShippingRateSelector
-                  cartId={currentCart.id}
-                  onSelect={handleShippingRateSelect}
-                  onBack={handleBackToAddresses}
-                />
-              )}
-
-              {/* Step 3.5: Payment method selection */}
-              {step === "payment-method" && currentCart && (
-                <Card className="border border-bx-line bg-bx-surface-raised shadow-none">
-                  <Card.Header>
-                    <h2 className="font-display text-xl text-bx-ink">
-                      {t("checkout-select-payment") || "Select Payment Method"}
-                    </h2>
-                  </Card.Header>
-                  <Card.Content className="space-y-4">
-                    {availableMethods === null ? (
-                      <p className="text-sm text-default-500">
-                        {t("loading", "Loading...")}
-                      </p>
-                    ) : availableMethods.length === 0 ? (
-                      <p className="text-sm text-danger">
-                        {t(
-                          "checkout-no-payment-methods",
-                          "Online payment is not available right now. Please contact the store.",
-                        )}
-                      </p>
-                    ) : (
-                      <RadioGroup
-                        value={paymentMethod}
-                        onChange={(v: string) =>
-                          setPaymentMethod(v as PaymentMethodId)
-                        }
-                      >
-                        {availableMethods.includes("stripe") && (
-                          <Radio value="stripe" className="shrink-0">
-                            <Radio.Control>
-                              <Radio.Indicator />
-                            </Radio.Control>
-                            💳 Stripe (Credit/Debit Card)
-                          </Radio>
-                        )}
-                        {availableMethods.includes("sslcommerz") && (
-                          <Radio value="sslcommerz" className="shrink-0">
-                            <Radio.Control>
-                              <Radio.Indicator />
-                            </Radio.Control>
-                            🇧🇩 SSLCommerz (Bangladesh)
-                          </Radio>
-                        )}
-                      </RadioGroup>
-                    )}
-
-                    <div className="flex gap-3 pt-4">
-                      <Button
-                        variant="primary"
-                        isDisabled={!availableMethods?.includes(paymentMethod)}
-                        onPress={() => void proceedToPayment(currentCart.id)}
-                      >
-                        {t("checkout-pay-now") || "Pay Now"}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onPress={() => setStep("shipping-rate")}
-                      >
-                        {t("back-to-shipping")}
-                      </Button>
-                    </div>
-                  </Card.Content>
-                </Card>
-              )}
-
-              {/* Processing step */}
-              {step === "processing" && (
-                <Card className="border-default-200">
-                  <Card.Content className="text-center py-8">
-                    <p className="text-default-500 mb-4">{t("processing")}</p>
-                    <p className="text-sm text-default-400">
-                      {paymentMethod === "sslcommerz"
-                        ? t("redirecting-to-sslcommerz")
-                        : t("redirecting-to-payment")}
-                    </p>
-                  </Card.Content>
-                </Card>
-              )}
-
-              {/* Back to cart button (shown during address/shipping/payment steps) */}
-              {(step === "shipping-address" ||
-                step === "shipping-rate" ||
-                step === "payment-method") && (
-                <Button variant="outline" onPress={handleBackToCart} size="sm">
-                  {t("back-to-cart")}
-                </Button>
-              )}
+                        return cart.id;
+                      }}
+                    />
+                  </>
+                }
+              />
             </div>
 
             {/* Same steps as before: hidden while paying or processing. */}
@@ -582,13 +248,6 @@ export default function CartPage() {
           </div>
         )}
       </div>
-
-      {/* Auth prompt modal — shown after email step when user is not logged in */}
-      <CheckoutAuthPrompt
-        isOpen={showAuthPrompt}
-        onClose={() => setShowAuthPrompt(false)}
-        onContinueAsGuest={() => void proceedToAddressStep()}
-      />
     </>
   );
 }

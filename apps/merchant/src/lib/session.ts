@@ -10,6 +10,8 @@ export interface VerifiedSession {
   userId: string;
   email: string;
   name: string | null;
+  /** False for accounts from before sign-in required a verified email. */
+  emailVerified?: boolean;
 }
 
 /** Anything that can serve a fetch, e.g. a DurableObjectStub. */
