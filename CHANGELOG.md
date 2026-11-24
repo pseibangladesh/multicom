@@ -1,4 +1,4 @@
-# Fufuni e-commerce platform changelog
+# Bengal Exchange e-commerce platform changelog
 
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
@@ -42,10 +42,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 #### ai-proxy-cloudflare — balance enforcement
 
-- **`src/lib/balance.ts`** (new): `checkBalance()` and `deductBalance()` helpers that call the Fufuni merchant backend.
+- **`src/lib/balance.ts`** (new): `checkBalance()` and `deductBalance()` helpers that call the Bengal Exchange merchant backend.
 - **`src/index.ts`**: before forwarding a request, checks balance (HTTP 402 if ≤ 0). After a successful response, deducts 1 unit via `waitUntil`.
-- **Standalone mode**: when `FUFUNI_MERCHANT_URL` is empty/unset, balance enforcement is completely disabled — fully backward-compatible.
-- `wrangler.jsonc` documents `FUFUNI_MERCHANT_URL` (plaintext var) and `AI_BALANCE_SHARED_SECRET` (secret).
+- **Standalone mode**: when `BENGAL_EXCHANGE_MERCHANT_URL` is empty/unset, balance enforcement is completely disabled — fully backward-compatible.
+- `wrangler.jsonc` documents `BENGAL_EXCHANGE_MERCHANT_URL` (plaintext var) and `AI_BALANCE_SHARED_SECRET` (secret).
 
 #### MCP knowledge base
 

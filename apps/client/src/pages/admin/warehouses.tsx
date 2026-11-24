@@ -24,7 +24,6 @@ import { Table } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
@@ -243,7 +242,7 @@ export default function WarehousesPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <AdminCrudLayout
         addLabel={t("admin-warehouses-add")}
         filterPlaceholder={t("admin-warehouses-filter-placeholder")}
@@ -290,7 +289,7 @@ export default function WarehousesPage() {
                       </Table.Cell>
                       <Table.Cell>{warehouse.country_code}</Table.Cell>
                       <Table.Cell>
-                        <span className="bg-gray-200 px-2 py-1 rounded">
+                        <span className="bg-default-100 text-default-700 border border-default-200 px-2 py-1 rounded">
                           {warehouse.priority}
                         </span>
                       </Table.Cell>
@@ -485,6 +484,6 @@ export default function WarehousesPage() {
           </Modal.Backdrop>
         </Modal>
       </AdminCrudLayout>
-    </DefaultLayout>
+    </>
   );
 }

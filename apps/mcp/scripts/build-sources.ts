@@ -41,7 +41,6 @@ const MANUAL_READABLE_SOURCES = [
   "apps/merchant/src/routes/orders.ts",
   "apps/merchant/src/routes/webhooks.ts",
   "apps/merchant/src/routes/inventory.ts",
-  "apps/merchant/src/routes/auth0.ts",
   
   // Merchant Middleware
   "apps/merchant/src/middleware/auth.ts",
@@ -50,7 +49,8 @@ const MANUAL_READABLE_SOURCES = [
   "apps/merchant/src/middleware/kv-cache.ts",
   
   // Merchant Utils/Libs
-  "apps/merchant/src/lib/auth0.ts",
+  "apps/merchant/src/lib/auth.ts",
+  "apps/merchant/src/lib/customers.ts",
   "apps/merchant/src/lib/pricing.ts",
   "apps/merchant/src/lib/tax.ts",
   "apps/merchant/src/lib/shipping.ts",

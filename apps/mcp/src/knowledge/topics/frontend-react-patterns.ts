@@ -26,7 +26,7 @@ const topic: Topic = {
     'The LoginModal component handles both email/passwordless and social login. Show it instead of redirecting when you want the user to stay on the current page after login.',
     'Reusable display components (apps/client/src/components/): ProductCard (compact list card), ProductCardFull (detail view with variant selector, tax info), ProductImage (square image with fallback and variant-count badge), ProductReviews (review list + gated write form), CategoryBentoGrid (category landing 5-tile bento layout), ProductCarousel (horizontal snap-scroll product strip).',
     'ImageUploadInput (apps/client/src/components/image-upload-input.tsx) handles the full image upload flow: file picker, WebP conversion, auto-select base64 vs R2 based on size, preview, manual URL input, thumbnail generation. Use it for any admin image field.',
-    'apps/client/src/provider.tsx wraps the app with exactly four providers in order: StoreThemeProvider (custom theme) > Toast.Provider (HeroUI toasts) > CartProvider (cart context) > CartDrawerProvider (global cart drawer open/close state). Auth0Provider is NOT in provider.tsx — authentication is initialised in the auth feature module.',
+    'Provider nesting (apps/client/src/bootstrap.tsx): AppErrorBoundary > BrowserRouter > Provider (provider.tsx: StoreThemeProvider + Toast.Provider) > CookieConsentProvider > AuthenticationProvider (Better Auth session) > QueryClientProvider > CartProvider > CartDrawerProvider > App. CartProvider must stay inside AuthenticationProvider and QueryClientProvider: the signed-in cart lives on the server.',
     'CartDrawerProvider (apps/client/src/contexts/cart-drawer-context.tsx) exposes useCartDrawer() which returns { isOpen, open, close }. ProductCard and ProductCardFull call open() after addItem() to auto-open the cart drawer. DefaultLayout consumes isOpen/open/close to wire Navbar and CartDrawer.',
     'useSeoMeta (apps/client/src/hooks/use-seo-meta.ts) dynamically sets <title> and Open Graph meta tags. Used in ProductPage and any page that needs per-route SEO without react-helmet.',
   ],
@@ -39,7 +39,7 @@ Task: Write a "Frontend React Patterns" guide.
 Include:
 1. React Router setup: how routes are declared, protected routes pattern with AuthenticationGuard.
 2. How to add a new page: 3 steps (page component + router + siteConfig navItem).
-3. How the navbar auto-shows/hides items based on Auth0 permissions.
+3. How the navigation shows admin links only to admins (user.is_admin).
 4. HeroUI v3: compound component pattern, key components (Button, Card, Modal, Table, Form).
 5. ThemeSwitch: what it does, how it\'s already wired in.
 6. Feature folder structure and hook placement conventions.

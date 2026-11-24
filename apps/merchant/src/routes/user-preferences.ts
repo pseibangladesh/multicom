@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { ApiError, now, type HonoEnv } from '../types';
 import { getDb } from '../db';
+import { resolveCustomer } from '../lib/customers';
 
 const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', customerAuthMiddleware);
@@ -61,7 +62,7 @@ const writeWishlistToMetadata = (metadata: string | null, wishlist: string[]): s
 
 /**
  * GET /v1/me/wishlist — retrieve the user's wishlist product IDs
- * Stored in D1 customers.metadata (replaces Auth0 user_metadata).
+ * Stored in customers.metadata.
  */
 const getWishlistRoute = createRoute({
   method: 'get',
@@ -88,10 +89,7 @@ adminApp.openapi(getWishlistRoute, async (c) => {
   if (!userId) throw ApiError.unauthorized('Invalid token');
 
   const db = getDb(c.var.db);
-  const [customer] = await db.query<any>(
-    `SELECT metadata FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
+  const customer = await resolveCustomer(db, userId);
 
   const wishlist = customer ? readWishlistFromMetadata(customer.metadata) : [];
   return c.json({ wishlist }, 200);
@@ -138,10 +136,7 @@ adminApp.openapi(addWishlistProductRoute, async (c) => {
   if (!productId) throw ApiError.invalidRequest('productId is required');
 
   const db = getDb(c.var.db);
-  const [customer] = await db.query<any>(
-    `SELECT metadata FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
+  const customer = await resolveCustomer(db, userId);
 
   if (!customer) throw ApiError.unauthorized('Customer not found');
 
@@ -190,10 +185,7 @@ adminApp.openapi(removeWishlistProductRoute, async (c) => {
   if (!productId) throw ApiError.invalidRequest('productId is required');
 
   const db = getDb(c.var.db);
-  const [customer] = await db.query<any>(
-    `SELECT metadata FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
+  const customer = await resolveCustomer(db, userId);
 
   if (!customer) throw ApiError.unauthorized('Customer not found');
 

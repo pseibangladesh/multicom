@@ -26,12 +26,8 @@ import React from "react";
 
 import { AuthProviderWrapper } from "./providers/use-auth";
 
-// Provider types we support
-export type AuthenticationType = "local";
-
 interface AuthenticationProviderProps {
   children: React.ReactNode;
-  config?: any;
 }
 
 /**
@@ -41,7 +37,5 @@ interface AuthenticationProviderProps {
 export const AuthenticationProvider: React.FC<AuthenticationProviderProps> = ({
   children,
 }) => {
-  return (
-    <AuthProviderWrapper>{children}</AuthProviderWrapper>
-  );
+  return <AuthProviderWrapper>{children}</AuthProviderWrapper>;
 };

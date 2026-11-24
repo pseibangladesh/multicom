@@ -70,7 +70,7 @@ interface UCPResponse {
 
 **Endpoint**: `POST /v1/checkout`
 
-**Required Auth**: Auth0 JWT (customerAuthMiddleware)
+**Required Auth**: storefront `pk_` key; guests and signed-in customers can both check out (paid orders are linked to the customer by email)
 
 **Full Request**:
 ```typescript

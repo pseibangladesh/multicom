@@ -17,11 +17,11 @@ BEGIN
     UPDATE store_themes SET updated_at = current_timestamp WHERE id = OLD.id;
 END;
 
--- Default Fufuni Classic theme (active by default)
+-- Default Bengal Exchange Classic theme (active by default)
 INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
 VALUES (
     'theme_classic',
-    'Fufuni Classic',
+    'Bengal Exchange Classic',
     1,
     '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}'
 );

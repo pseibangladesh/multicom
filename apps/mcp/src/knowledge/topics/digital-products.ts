@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'digital-products',
-  description: 'How to sell downloadable digital products in Fufuni: variant types, digital_assets table, upload workflow, JWT-signed download links, and frontend UX.',
+  description: 'How to sell downloadable digital products in Bengal Exchange: variant types, digital_assets table, upload workflow, JWT-signed download links, and frontend UX.',
   tags: ['digital-products', 'downloads', 'r2', 'jwt'],
   sources: [
     'apps/merchant/src/routes/digital-assets.ts',
@@ -29,7 +29,7 @@ const topic: Topic = {
     'Deleting a digital asset via DELETE /v1/products/:id/variants/:variantId/digital-asset resets the variant_type to "physical".',
   ],
   buildPrompt: (src) => appendFacts(`
-The following source files implement the digital products feature in Fufuni:
+The following source files implement the digital products feature in Bengal Exchange:
 
 ${src}
 

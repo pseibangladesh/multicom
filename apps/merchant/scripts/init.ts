@@ -68,8 +68,9 @@ async function init() {
   // if the keys are provided via environment we reuse them instead of generating new ones
   let publicKey = process.env.MERCHANT_PK || '';
   let adminKey = process.env.MERCHANT_SK || '';
+  const keysFromEnv = Boolean(publicKey && adminKey);
 
-  if (!publicKey || !adminKey) {
+  if (!keysFromEnv) {
     publicKey = generateApiKey('pk');
     adminKey = generateApiKey('sk');
   }
@@ -80,21 +81,55 @@ async function init() {
   const adminId = crypto.randomUUID();
 
   console.log('🔑 Creating API keys via /v1/setup/init...');
-  
-  const response = await fetch(`${baseUrl}/v1/setup/init`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      keys: [
-        { id: publicId, key_hash: publicHash, key_prefix: 'pk_', role: 'public' },
-        { id: adminId, key_hash: adminHash, key_prefix: 'sk_', role: 'admin' },
-      ]
-    }),
-  });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to create API keys: ${response.status} ${error}`);
+  // The backend hashes MERCHANT_SK / MERCHANT_PK into api_keys when it starts,
+  // so on a fresh database this usually answers 409. That is fine: carry on
+  // with the base data using the same keys from .env.
+  let keysCreated = false;
+  try {
+    const response = await fetch(`${baseUrl}/v1/setup/init`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        keys: [
+          { id: publicId, key_hash: publicHash, key_prefix: 'pk_', role: 'public' },
+          { id: adminId, key_hash: adminHash, key_prefix: 'sk_', role: 'admin' },
+        ]
+      }),
+    });
+
+    if (response.status === 409) {
+      if (!keysFromEnv) {
+        // The keys generated above were never stored, so they can't authenticate.
+        throw new Error(
+          'API keys already exist, but MERCHANT_SK / MERCHANT_PK are not set in .env. ' +
+            'Set them to the keys the backend was started with, then run this script again.'
+        );
+      }
+      console.log('   ✅ API keys already exist (auto-seeded by backend). Proceeding to base data.');
+    } else if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to create API keys: ${response.status} ${error}`);
+    } else {
+      keysCreated = true;
+      console.log('   ✅ API keys created');
+    }
+  } catch (err: any) {
+    if (err?.cause?.code === 'ECONNREFUSED') {
+      throw new Error(`Cannot reach ${baseUrl}. Start the worker first (npm run dev).`);
+    }
+    throw err;
+  }
+
+  // Fail early with a clear message if the admin key doesn't match the backend's.
+  const check = await fetch(`${baseUrl}/v1/admin/settings/payment-gateways`, {
+    headers: { Authorization: `Bearer ${adminKey}` },
+  });
+  if (check.status === 401 || check.status === 403) {
+    throw new Error(
+      `MERCHANT_SK in .env is not accepted by ${baseUrl} (HTTP ${check.status}). ` +
+        'The backend seeds the keys from its own environment (.dev.vars), so make sure both use the same values.'
+    );
   }
 
   // Helper function to make API calls with the admin key
@@ -120,8 +155,7 @@ async function init() {
   console.log('\n📊 Creating base data...');
   try {
     const result = await seedCurrenciesAndCountries(api);
-    console.log(`   ✅ Created ${Object.keys(result.currencyMap).length} currencies`);
-    console.log(`   ✅ Created ${Object.keys(result.countryMap).length} countries`);
+    console.log(`   ✅ ${Object.keys(result.currencyMap).length} currencies and ${Object.keys(result.countryMap).length} countries in place`);
   } catch (err: any) {
     console.error('   ❌ Failed to create base data:', err.message);
     throw err;
@@ -129,9 +163,13 @@ async function init() {
 
   console.log('\n✅ Merchant initialized!\n');
   console.log('─'.repeat(50));
-  console.log('\n🔑 API Keys (save these, shown only once):\n');
-  console.log(`   Public:  ${publicKey}`);
-  console.log(`   Admin:   ${adminKey}`);
+  if (keysCreated && !keysFromEnv) {
+    console.log('\n🔑 API Keys (save these, shown only once):\n');
+    console.log(`   Public:  ${publicKey}`);
+    console.log(`   Admin:   ${adminKey}`);
+  } else {
+    console.log('\n🔑 Using MERCHANT_PK / MERCHANT_SK from .env');
+  }
   console.log('\n' + '─'.repeat(50));
   console.log('\n📝 Next steps:\n');
   console.log('   1. Start the API:');

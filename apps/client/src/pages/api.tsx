@@ -21,8 +21,7 @@ import { useEffect, useState } from "react";
 import { Button, Tooltip } from "@heroui/react";
 
 import { title } from "@/shared/ui/primitives";
-import DefaultLayout from "@/layouts/default";
-import { getBaseURL } from "@/utils/base-url";
+import { getApiBase } from "@/lib/api-base";
 
 export default function ApiPage() {
   const { t } = useTranslation();
@@ -32,8 +31,9 @@ export default function ApiPage() {
   useEffect(() => {
     const fetchSession = async () => {
       try {
-        const apiBase = getBaseURL() || "";
-        const response = await fetch(`${apiBase}/api/auth/session`);
+        const response = await fetch(`${getApiBase()}/api/auth/session`, {
+          credentials: "include",
+        });
         const data = await response.json();
         setSessionData(data);
       } catch (error) {
@@ -51,7 +51,7 @@ export default function ApiPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
         <div className="inline-block max-w-lg text-center justify-center">
           <h1 className={title()}>
@@ -78,6 +78,6 @@ export default function ApiPage() {
           </div>
         </div>
       </section>
-    </DefaultLayout>
+    </>
   );
 }

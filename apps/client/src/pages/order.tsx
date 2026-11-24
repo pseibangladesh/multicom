@@ -21,7 +21,6 @@ import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Star } from "lucide-react";
 
-import DefaultLayout from "@/layouts/default";
 import { useAuth } from "@/authentication";
 import { ProductReviews } from "@/components/product-reviews";
 import { getApiBase } from "@/lib/api-base";
@@ -245,17 +244,17 @@ export default function OrderPage() {
 
   if (loading) {
     return (
-      <DefaultLayout>
+      <>
         <div className="max-w-2xl mx-auto py-12 px-6 text-center">
           <p className="text-default-500">{t("loading")}</p>
         </div>
-      </DefaultLayout>
+      </>
     );
   }
 
   if (error || errorKey || !order) {
     return (
-      <DefaultLayout>
+      <>
         <div className="max-w-2xl mx-auto py-12 px-6 text-center">
           <div className="mb-6">
             <div className="text-5xl mb-3">⚠️</div>
@@ -271,7 +270,7 @@ export default function OrderPage() {
             {t("return-home")}
           </Link>
         </div>
-      </DefaultLayout>
+      </>
     );
   }
 
@@ -280,7 +279,7 @@ export default function OrderPage() {
     STATUS_COLORS[order.status] || "text-default-600 bg-default-100";
 
   return (
-    <DefaultLayout>
+    <>
       <div className="max-w-2xl mx-auto py-12 px-6">
         {/* Header */}
         <div className="mb-8">
@@ -421,6 +420,6 @@ export default function OrderPage() {
           </Link>
         </div>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

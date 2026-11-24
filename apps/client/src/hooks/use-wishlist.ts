@@ -4,12 +4,9 @@
  */
 
 import { useCallback } from "react";
-import { decodeJwt } from "jose";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/authentication";
-import { useTokenRefresh } from "@/hooks/use-token-refresh";
-import { getStoreMetadata } from "@/lib/store-metadata";
-import { useTokenUserData } from "@/hooks/use-token-user-data";
 import { getApiBase } from "@/lib/api-base";
 
 /**
@@ -23,89 +20,59 @@ export interface UseWishlistReturn {
   isFavorite: (productId: string) => boolean;
 }
 
-const WISHLIST_UPDATED_EVENT = "fufuni:wishlist-updated";
+/** Query key of a user's wishlist (per user, so accounts never share a cache). */
+export const wishlistKey = (userId: string | undefined) =>
+  ["me", userId, "wishlist"] as const;
 
 /**
- * Lightweight token parser function.
- * Extracts wishlist from the user_metadata of the JWT access_token.
- */
-const STORE_URL = import.meta.env.STORE_URL;
-
-export function getWishlistFromToken(token: string | null): string[] {
-  if (!token) return [];
-  try {
-    const payload = decodeJwt(token) as any;
-    const userMetadata = payload["extra_user_info/user_metadata"];
-    const storeMetadata = getStoreMetadata(userMetadata, STORE_URL);
-
-    if (Array.isArray(storeMetadata?.wishlist)) {
-      return storeMetadata.wishlist;
-    }
-
-    // fallback to legacy root key for backward compatibility
-    if (Array.isArray(userMetadata?.wishlist)) {
-      return userMetadata.wishlist;
-    }
-
-    return [];
-  } catch (error) {
-    console.error("[useWishlist] Error decoding token for wishlist:", error);
-
-    return [];
-  }
-}
-
-/**
- * Custom React hook to manage the user's wishlist (favorites).
- *
- * Features:
- * - Extremely lightweight: 100% derived from the JWT user_metadata
- * - Uses `useTokenRefresh` to keep JWT synced after mutations
- * - Uses a CustomEvent for fast cross-component reactivity without heavy contexts/query caches
+ * The signed-in customer's wishlist (product ids), stored on the server
+ * (GET/POST/DELETE /v1/me/wishlist), so it is the same on every device.
+ * Empty when signed out.
  */
 export function useWishlist(): UseWishlistReturn {
   const auth = useAuth();
-  const { refreshToken } = useTokenRefresh();
   const apiBase = getApiBase();
+  const queryClient = useQueryClient();
+  const userId = auth.user?.id;
+  const key = wishlistKey(userId);
 
-  const {
-    data: wishlist,
-    isLoading,
-    isError,
-    setData: setWishlist,
-  } = useTokenUserData(getWishlistFromToken, WISHLIST_UPDATED_EVENT);
+  const query = useQuery<string[], Error>({
+    queryKey: key,
+    queryFn: async () => {
+      const data = (await auth.getJson(`${apiBase}/v1/me/wishlist`)) as {
+        wishlist?: string[];
+      };
+
+      return data.wishlist ?? [];
+    },
+    enabled: auth.isAuthenticated && !!userId,
+    staleTime: 60_000,
+  });
+  const wishlist = auth.isAuthenticated ? (query.data ?? []) : [];
+
+  const mutation = useMutation<string[], Error, string>({
+    mutationFn: async (productId) => {
+      const data = (
+        wishlist.includes(productId)
+          ? await auth.deleteJson(
+              `${apiBase}/v1/me/wishlist/${encodeURIComponent(productId)}`,
+            )
+          : await auth.postJson(`${apiBase}/v1/me/wishlist`, { productId })
+      ) as { wishlist?: string[] };
+
+      return data.wishlist ?? [];
+    },
+    onSuccess: (next) => queryClient.setQueryData(key, next),
+    onError: (error) =>
+      console.error("[useWishlist] Could not update the wishlist:", error),
+  });
 
   const toggle = useCallback(
     async (productId: string) => {
-      if (!auth.isAuthenticated) {
-        console.warn(
-          "[useWishlist] Attempted to toggle without authentication",
-        );
-
-        return;
-      }
-
-      const isFav = wishlist.includes(productId);
-
-      try {
-        if (isFav) {
-          await auth.deleteJson(`${apiBase}/v1/me/wishlist/${productId}`);
-        } else {
-          await auth.postJson(`${apiBase}/v1/me/wishlist`, { productId });
-        }
-
-        const newToken = await refreshToken();
-        const newWishlist = getWishlistFromToken(newToken || null);
-
-        setWishlist(newWishlist);
-        window.dispatchEvent(
-          new CustomEvent(WISHLIST_UPDATED_EVENT, { detail: newWishlist }),
-        );
-      } catch (error) {
-        console.error("[useWishlist] Mutation error:", error);
-      }
+      if (!auth.isAuthenticated) return;
+      await mutation.mutateAsync(productId).catch(() => {});
     },
-    [auth, refreshToken, wishlist, apiBase],
+    [auth.isAuthenticated, mutation],
   );
 
   const isFavorite = useCallback(
@@ -115,8 +82,8 @@ export function useWishlist(): UseWishlistReturn {
 
   return {
     wishlist,
-    isLoading,
-    isError,
+    isLoading: auth.isAuthenticated && (query.isLoading || mutation.isPending),
+    isError: query.isError,
     toggle,
     isFavorite,
   };

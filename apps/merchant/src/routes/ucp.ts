@@ -24,9 +24,14 @@
  */
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { Context, Next } from 'hono';
+import { isUcpEnabled, saleBlockReason } from '../lib/storefront-settings';
+import { listedCategorySql } from '../lib/category-visibility';
 import { z } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 import { getDb, type Database } from '../db';
+import { linkOrderToCustomer } from '../lib/customers';
+import { getStripeSettings } from '../lib/payment-config';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { resolveVariantPrice, getCurrencyIdFromCode } from '../lib/pricing';
 import { ErrorResponse } from '../schemas';
@@ -62,6 +67,16 @@ import {
 const UCP_VERSION = '2026-01-11';
 
 export const ucp = new OpenAPIHono<HonoEnv>();
+
+// Admin → AI agents can switch UCP off; agents then get 404 as if it didn't exist.
+const ucpGate = async (c: Context<HonoEnv>, next: Next) => {
+  if (!(await isUcpEnabled(getDb(c.var.db)))) {
+    return c.json({ error: { code: 'not_found', message: 'UCP is disabled for this store' } }, 404);
+  }
+  await next();
+};
+ucp.use('/.well-known/ucp', ucpGate);
+ucp.use('/ucp/v1/*', ucpGate);
 
 // ============================================================
 // TYPES
@@ -181,21 +196,12 @@ function parseUCPAgentHeader(header: string | null): { profile?: string } {
   return { profile: match?.[1] };
 }
 
-async function getStripeConfig(db: Database): Promise<{ secretKey: string | null; webhookSecret: string | null }> {
-  const [config] = await db.query<{ value: string }>(
-    `SELECT value FROM config WHERE key = 'stripe'`,
-    []
-  );
-  if (!config) return { secretKey: null, webhookSecret: null };
-  try {
-    const parsed = JSON.parse(config.value);
-    return { 
-      secretKey: parsed.secret_key || null,
-      webhookSecret: parsed.webhook_secret || null,
-    };
-  } catch {
-    return { secretKey: null, webhookSecret: null };
-  }
+/** Stripe as offered to AI agents: only while Stripe checkout is switched on. */
+async function getStripeConfig(db: Database, env: HonoEnv['Bindings']): Promise<{ secretKey: string | null; webhookSecret: string | null }> {
+  const s = await getStripeSettings(db, env);
+  return s.enabled
+    ? { secretKey: s.secretKey, webhookSecret: s.webhookSecret }
+    : { secretKey: null, webhookSecret: null };
 }
 
 interface TaxResult {
@@ -264,7 +270,7 @@ const routeGetUCPProfile = createRoute({
 ucp.openapi(routeGetUCPProfile, async (c) => {
   const baseUrl = new URL(c.req.url).origin;
   const db = getDb(c.var.db);
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
   
   // Build payment handlers based on Stripe config
   const paymentHandlers: UCPPaymentHandler[] = [];
@@ -420,6 +426,17 @@ ucp.openapi(routePostCheckoutSession, async (c) => {
       });
       continue;
     }
+
+    const blocked = saleBlockReason(variant);
+    if (blocked) {
+      messages.push({
+        type: 'error',
+        code: blocked === 'out_of_stock' ? 'out_of_stock' : 'item_unavailable',
+        content: `${variant.sku} is not available for sale`,
+        severity: 'recoverable',
+      });
+      continue;
+    }
     
     // Check inventory
     const [inv] = await db.query<any>(
@@ -511,7 +528,7 @@ ucp.openapi(routePostCheckoutSession, async (c) => {
   );
   
   // Build payment handlers
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
   const paymentHandlers: UCPPaymentHandler[] = [];
   
   if (stripeConfig.secretKey) {
@@ -581,7 +598,7 @@ ucp.openapi(routeGetCheckoutSession, async (c) => {
     session.status = 'canceled';
   }
   
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
   const paymentHandlers: UCPPaymentHandler[] = [];
   
   if (stripeConfig.secretKey) {
@@ -702,6 +719,17 @@ ucp.openapi(routePutCheckoutSession, async (c) => {
       continue;
     }
 
+    const blocked = saleBlockReason(variant);
+    if (blocked) {
+      messages.push({
+        type: 'error',
+        code: blocked === 'out_of_stock' ? 'out_of_stock' : 'item_unavailable',
+        content: `${variant.sku} is not available for sale`,
+        severity: 'recoverable',
+      });
+      continue;
+    }
+
     // Resolve price via variant_prices for the active currency
     let unitPrice: number;
     try {
@@ -763,7 +791,7 @@ ucp.openapi(routePutCheckoutSession, async (c) => {
     ]
   );
   
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
   const paymentHandlers: UCPPaymentHandler[] = [];
   
   if (stripeConfig.secretKey) {
@@ -844,7 +872,7 @@ ucp.openapi(routePostComplete, async (c) => {
   const buyer = JSON.parse(session.buyer || '{}');
   const totals = JSON.parse(session.totals || '[]');
 
-  const stripeConfig = await getStripeConfig(db);
+  const stripeConfig = await getStripeConfig(db, c.env);
 
   // For UCP, we use Stripe Checkout redirect flow
   // The payment_data should indicate the handler being used
@@ -1145,7 +1173,7 @@ ucp.openapi(routeGetProducts, async (c) => {
       AND EXISTS (
         SELECT 1 FROM product_categories pc
         JOIN categories cat ON cat.id = pc.category_id
-        WHERE pc.product_id = p.id AND cat.handle = ?
+        WHERE pc.product_id = p.id AND cat.handle = ? AND ${listedCategorySql('cat')}
       )`;
     params.push(category);
   }
@@ -1234,7 +1262,7 @@ ucp.openapi(routeGetCategories, async (c) => {
   const db = getDb(c.var.db);
   const categories = await db.query(
     `SELECT id, handle, name, parent_id, image_url
-     FROM categories WHERE status = 'active' ORDER BY position ASC, name ASC`,
+     FROM categories WHERE status = 'active' AND ${listedCategorySql()} ORDER BY position ASC, name ASC`,
     []
   );
   return c.json({
@@ -1361,10 +1389,10 @@ export async function handleUCPStripeWebhook(
   const [orderCount] = await db.query<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM orders`, []);
   const orderNumber = `ORD-${String((orderCount?.cnt || 0) + 1).padStart(5, '0')}`;
 
-  // Insert order
+  // Insert order (items go to order_items, like every other order flow)
   await db.run(
-    `INSERT INTO orders (id, number, status, customer_email, subtotal_cents, tax_cents, shipping_cents, total_cents, currency, stripe_session_id, items, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO orders (id, number, status, customer_email, subtotal_cents, tax_cents, shipping_cents, total_cents, currency, stripe_checkout_session_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       orderId,
       orderNumber,
@@ -1376,17 +1404,19 @@ export async function handleUCPStripeWebhook(
       grandTotal,
       session.currency,
       stripeSessionId,
-      JSON.stringify(lineItems.map((li: UCPLineItem) => ({
-        sku: li.item.id,
-        title: li.item.title,
-        qty: li.quantity,
-        unit_price_cents: li.unit_price.amount,
-      }))),
       now(),
       now(),
     ]
   );
-  
+  for (const li of lineItems as UCPLineItem[]) {
+    await db.run(
+      `INSERT INTO order_items (id, order_id, sku, title, qty, unit_price_cents) VALUES (?, ?, ?, ?, ?, ?)`,
+      [uuid(), orderId, li.item.id, li.item.title, li.quantity, li.unit_price.amount],
+    );
+  }
+  // The buyer's account (if any) sees this order and it counts towards their spend.
+  await linkOrderToCustomer(db, orderId, { name: buyer.full_name ?? null });
+
   // Update UCP session
   await db.run(
     `UPDATE ucp_checkout_sessions SET status = 'completed', order_id = ?, order_number = ?, updated_at = ? WHERE id = ?`,

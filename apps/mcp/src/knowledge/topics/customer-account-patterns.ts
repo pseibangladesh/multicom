@@ -8,7 +8,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 const topic: Topic = {
   name: 'customer-account-patterns',
   description: 'Customer account surface: /me routes, customerAuthMiddleware, address book, order history, and profile-update flows for logged-in shoppers.',
-  tags: ["account","api","auth","auth0","backend","cloudflare","commerce","hono","images","orders","security","storage","user"],
+  tags: ["account","api","auth","backend","cloudflare","commerce","hono","images","orders","security","storage","user"],
   sources: [
     'apps/merchant/src/routes/me.ts',
     'apps/merchant/src/middleware/customer-auth.ts',
@@ -16,7 +16,7 @@ const topic: Topic = {
   systemPrompt: BASE_SYSTEM,
   maxSourceChars: 4000,
   manualFacts: [
-    'All /v1/me/* routes require customerAuthMiddleware which validates the Auth0 Bearer token and resolves the Auth0 sub claim to a customers.id (creating the customer row on first access).',
+    'All /v1/me/* routes require customerAuthMiddleware (a verified Better Auth session) and resolveCustomer(db, auth.userId), which maps the user to a customers row — claiming an existing row with the same email, or creating one — and links earlier guest orders with that email.',
     'The customer row is auto-created on first authenticated request: customerAuthMiddleware calls getOrCreateCustomer(db, sub, email) which inserts if not exists.',
     'GET /v1/me returns the current customer profile (id, email, name, created_at, auth_provider_id).',
     'PATCH /v1/me updates customer profile fields: name, phone, marketing_opt_in.',

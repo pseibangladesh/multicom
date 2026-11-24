@@ -555,6 +555,14 @@ describe('Schema Validation', () => {
         price_cents: 2999,
         currency: 'USD',
         image_url: null,
+        weight_g: 500,
+        dims_cm: null,
+        requires_shipping: true,
+        ai_token_units: null,
+        barcode: null,
+        compare_at_price_cents: null,
+        tax_code: null,
+        tax_display_name: null,
       };
       const result = VariantResponse.safeParse(valid);
       expect(result.success).toBe(true);
@@ -567,6 +575,14 @@ describe('Schema Validation', () => {
         title: 'Test Variant',
         price_cents: 2999,
         image_url: null,
+        weight_g: 500,
+        dims_cm: null,
+        requires_shipping: true,
+        ai_token_units: null,
+        barcode: null,
+        compare_at_price_cents: null,
+        tax_code: null,
+        tax_display_name: null,
       };
       const result = VariantResponse.safeParse(valid);
       expect(result.success).toBe(true);

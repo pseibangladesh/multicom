@@ -24,8 +24,10 @@
  */
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { parseProductImages, serializeProductImages } from '../lib/product-images';
+import { listedCategorySql } from '../lib/category-visibility';
 import { z } from '@hono/zod-openapi';
-import { getDb } from '../db';
+import { getDb, type Database } from '../db';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import {
@@ -272,12 +274,22 @@ function mapVariant(
     tax_rate_percentage: (taxRate?.rate_percentage ?? 0) as number,
     tax_display_name: (taxRate?.display_name ?? null) as string | null,
     tax_inclusive: (v.tax_inclusive as boolean | undefined) ?? defaultTaxInclusive,
+    color: (v.color ?? null) as string | null,
+    size: (v.size ?? null) as string | null,
+    availability: ((v.availability as string) ?? 'in_stock') as 'in_stock' | 'out_of_stock' | 'preorder',
   }
 }
 
 /**
  * Maps a raw product row (with its variants) to the API response shape.
  */
+/** Gallery fields; noimage=true strips them like variant images. */
+function productImageFields(p: Record<string, unknown>, imageMode: 'full' | 'thumb' | 'none') {
+  if (imageMode === 'none') return { image_url: null, images: [] };
+  const images = parseProductImages(p.images, p.image_url);
+  return { image_url: images[0]?.url ?? null, images };
+}
+
 function mapProduct(
   p: Record<string, unknown>,
   variants: Record<string, unknown>[],
@@ -297,6 +309,7 @@ function mapProduct(
     vendor: (p.vendor ?? null) as string | null,
     tags: (p.tags ?? null) as string | null,
     handle: (p.handle ?? null) as string | null,
+    ...productImageFields(p, imageMode),
     categories: categories.length > 0 ? categories : null,
     review_count: (p.review_count as number) ?? 0,
     average_rating: (p.average_rating as number) ?? 0,
@@ -308,36 +321,15 @@ function mapProduct(
   }
 }
 
-adminApp.openapi(listProducts, async (c) => {
-  const db = getDb(c.var.db);
-  const { limit: limitStr, cursor, status, noimage, thumbnail } = c.req.valid('query');
-  const imageMode = noimage === 'true' ? 'none' : thumbnail === 'true' ? 'thumb' : 'full';
-  const limit = Math.min(parseInt(limitStr || '20'), 100);
-
-  let query = `SELECT * FROM products`;
-  const params: unknown[] = [];
-  const conditions: string[] = [];
-
-  if (status) {
-    conditions.push(`status = ?`);
-    params.push(status);
-  }
-  if (cursor) {
-    conditions.push(`created_at < ?`);
-    params.push(cursor);
-  }
-
-  if (conditions.length > 0) {
-    query += ` WHERE ${conditions.join(' AND ')}`;
-  }
-
-  query += ` ORDER BY created_at DESC LIMIT ?`;
-  params.push(limit + 1);
-
-  const products = await db.query<any>(query, params);
-  const hasMore = products.length > limit;
-  if (hasMore) products.pop();
-
+/**
+ * Variants, tax rates and listed categories for a page of product rows, mapped
+ * to the API shape. Shared by GET /v1/products and the home page sections.
+ */
+export async function mapProductRows(
+  db: Database,
+  products: Record<string, any>[],
+  imageMode: 'full' | 'thumb' | 'none' = 'full',
+) {
   const productIds = products.map((p) => p.id);
   const variantsByProduct: Record<string, any[]> = {};
 
@@ -377,7 +369,7 @@ adminApp.openapi(listProducts, async (c) => {
     const allCategories = await db.query<any>(
       `SELECT c.* FROM categories c
        JOIN product_categories pc ON pc.category_id = c.id
-       WHERE pc.product_id IN (${placeholders}) AND c.status = 'active'
+       WHERE pc.product_id IN (${placeholders}) AND c.status = 'active' AND ${listedCategorySql('c')}
        ORDER BY pc.position ASC`,
       productIds
     );
@@ -389,9 +381,42 @@ adminApp.openapi(listProducts, async (c) => {
     }
   }
 
-  const items = products.map((p) =>
+  return products.map((p) =>
     mapProduct(p, variantsByProduct[p.id] || [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, categoriesByProduct[p.id] || [], imageMode),
   );
+}
+
+adminApp.openapi(listProducts, async (c) => {
+  const db = getDb(c.var.db);
+  const { limit: limitStr, cursor, status, noimage, thumbnail } = c.req.valid('query');
+  const imageMode = noimage === 'true' ? 'none' : thumbnail === 'true' ? 'thumb' : 'full';
+  const limit = Math.min(parseInt(limitStr || '20'), 100);
+
+  let query = `SELECT * FROM products`;
+  const params: unknown[] = [];
+  const conditions: string[] = [];
+
+  if (status) {
+    conditions.push(`status = ?`);
+    params.push(status);
+  }
+  if (cursor) {
+    conditions.push(`created_at < ?`);
+    params.push(cursor);
+  }
+
+  if (conditions.length > 0) {
+    query += ` WHERE ${conditions.join(' AND ')}`;
+  }
+
+  query += ` ORDER BY created_at DESC LIMIT ?`;
+  params.push(limit + 1);
+
+  const products = await db.query<any>(query, params);
+  const hasMore = products.length > limit;
+  if (hasMore) products.pop();
+
+  const items = await mapProductRows(db, products, imageMode);
 
   const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].created_at : null;
 
@@ -463,7 +488,7 @@ adminApp.openapi(searchProducts, async (c) => {
     const allCategories = await db.query<any>(
       `SELECT c.* FROM categories c
        JOIN product_categories pc ON pc.category_id = c.id
-       WHERE pc.product_id IN (${placeholders}) AND c.status = 'active'
+       WHERE pc.product_id IN (${placeholders}) AND c.status = 'active' AND ${listedCategorySql('c')}
        ORDER BY pc.position ASC`,
       productIds
     );
@@ -480,6 +505,99 @@ adminApp.openapi(searchProducts, async (c) => {
   const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].created_at : null;
 
   return c.json({ items, pagination: { has_more: hasMore, next_cursor: nextCursor } } as any, 200);
+});
+
+// ============================================================
+// PRICING AUDIT - Find variants missing prices for a currency
+// ============================================================
+// Registered before GET /{id}: otherwise "/pricing-audit" is taken as a product id.
+
+const PricingAuditQuery = z.object({
+  currencyId: z.string().uuid().openapi({
+    param: { name: 'currencyId', in: 'query' },
+    description: 'UUID of the currency to check (from currencies table)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  }),
+});
+
+const PricingAuditResponse = z.object({
+  currencyId: z.string().uuid(),
+  currencyCode: z.string(),
+  missing: z.array(z.object({
+    variantId: z.string().uuid(),
+    variantSku: z.string(),
+    variantTitle: z.string(),
+    productId: z.string().uuid(),
+    productTitle: z.string(),
+  })),
+  total: z.number().int(),
+}).openapi('PricingAudit');
+
+const pricingAudit = createRoute({
+  method: 'get',
+  path: '/pricing-audit',
+  tags: ['Products'],
+  summary: 'List active variants missing a price for a given currency',
+  description:
+    'Returns all active variants in active products that have no entry in variant_prices ' +
+    'for the specified currency. Useful when using strict pricing (Option A).',
+  security: [{ bearerAuth: ["legacy sk_", "admin:store"] }],
+  middleware: [adminOnly] as const,
+  request: {
+    query: PricingAuditQuery,
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: PricingAuditResponse } },
+      description: 'List of variants missing a price',
+    },
+    404: {
+      content: { 'application/json': { schema: ErrorResponse } },
+      description: 'Currency not found',
+    },
+  },
+});
+
+adminApp.openapi(pricingAudit, async (c) => {
+  const { currencyId } = c.req.valid('query');
+  const db = getDb(c.var.db);
+
+  const [currency] = await db.query<{ id: string; code: string }>(
+    `SELECT id, code FROM currencies WHERE id = ?`,
+    [currencyId]
+  );
+  if (!currency) throw ApiError.notFound('Currency not found');
+
+  const missing = await db.query<{
+    variantId: string;
+    variantSku: string;
+    variantTitle: string;
+    productId: string;
+    productTitle: string;
+  }>(
+    `SELECT
+       v.id        AS variantId,
+       v.sku       AS variantSku,
+       v.title     AS variantTitle,
+       p.id        AS productId,
+       p.title     AS productTitle
+     FROM variants v
+     JOIN products p ON v.product_id = p.id
+     LEFT JOIN variant_prices vp
+       ON vp.variant_id = v.id AND vp.currency_id = ?
+     WHERE v.status = 'active'
+       AND p.status = 'active'
+       AND vp.id IS NULL
+     ORDER BY p.title ASC, v.title ASC`,
+    [currencyId]
+  );
+
+  return c.json({
+    currencyId,
+    currencyCode: currency.code,
+    missing: missing ?? [],
+    total: missing?.length ?? 0,
+  }, 200);
 });
 
 const getProduct = createRoute({
@@ -525,7 +643,7 @@ adminApp.openapi(getProduct, async (c) => {
   const categories = await db.query<any>(
     `SELECT c.* FROM categories c
      JOIN product_categories pc ON pc.category_id = c.id
-     WHERE pc.product_id = ? AND c.status = 'active'
+     WHERE pc.product_id = ? AND c.status = 'active' AND ${listedCategorySql('c')}
      ORDER BY pc.position ASC`,
     [id]
   );
@@ -548,7 +666,7 @@ const createProduct = createRoute({
 });
 
 adminApp.openapi(createProduct, async (c) => {
-  const { title, description, vendor, tags, handle } = c.req.valid('json');
+  const { title, description, vendor, tags, handle, images } = c.req.valid('json');
   const db = getDb(c.var.db);
 
   const id = uuid();
@@ -585,9 +703,11 @@ adminApp.openapi(createProduct, async (c) => {
     if (existingHandle.length > 0) throw ApiError.conflict(`Handle "${handleToCheck}" already exists`);
   }
 
+  const [imagesJson, coverUrl] = serializeProductImages(images ?? []);
+
   await db.run(
-    `INSERT INTO products (id, title, description, vendor, tags, handle, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
-    [id, title, description || null, processedVendor, processedTags, processedHandle, timestamp]
+    `INSERT INTO products (id, title, description, vendor, tags, handle, images, image_url, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+    [id, title, description || null, processedVendor, processedTags, processedHandle, imagesJson, coverUrl, timestamp]
   );
 
   const activeTaxRates = await db.query<any>(`SELECT * FROM tax_rates WHERE status = 'active'`);
@@ -612,6 +732,8 @@ adminApp.openapi(createProduct, async (c) => {
       vendor: processedVendor, 
       tags: processedTags, 
       handle: processedHandle, 
+      images: imagesJson,
+      image_url: coverUrl,
       status: 'active', 
       created_at: timestamp 
     }, [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, []) as any,
@@ -700,6 +822,11 @@ adminApp.openapi(updateProduct, async (c) => {
     updates.push('handle = ?');
     params.push(processedHandle);
   }
+  if (body.images !== undefined) {
+    const [imagesJson, coverUrl] = serializeProductImages(body.images);
+    updates.push('images = ?', 'image_url = ?');
+    params.push(imagesJson, coverUrl);
+  }
   if (body.status !== undefined) {
     updates.push('status = ?');
     params.push(body.status);
@@ -731,7 +858,7 @@ adminApp.openapi(updateProduct, async (c) => {
   const categories = await db.query<any>(
     `SELECT c.* FROM categories c
      JOIN product_categories pc ON pc.category_id = c.id
-     WHERE pc.product_id = ? AND c.status = 'active'
+     WHERE pc.product_id = ? AND c.status = 'active' AND ${listedCategorySql('c')}
      ORDER BY pc.position ASC`,
     [id]
   );
@@ -811,7 +938,8 @@ adminApp.openapi(createVariant, async (c) => {
     sku, title, price_cents, currency, image_url, thumbnail_url,
     weight_g, dims_cm, requires_shipping,
     variant_type, ai_token_units,
-    barcode, compare_at_price_cents, tax_code
+    barcode, compare_at_price_cents, tax_code,
+    color, size, availability
   } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -837,14 +965,15 @@ adminApp.openapi(createVariant, async (c) => {
       weight_g, dims_cm, requires_shipping,
       variant_type, ai_token_units,
       barcode, compare_at_price_cents, tax_code,
-      image_url, thumbnail_url, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      image_url, thumbnail_url, color, size, availability, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, productId, sku, title, price_cents, currency ?? 'USD',
       weight_g ?? 0, dims_cm ? JSON.stringify(dims_cm) : null, effectiveRequiresShipping,
       variant_type ?? 'physical', ai_token_units ?? null,
       barcode ?? null, compare_at_price_cents ?? null, tax_code ?? null,
-      image_url || null, thumbnail_url || null, timestamp
+      image_url || null, thumbnail_url || null,
+      color?.trim() || null, size?.trim() || null, availability ?? 'in_stock', timestamp
     ]
   );
 
@@ -906,6 +1035,18 @@ adminApp.openapi(updateVariant, async (c) => {
   if (body.title !== undefined) {
     updates.push('title = ?');
     params.push(body.title);
+  }
+  if (body.color !== undefined) {
+    updates.push('color = ?');
+    params.push(body.color?.trim() || null);
+  }
+  if (body.size !== undefined) {
+    updates.push('size = ?');
+    params.push(body.size?.trim() || null);
+  }
+  if (body.availability !== undefined) {
+    updates.push('availability = ?');
+    params.push(body.availability);
   }
   if (body.price_cents !== undefined) {
     updates.push('price_cents = ?');
@@ -1142,96 +1283,5 @@ adminApp.openapi(deleteVariantPrice, async (c) => {
   return c.json({ deleted: true }, 200);
 });
 
-// ============================================================
-// PRICING AUDIT - Find variants missing prices for a currency
-// ============================================================
-
-const PricingAuditQuery = z.object({
-  currencyId: z.string().uuid().openapi({
-    param: { name: 'currencyId', in: 'query' },
-    description: 'UUID of the currency to check (from currencies table)',
-    example: '550e8400-e29b-41d4-a716-446655440000',
-  }),
-});
-
-const PricingAuditResponse = z.object({
-  currencyId: z.string().uuid(),
-  currencyCode: z.string(),
-  missing: z.array(z.object({
-    variantId: z.string().uuid(),
-    variantSku: z.string(),
-    variantTitle: z.string(),
-    productId: z.string().uuid(),
-    productTitle: z.string(),
-  })),
-  total: z.number().int(),
-}).openapi('PricingAudit');
-
-const pricingAudit = createRoute({
-  method: 'get',
-  path: '/pricing-audit',
-  tags: ['Products'],
-  summary: 'List active variants missing a price for a given currency',
-  description:
-    'Returns all active variants in active products that have no entry in variant_prices ' +
-    'for the specified currency. Useful when using strict pricing (Option A).',
-  security: [{ bearerAuth: ["legacy sk_", "admin:store"] }],
-  middleware: [adminOnly] as const,
-  request: {
-    query: PricingAuditQuery,
-  },
-  responses: {
-    200: {
-      content: { 'application/json': { schema: PricingAuditResponse } },
-      description: 'List of variants missing a price',
-    },
-    404: {
-      content: { 'application/json': { schema: ErrorResponse } },
-      description: 'Currency not found',
-    },
-  },
-});
-
-adminApp.openapi(pricingAudit, async (c) => {
-  const { currencyId } = c.req.valid('query');
-  const db = getDb(c.var.db);
-
-  const [currency] = await db.query<{ id: string; code: string }>(
-    `SELECT id, code FROM currencies WHERE id = ?`,
-    [currencyId]
-  );
-  if (!currency) throw ApiError.notFound('Currency not found');
-
-  const missing = await db.query<{
-    variantId: string;
-    variantSku: string;
-    variantTitle: string;
-    productId: string;
-    productTitle: string;
-  }>(
-    `SELECT
-       v.id        AS variantId,
-       v.sku       AS variantSku,
-       v.title     AS variantTitle,
-       p.id        AS productId,
-       p.title     AS productTitle
-     FROM variants v
-     JOIN products p ON v.product_id = p.id
-     LEFT JOIN variant_prices vp
-       ON vp.variant_id = v.id AND vp.currency_id = ?
-     WHERE v.status = 'active'
-       AND p.status = 'active'
-       AND vp.id IS NULL
-     ORDER BY p.title ASC, v.title ASC`,
-    [currencyId]
-  );
-
-  return c.json({
-    currencyId,
-    currencyCode: currency.code,
-    missing: missing ?? [],
-    total: missing?.length ?? 0,
-  }, 200);
-});
 
 export { adminApp as adminCatalog };

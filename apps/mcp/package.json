@@ -1,5 +1,5 @@
 {
-  "name": "@sctg/fufuni-mcp",
+  "name": "@sctg/bengal-exchange-mcp",
   "version": "0.1.0-beta.20260426",
   "private": false,
   "type": "module",
@@ -7,7 +7,7 @@
     "dist"
   ],
   "repository": {
-    "url": "https://github.com/sctg-development/fufuni.git"
+    "url": "https://github.com/pseibangladesh/multicom.git"
   },
   "scripts": {
     "dev": "(trap 'kill 0' EXIT; npx wrangler dev --port 8788 --inspector-port 9230 & sleep 2 && npx @modelcontextprotocol/inspector http://localhost:8788/mcp; wait)",

@@ -9,6 +9,7 @@
 import { Hono } from 'hono';
 import type { HonoEnv } from '../types';
 import { getDb } from '../db';
+import { listedCategorySql } from '../lib/category-visibility';
 
 export const sitemapRouter = new Hono<HonoEnv>();
 
@@ -18,11 +19,12 @@ sitemapRouter.get('/sitemap.xml', async (c) => {
     ?? new URL(c.req.url).origin;
 
   const products = await db.query<{ id: string; updated_at: string }>(
-    `SELECT id, updated_at FROM products WHERE active = 1 ORDER BY updated_at DESC LIMIT 50000`,
+    // products has no updated_at column; created_at stands in for lastmod.
+    `SELECT id, created_at AS updated_at FROM products WHERE status = 'active' ORDER BY created_at DESC LIMIT 50000`,
     []
   );
   const categories = await db.query<{ handle: string; updated_at: string }>(
-    `SELECT handle, updated_at FROM categories WHERE active = 1 LIMIT 10000`,
+    `SELECT handle, updated_at FROM categories WHERE status = 'active' AND ${listedCategorySql()} LIMIT 10000`,
     []
   );
 

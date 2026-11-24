@@ -26,59 +26,13 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { getDb } from '../db';
+import { resolveCustomer } from '../lib/customers';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { calculateOrderTaxes } from '../lib/tax';
 
 const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', customerAuthMiddleware);
 
-/**
- * Resolves the currently authenticated customer from the database.
- * Uses the Better Auth user_id to find the customer by email match.
- *
- * @param db - Database connection
- * @param userId - The Better Auth user_id from session auth
- * @returns The customer row or throws a 401 error
- */
-async function resolveCustomer(db: any, userId: string) {
-  // Find customer whose email matches the Better Auth user's email
-  const customerResult = await db.query<any>(
-    `SELECT * FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
-
-  if (customerResult.length > 0) {
-    return customerResult[0];
-  }
-
-  // No matching customer — create one (auto-provision on first session login)
-  const userResult = await db.query<any>(
-    `SELECT email, name FROM "user" WHERE id = ? LIMIT 1`,
-    [userId]
-  );
-
-  if (userResult.length > 0) {
-    const userRow = userResult[0];
-    const customerId = uuid();
-
-    await db.run(
-      `INSERT INTO customers (
-        id, email, auth_provider, auth_provider_id,
-        name, locale, order_count, total_spent_cents, created_at, updated_at
-      ) VALUES (?, ?, 'better-auth', ?, ?, 'en-US', 0, 0, ?, ?)`,
-      [customerId, userRow.email.toLowerCase(), userId, userRow.name || null, now(), now()]
-    );
-
-    const newCustomer = await db.query<any>(
-      `SELECT * FROM customers WHERE id = ?`,
-      [customerId]
-    );
-
-    return newCustomer[0];
-  }
-
-  throw ApiError.unauthorized('User not found in Better Auth');
-}
 
 // ============================================================
 // GET /v1/me/profile
@@ -718,7 +672,7 @@ const getMyPreferences = createRoute({
     tags: ['Customer Portal'],
     summary: 'Get my preferences',
     description:
-        'Returns the customer preferences stored in Auth0 user_metadata.',
+        'Returns the customer preferences stored on the customer record.',
     security: [{ bearerAuth: ["valid jwt"] }],
     responses: {
         200: {
@@ -765,7 +719,7 @@ const updateMyPreferences = createRoute({
     path: '/preferences',
     tags: ['Customer Portal'],
     summary: 'Update my preferences',
-    description: 'Updates customer preferences (stored in Auth0 user_metadata).',
+    description: 'Updates customer preferences (stored on the customer record).',
     security: [{ bearerAuth: ["valid jwt"] }],
     request: {
         body: {
@@ -826,6 +780,74 @@ adminApp.openapi(updateMyPreferences, async (c) => {
     ]);
 
     return c.json({ ok: true }, 200);
+});
+
+// ============================================================
+// GET / PUT /v1/me/cart — the signed-in customer's cart, on any device
+// ============================================================
+
+const CartItem = z.object({
+    sku: z.string().min(1).max(200),
+    title: z.string().max(500),
+    price_cents: z.number().int().min(0),
+    currency: z.string().max(10).optional(),
+    image_url: z.string().max(2000).optional(),
+    qty: z.number().int().min(1).max(999),
+});
+const CartBody = z.object({ items: z.array(CartItem).max(100) }).openapi('CustomerCart');
+
+const getMyCart = createRoute({
+    method: 'get',
+    path: '/cart',
+    tags: ['Customer Portal'],
+    summary: 'Get my cart',
+    description: 'The signed-in customer\'s cart. Prices are for display; checkout prices each item again.',
+    security: [{ bearerAuth: [] }],
+    responses: {
+        200: { description: 'Cart', content: { 'application/json': { schema: CartBody } } },
+    },
+});
+
+adminApp.openapi(getMyCart, async (c) => {
+    const userId = (c.get('auth') as { userId?: string } | undefined)?.userId;
+    if (!userId) throw ApiError.unauthorized('Invalid token');
+    const db = getDb(c.var.db);
+    const customer = await resolveCustomer(db, userId);
+    const [row] = await db.query<{ items: string }>(`SELECT items FROM customer_carts WHERE customer_id = ?`, [customer.id]);
+    let items: z.infer<typeof CartItem>[] = [];
+    try {
+        const parsed = CartBody.safeParse({ items: row ? JSON.parse(row.items) : [] });
+        if (parsed.success) items = parsed.data.items;
+    } catch {
+        /* corrupt row: treat as empty */
+    }
+    return c.json({ items }, 200);
+});
+
+const putMyCart = createRoute({
+    method: 'put',
+    path: '/cart',
+    tags: ['Customer Portal'],
+    summary: 'Replace my cart',
+    security: [{ bearerAuth: [] }],
+    request: { body: { content: { 'application/json': { schema: CartBody } } } },
+    responses: {
+        200: { description: 'Saved cart', content: { 'application/json': { schema: CartBody } } },
+    },
+});
+
+adminApp.openapi(putMyCart, async (c) => {
+    const userId = (c.get('auth') as { userId?: string } | undefined)?.userId;
+    if (!userId) throw ApiError.unauthorized('Invalid token');
+    const { items } = c.req.valid('json');
+    const db = getDb(c.var.db);
+    const customer = await resolveCustomer(db, userId);
+    await db.run(
+        `INSERT INTO customer_carts (customer_id, items, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(customer_id) DO UPDATE SET items = excluded.items, updated_at = excluded.updated_at`,
+        [customer.id, JSON.stringify(items), now()],
+    );
+    return c.json({ items }, 200);
 });
 
 export { adminApp as adminMe };

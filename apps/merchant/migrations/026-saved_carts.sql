@@ -10,7 +10,7 @@
 
 CREATE TABLE IF NOT EXISTS saved_carts (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  auth0_user_id TEXT NOT NULL,
+  user_id       TEXT NOT NULL,
   cart_id     TEXT NOT NULL,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS saved_carts (
   FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(auth0_user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(user_id);
 
 -- Auto-update the updated_at column on row changes
 CREATE TRIGGER IF NOT EXISTS trg_saved_carts_updated_at

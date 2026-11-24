@@ -35,7 +35,6 @@ import {
   Users,
 } from "lucide-react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { formatMoney } from "@/utils/currency";
@@ -106,7 +105,7 @@ export default function AnalyticsPage() {
   });
 
   return (
-    <DefaultLayout>
+    <>
       <div className="p-6 space-y-6">
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
@@ -442,6 +441,6 @@ export default function AnalyticsPage() {
           </>
         )}
       </div>
-    </DefaultLayout>
+    </>
   );
 }

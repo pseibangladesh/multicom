@@ -17,10 +17,12 @@
  */
 
 import { Button, Drawer } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { useCart } from "@/hooks/use-cart";
 import { formatMoney } from "@/utils/currency";
+import { resolveTitleWithVariant } from "@/utils/description";
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -28,6 +30,7 @@ interface CartDrawerProps {
 }
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
+  const { t, i18n } = useTranslation();
   const { items, totalCents, updateQuantity, removeItem } = useCart();
   const navigate = useNavigate();
 
@@ -45,21 +48,21 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         <Drawer.Dialog className="rounded-none h-dvh">
           <Drawer.CloseTrigger />
           <Drawer.Header className="border-b border-separator">
-            <Drawer.Heading className="text-2xl">
-              Votre Panier
+            <Drawer.Heading className="font-display text-2xl text-bx-ink">
+              {t("cart")}
             </Drawer.Heading>
           </Drawer.Header>
 
           <Drawer.Body>
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-muted">
-                <p className="font-sans font-light">Votre panier est vide.</p>
+                <p className="font-sans font-light">{t("cart-empty")}</p>
                 <Button
                   className="uppercase tracking-widest text-xs"
                   variant="secondary"
                   onPress={() => onClose(false)}
                 >
-                  Continuer mes achats
+                  {t("continue-shopping")}
                 </Button>
               </div>
             ) : (
@@ -68,14 +71,14 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   <li key={item.sku} className="flex gap-4 py-5">
                     {item.image_url && (
                       <img
-                        alt={item.title}
+                        alt={resolveTitleWithVariant(item.title, i18n.language)}
                         className="w-20 h-24 object-cover shrink-0"
                         src={item.image_url}
                       />
                     )}
                     <div className="flex-1 min-w-0">
                       <h5 className="font-sans text-sm leading-snug line-clamp-2">
-                        {item.title}
+                        {resolveTitleWithVariant(item.title, i18n.language)}
                       </h5>
                       <p className="text-muted text-xs mt-1">
                         {formatMoney(item.price_cents, item.currency ?? "EUR")}
@@ -86,7 +89,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                           size="sm"
                           variant="outline"
                           className="w-6 h-6 min-w-0 text-xs rounded-none"
-                          aria-label="Diminuer la quantité"
+                          aria-label={t("cart-decrease-qty")}
                           onPress={() =>
                             item.qty > 1
                               ? updateQuantity(item.sku, item.qty - 1)
@@ -103,7 +106,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                           size="sm"
                           variant="outline"
                           className="w-6 h-6 min-w-0 text-xs rounded-none"
-                          aria-label="Augmenter la quantité"
+                          aria-label={t("cart-increase-qty")}
                           onPress={() => updateQuantity(item.sku, item.qty + 1)}
                         >
                           +
@@ -111,7 +114,10 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       </div>
                     </div>
                     <p className="font-semibold text-sm shrink-0">
-                      {formatMoney(item.price_cents * item.qty, item.currency ?? "EUR")}
+                      {formatMoney(
+                        item.price_cents * item.qty,
+                        item.currency ?? "EUR",
+                      )}
                     </p>
                   </li>
                 ))}
@@ -122,14 +128,15 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           {items.length > 0 && (
             <Drawer.Footer className="border-t border-separator flex-col gap-4">
               <div className="flex justify-between w-full text-xl">
-                <span>Total</span>
+                <span>{t("total")}</span>
                 <span>{total}</span>
               </div>
               <Button
-                className="w-full bg-foreground text-background uppercase tracking-widest font-semibold h-12 "
+                className="h-12 w-full font-semibold uppercase tracking-widest"
+                variant="primary"
                 onPress={handleCheckout}
               >
-                Commander
+                {t("checkout")}
               </Button>
             </Drawer.Footer>
           )}

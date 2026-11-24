@@ -183,11 +183,10 @@ export function CheckoutAuthPrompt({
         </Modal.Backdrop>
       </Modal>
 
-      {/* LoginModal handles the actual login redirect */}
+      {/* Signs in right here; checkout continues on this page. */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-        returnTo="/cart"
       />
     </>
   );

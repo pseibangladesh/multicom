@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { Input } from "@heroui/react";
@@ -28,7 +28,6 @@ import { Card } from "@heroui/react";
 import { Checkbox } from "@heroui/react";
 import { Wand2, Image as ImageIcon, Trash2 } from "lucide-react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { SearchIcon } from "@/shared/ui/icons";
@@ -50,6 +49,11 @@ import {
   getTaxNameForLocale,
 } from "@/utils/description";
 import { availableLanguages } from "@/i18n";
+import {
+  ProductImagesInput,
+  type ProductImage,
+} from "@/components/product-images-input";
+import { storedImageKey } from "@/lib/banners";
 
 // --- Data types ----------------------------------------------------------
 /**
@@ -71,7 +75,17 @@ interface Variant {
   tax_code?: string | null;
   variant_type?: 'physical' | 'digital' | 'ai_tokens';
   ai_token_units?: number | null;
+  color?: string | null;
+  size?: string | null;
+  availability?: Availability;
 }
+
+type Availability = 'in_stock' | 'out_of_stock' | 'preorder';
+const AVAILABILITY_KEYS: Record<Availability, string> = {
+  in_stock: 'admin-products-availability-in-stock',
+  out_of_stock: 'admin-products-availability-out-of-stock',
+  preorder: 'admin-products-availability-preorder',
+};
 
 /**
  * Category with multilingual support.
@@ -83,6 +97,7 @@ interface Category {
   description?: string | null;
   image_url?: string | null;
   status: "active" | "inactive";
+  visibility?: "listed" | "showcase";
   created_at: string;
 }
 
@@ -100,6 +115,9 @@ interface Product {
   tags?: string[] | null;
   handle?: string | null;
   categories?: Category[] | null;
+  /** Photos in display order; the first is the cover. */
+  images?: ProductImage[];
+  image_url?: string | null;
 }
 
 /**
@@ -190,6 +208,22 @@ export default function ProductsPage() {
   const [formHandleValue, setFormHandleValue] = useState(""); // display value for current locale
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [formImages, setFormImages] = useState<ProductImage[]>([]);
+  const [imagesBusy, setImagesBusy] = useState(false);
+  // Files uploaded while the form is open; deleted again if not saved.
+  const unsavedUploads = useRef(new Set<string>());
+
+  const discardUnsavedUploads = (keep: ProductImage[] = []) => {
+    const kept = new Set(keep.map((i) => i.url));
+
+    for (const url of unsavedUploads.current) {
+      const key = storedImageKey(url);
+
+      if (key && !kept.has(url))
+        deleteJson(`${apiBase}/v1/images/${key}`).catch(() => undefined);
+    }
+    unsavedUploads.current.clear();
+  };
 
   const handleDeleteProduct = async () => {
     if (!editingProduct) return;
@@ -230,6 +264,9 @@ export default function ProductsPage() {
   const [variantTaxCode, setVariantTaxCode] = useState("");
   const [variantType, setVariantType] = useState<'physical' | 'digital' | 'ai_tokens'>('physical');
   const [variantAiTokenUnits, setVariantAiTokenUnits] = useState("");
+  const [variantColor, setVariantColor] = useState("");
+  const [variantSize, setVariantSize] = useState("");
+  const [variantAvailability, setVariantAvailability] = useState<Availability>('in_stock');
 
   // fetch products from backend
   /**
@@ -349,7 +386,8 @@ export default function ProductsPage() {
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const resp = await getJson(`${apiBase}/v1/categories?limit=1000`);
+        // Admin list: includes showcase-only (and inactive) categories.
+        const resp = await getJson(`${apiBase}/v1/admin/categories`);
 
         setAllCategories(resp.items || []);
       } catch (err) {
@@ -396,6 +434,8 @@ export default function ProductsPage() {
     setFormTagsValue("");
     setFormHandle("");
     setFormHandleValue("");
+    setFormImages([]);
+    unsavedUploads.current.clear();
     setSelectedCategoryIds(new Set());
     setCreateModal(true);
   };
@@ -517,6 +557,8 @@ export default function ProductsPage() {
         : "",
     );
     setFormHandle(p.handle || "");
+    setFormImages(p.images ?? []);
+    unsavedUploads.current.clear();
     if (p.categories) {
       setSelectedCategoryIds(new Set(p.categories.map((c) => c.id)));
     } else {
@@ -529,6 +571,13 @@ export default function ProductsPage() {
     // Phase 2: fetch authoritative product data from the API
     try {
       const full = await getJson(`${apiBase}/v1/products/${p.id}`);
+      // Product responses leave out showcase-only categories; the editor
+      // needs all of them, or saving would not know about them.
+      const mine = await getJson(
+        `${apiBase}/v1/admin/categories?product_id=${encodeURIComponent(p.id)}`,
+      ).catch(() => null);
+
+      if (mine?.items) full.categories = mine.items;
 
       setEditingProduct(full);
       setFormTitle(full.title);
@@ -540,6 +589,7 @@ export default function ProductsPage() {
         (full as any).tags ? ((full as any).tags as string[]).join(", ") : "",
       );
       setFormHandle((full as any).handle || "");
+      setFormImages((full as Product).images ?? []);
       if (full.categories) {
         setSelectedCategoryIds(
           new Set((full.categories as Category[]).map((c) => c.id)),
@@ -584,6 +634,7 @@ export default function ProductsPage() {
         vendor: mergedVendor || undefined,
         tags: mergedTags || undefined,
         handle: mergedHandle || undefined,
+        images: formImages,
       };
 
       if (editingProduct) {
@@ -601,6 +652,8 @@ export default function ProductsPage() {
           vendor: (productData.vendor as string) || null,
           tags: (productData.tags as unknown as string[]) || null,
           handle: (productData.handle as string) || null,
+          images: formImages,
+          image_url: formImages[0]?.url ?? null,
         };
 
         setProducts((prev) =>
@@ -610,9 +663,11 @@ export default function ProductsPage() {
         );
         setEditingProduct(updatedProduct);
 
+        discardUnsavedUploads(formImages);
         setCreateModal(false);
       } else {
         await postJson(`${apiBase}/v1/products`, productData);
+        discardUnsavedUploads(formImages);
         setCreateModal(false);
         await loadProducts();
       }
@@ -669,6 +724,9 @@ export default function ProductsPage() {
     setVariantTaxCode("");
     setVariantType('physical');
     setVariantAiTokenUnits("");
+    setVariantColor("");
+    setVariantSize("");
+    setVariantAvailability('in_stock');
   };
 
   /**
@@ -702,6 +760,9 @@ export default function ProductsPage() {
     setVariantTaxCode(v.tax_code || "");
     setVariantType(v.variant_type || 'physical');
     setVariantAiTokenUnits(v.ai_token_units != null ? String(v.ai_token_units) : "");
+    setVariantColor(v.color ?? "");
+    setVariantSize(v.size ?? "");
+    setVariantAvailability(v.availability ?? 'in_stock');
     setVariantModal(true);
   };
 
@@ -750,6 +811,9 @@ export default function ProductsPage() {
           ? parseInt(variantCompareAtPrice, 10)
           : undefined,
         tax_code: variantTaxCode || undefined,
+        color: variantColor.trim() || null,
+        size: variantSize.trim() || null,
+        availability: variantAvailability,
       };
 
       // Add dimensions if provided
@@ -796,12 +860,12 @@ export default function ProductsPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="px-4 py-6">
         {/* header bar */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold">{t("admin-products-title")}</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex flex-1">
               <Input
                 className="pl-8"
@@ -812,6 +876,7 @@ export default function ProductsPage() {
               <SearchIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 pointer-events-none text-default-400 w-4 h-4" />
             </div>
             <select
+              aria-label={t("status")}
               className="w-32 border rounded px-2 py-1 text-sm"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -918,6 +983,7 @@ export default function ProductsPage() {
         onOpenChange={(open) => {
           setCreateModal(open);
           if (!open) {
+            discardUnsavedUploads();
             setEditingProduct(null);
           }
         }}
@@ -995,6 +1061,14 @@ export default function ProductsPage() {
                           onLocaleChange={setSelectedLocale}
                         />
                       </div>
+                      <ProductImagesInput
+                        apiBaseUrl={apiBase}
+                        locale={selectedLocale}
+                        value={formImages}
+                        onBusyChange={setImagesBusy}
+                        onChange={setFormImages}
+                        onUploaded={(url) => unsavedUploads.current.add(url)}
+                      />
                       <div>
                         <label className="block text-sm font-medium">
                           {t("status")}
@@ -1277,6 +1351,7 @@ export default function ProductsPage() {
                     )}
                     <Button
                       onPress={() => {
+                        discardUnsavedUploads();
                         setCreateModal(false);
                         setEditingProduct(null);
                         setDeleteConfirm(false);
@@ -1284,7 +1359,12 @@ export default function ProductsPage() {
                     >
                       {t("admin-products-btn-cancel")}
                     </Button>
-                    <Button form="product-form" type="submit" variant="primary">
+                    <Button
+                      form="product-form"
+                      isDisabled={imagesBusy}
+                      type="submit"
+                      variant="primary"
+                    >
                       {editingProduct
                         ? t("save")
                         : t("admin-products-btn-create")}
@@ -1349,6 +1429,54 @@ export default function ProductsPage() {
                           value={variantTitle}
                           onChange={(e) => setVariantTitle(e.target.value)}
                         />
+                      </div>
+                      {/* Options shown to shoppers + availability switch */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium" htmlFor="variant-color">
+                            {t("admin-products-field-color")}
+                          </label>
+                          <Input
+                            id="variant-color"
+                            maxLength={60}
+                            placeholder={t("admin-products-field-color-placeholder")}
+                            value={variantColor}
+                            onChange={(e) => setVariantColor(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium" htmlFor="variant-size">
+                            {t("admin-products-field-size")}
+                          </label>
+                          <Input
+                            id="variant-size"
+                            maxLength={60}
+                            placeholder={t("admin-products-field-size-placeholder")}
+                            value={variantSize}
+                            onChange={(e) => setVariantSize(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium" htmlFor="variant-availability">
+                          {t("admin-products-field-availability")}
+                        </label>
+                        <select
+                          aria-describedby="variant-availability-help"
+                          className="mt-1 w-full rounded-md border border-bx-field-line bg-bx-surface px-3 py-2 text-sm text-bx-ink"
+                          id="variant-availability"
+                          value={variantAvailability}
+                          onChange={(e) => setVariantAvailability(e.target.value as Availability)}
+                        >
+                          {(Object.keys(AVAILABILITY_KEYS) as Availability[]).map((a) => (
+                            <option key={a} value={a}>
+                              {t(AVAILABILITY_KEYS[a])}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-xs text-bx-stone" id="variant-availability-help">
+                          {t(`${AVAILABILITY_KEYS[variantAvailability]}-help`)}
+                        </p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium">
@@ -1722,6 +1850,11 @@ export default function ProductsPage() {
                                           cat,
                                           selectedLocale,
                                         )}
+                                        {cat.visibility === "showcase" && (
+                                          <span className="ms-2 rounded bg-bx-accent-soft px-1.5 py-0.5 text-xs text-bx-accent">
+                                            {t("admin-category-showcase-tag")}
+                                          </span>
+                                        )}
                                       </p>
                                       <p className="text-xs text-default-500">
                                         {cat.handle}
@@ -1769,7 +1902,7 @@ export default function ProductsPage() {
           </Modal.Container>
         </Modal.Backdrop>
       </Modal>
-    </DefaultLayout>
+    </>
   );
 }
 
@@ -1784,14 +1917,19 @@ function VariantCard({
   variant: Variant;
   onEdit: () => void;
 }) {
+  const { t } = useTranslation();
+  const options = [variant.color, variant.size].filter(Boolean).join(" · ");
+  const availability = variant.availability ?? 'in_stock';
+
   return (
-    <div
-      className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-default-100 transition-colors"
+    <button
+      className="flex w-full items-center gap-3 p-3 rounded-lg border text-left cursor-pointer hover:bg-default-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bx-primary"
+      type="button"
       onClick={onEdit}
     >
       {(variant.thumbnail_url ?? variant.image_url) ? (
         <img
-          alt={variant.title}
+          alt=""
           className="w-12 h-12 object-cover rounded border"
           src={variant.thumbnail_url ?? variant.image_url}
         />
@@ -1802,11 +1940,19 @@ function VariantCard({
       )}
       <div className="flex-1 min-w-0">
         <p className=" text-sm">{variant.title}</p>
-        <p className="text-xs text-default-500">{variant.sku}</p>
+        <p className="text-xs text-bx-stone">
+          {variant.sku}
+          {options && ` · ${options}`}
+        </p>
+        {availability !== 'in_stock' && (
+          <p className={`text-xs font-medium ${availability === 'out_of_stock' ? 'text-danger' : 'text-bx-primary'}`}>
+            {t(AVAILABILITY_KEYS[availability])}
+          </p>
+        )}
       </div>
       <p className=" text-sm font-semibold">
         {formatMoney(variant.price_cents, variant.currency || "USD")}
       </p>
-    </div>
+    </button>
   );
 }

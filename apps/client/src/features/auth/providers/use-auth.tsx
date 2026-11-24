@@ -3,23 +3,14 @@
  * @license AGPL-3.0-or-later
  */
 
-import React, { createContext, useContext, ReactNode, JSX } from "react";
+import React, { createContext, useContext, ReactNode } from "react";
 
-import { AuthProvider, AuthUser } from "./auth-provider";
+import { AuthProvider } from "./auth-provider";
 import { useLocalProvider } from "./local-provider";
 
-// Create context for the authentication provider
 const AuthContext = createContext<AuthProvider | null>(null);
 
-// Props for the provider wrapper component
-interface AuthProviderWrapperProps {
-  children: ReactNode;
-}
-
-/**
- * Wrapper component that provides authentication context.
- */
-export const AuthProviderWrapper: React.FC<AuthProviderWrapperProps> = ({
+export const AuthProviderWrapper: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const authProvider = useLocalProvider();
@@ -29,9 +20,6 @@ export const AuthProviderWrapper: React.FC<AuthProviderWrapperProps> = ({
   );
 };
 
-/**
- * Hook to access the authentication provider.
- */
 export const useAuth = (): AuthProvider => {
   const context = useContext(AuthContext);
 
@@ -40,34 +28,4 @@ export const useAuth = (): AuthProvider => {
   }
 
   return context;
-};
-
-/**
- * Function to get the user's name with fallback options.
- */
-export const getNameWithFallback = (user: AuthUser | null): string => {
-  return user?.nickname || user?.name || user?.sub || "";
-};
-
-/**
- * Higher-order component to protect routes requiring authentication.
- */
-export const withAuthentication = (
-  Component: React.FC,
-  options?: { onRedirecting?: () => JSX.Element },
-): React.FC => {
-  return function ProtectedRoute(props: any) {
-    const auth = useAuth();
-
-    if (auth.isLoading) {
-      return options?.onRedirecting ? options.onRedirecting() : null;
-    }
-
-    if (!auth.isAuthenticated) {
-      auth.login();
-      return options?.onRedirecting ? options.onRedirecting() : null;
-    }
-
-    return <Component {...props} />;
-  };
 };

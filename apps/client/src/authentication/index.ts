@@ -1,46 +1,28 @@
 /**
- * Authentication module re-exports.
- *
- * Default provider is "local" (Better Auth session cookies).
+ * Authentication module re-exports (Better Auth session cookies).
  */
 
-// Re-export components and hooks
-export {
-  useAuth,
-  getNameWithFallback,
-  withAuthentication,
-} from "@/features/auth/providers/use-auth";
-
-// Local provider (Better Auth) — default
+export { useAuth } from "@/features/auth/providers/use-auth";
 export { useLocalProvider } from "@/features/auth/providers/local-provider";
+export { AuthenticationProvider } from "@/features/auth/auth-root";
 
 export {
-  AuthenticationProvider,
-  type AuthenticationType,
-} from "@/features/auth/auth-root";
-
-// Export interfaces
-export type {
-  AuthProvider,
-  AuthUser,
-  TokenOptions,
-  LoginOptions,
-  LogoutOptions,
-  AuthProviderConfig,
-  AuthGuardProps,
-  AuthPermissionGuardProps,
+  EmailNotVerifiedError,
+  type AuthProvider,
+  type AuthUser,
+  type LoginOptions,
+  type LogoutOptions,
+  type AuthGuardProps,
 } from "@/features/auth/providers/auth-provider";
 
-// Export UI components
 export {
-  Profile,
-  LoginButton,
-  LoginLink,
-  LogoutButton,
-  LogoutLink,
-  LoginLogoutButton,
-  LoginLogoutLink,
   AuthenticationGuard,
-  AuthenticationGuardWithPermission,
   useSecuredApi,
 } from "@/features/auth/components/auth-components";
+
+export { AdminGuard } from "@/features/auth/components/admin-guard";
+export {
+  adminAccess,
+  loginRedirect,
+  type AdminAccess,
+} from "@/features/auth/admin-access";

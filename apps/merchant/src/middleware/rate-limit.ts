@@ -110,6 +110,14 @@ export function rateLimitMiddleware() {
   return async (c: Context<{ Bindings: Env }>, next: Next) => {
     const path = c.req.path;
 
+    // Serving an image is a plain file read (R2 + edge cache). Counting it
+    // would break product pages: a gallery alone can exceed the 20/min
+    // /v1/images limit, which is meant for uploads, and every image would
+    // also use up the shopper's API budget. Uploads and deletes stay limited.
+    if ((c.req.method === 'GET' || c.req.method === 'HEAD') && path.startsWith('/v1/images/')) {
+      return next();
+    }
+
     // Get identifier - prefer API key, fall back to IP
     const authHeader = c.req.header('Authorization');
     const apiKey = authHeader?.replace('Bearer ', '');

@@ -31,6 +31,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { getDb } from '../db';
+import { resolveCustomer } from '../lib/customers';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { verifyOrderViewToken, hashOrderToken } from '../lib/order-token';
@@ -166,17 +167,10 @@ app.openapi(eligibilityRoute, async (c) => {
   const db = getDb(c.var.db);
   const auth = c.get('auth') as any;
 
-  // Resolve customer from session or JWT sub claim (set by customerAuthMiddleware)
-  const customerId = auth?.sub || null;
-  if (!customerId) {
-    return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
-  }
-
-  const [customer] = await db.query<{ id: string }>(
-    `SELECT id FROM customers WHERE auth_provider_id = ? LIMIT 1`,
-    [customerId]
-  );
-  if (!customer) return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
+  // The signed-in customer (customerAuthMiddleware sets auth.userId).
+  const userId = auth?.userId as string | undefined;
+  if (!userId) return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
+  const customer = await resolveCustomer(db, userId);
 
   const [order] = await db.query<{ id: string }>(
     `SELECT o.id FROM orders o
@@ -201,8 +195,9 @@ const createReviewRoute = createRoute({
   method: 'post',
   path: '/',
   tags: ['Reviews'],
-  summary: 'Submit a product review (requires customer JWT)',
-  security: [{ bearerAuth: ['valid jwt'] }],
+  summary: 'Submit a product review (signed-in customer who bought it)',
+  security: [{ bearerAuth: [] }],
+  middleware: [customerAuthMiddleware] as const,
   request: {
     params: z.object({ productId: z.string().uuid() }),
     body: {
@@ -251,16 +246,10 @@ app.openapi(createReviewRoute, async (c) => {
   const db = getDb(c.var.db);
   const auth = c.get('auth') as any;
 
-  // Resolve customer from session or JWT sub claim (set by customerAuthMiddleware)
-  const customerId = auth?.sub || null;
-  if (!customerId) throw ApiError.unauthorized('Authentication required');
-
-  // Resolve customer from Auth0 JWT sub claim (or session — dual-mode)
-  const [customer] = await db.query<{ id: string; email: string; name: string | null }>(
-    `SELECT id, email, name FROM customers WHERE auth_provider_id = ? LIMIT 1`,
-    [customerId]
-  );
-  if (!customer) throw ApiError.unauthorized('Customer account not found');
+  // The signed-in customer (customerAuthMiddleware sets auth.userId).
+  const userId = auth?.userId as string | undefined;
+  if (!userId) throw ApiError.unauthorized('Authentication required');
+  const customer = await resolveCustomer(db, userId);
 
   // Prevent duplicate review
   const [existing] = await db.query<{ id: string }>(
@@ -307,7 +296,7 @@ app.openapi(createReviewRoute, async (c) => {
   return c.json({ id, status: 'pending' }, 201);
 });
 
-// ── Guest: submit a review via order token (no Auth0 required) ─────────────
+// ── Guest: submit a review via order token (no account required) ──────────
 
 const createGuestReviewRoute = createRoute({
   method: 'post',
