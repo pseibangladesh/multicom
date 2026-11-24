@@ -2,7 +2,7 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * ⚠️  Architecture Stripe dans Fufuni :
+ * ⚠️  Architecture Stripe dans Bengal Exchange :
  *
  * Le worker crée une `stripe.checkout.sessions.create()` et retourne une URL de
  * redirection vers `checkout.stripe.com` (Stripe Checkout hébergé).
@@ -23,7 +23,7 @@ import { test, expect } from "@playwright/test";
  *   3DS requis      : 4000 0025 0000 3155
  *
  * Sélecteurs — stratégie ARIA-first :
- *   - Bouton panier : aria-label="Ouvrir le panier"  (navbar.tsx:168)
+ *   - Bouton panier : texte "Cart"/"Panier" + nombre (components/shell/site-header.tsx)
  *   - Bouton checkout dans le drawer : texte "Commander" (cart-drawer.tsx:132)
  *   - Bouton "Ajouter au panier" : t('add-to-cart') = "Ajouter au panier"
  */
@@ -59,18 +59,18 @@ test.describe("Checkout — utilisateur authentifié", () => {
   });
 
   test("Ouverture du panier et affichage du récapitulatif", async ({ page }) => {
-    // aria-label défini dans apps/client/src/components/navbar.tsx (fr: "Ouvrir le panier")
-    await page.getByRole("button", { name: /ouvrir le panier|open cart/i }).click();
+    // Nom accessible : t("nav-cart") + nombre, ex. "Cart (1)" / "Panier (1)" (site-header.tsx)
+    await page.getByRole("button", { name: /^(cart|panier)\b/i }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     // Bouton Commander hardcodé dans cart-drawer.tsx
     await expect(page.getByRole("button", { name: /commander|checkout/i })).toBeVisible();
   });
 
   test("Le checkout redirige vers Stripe Checkout (checkout.stripe.com)", async ({ page }) => {
-    await page.getByRole("button", { name: /ouvrir le panier|open cart/i }).click();
+    await page.getByRole("button", { name: /^(cart|panier)\b/i }).click();
     await page.getByRole("button", { name: /commander|checkout/i }).click();
 
-    // Fufuni crée une session Stripe Checkout et redirige vers checkout.stripe.com.
+    // Bengal Exchange crée une session Stripe Checkout et redirige vers checkout.stripe.com.
     // Skip gracefully when Stripe is not configured in the local backend.
     const redirected = await page.waitForURL(/checkout\.stripe\.com|pay\.stripe\.com/, { timeout: 15_000 })
       .then(() => true)

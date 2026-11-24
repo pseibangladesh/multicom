@@ -1,423 +1,310 @@
-/**
- * MIT License
- *
- * Copyright (c) 2025 ygwyg
- * Copyright (c) 2026 Ronan Le Meillat - SCTG Development
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
-
 import { Hono } from 'hono';
 import { getDb } from '../../db';
-import { ApiError, uuid } from '../../types';
-import { encrypt } from '../../lib/marketplace/crypto-utils';
+import { ApiError, uuid, type HonoEnv } from '../../types';
+import { allowedOrigins } from '../../lib/session';
+import { CredentialManager } from '../../lib/marketplace/auth-manager';
+import {
+  buildEbayAuthorizeUrl,
+  ebayAppFromEnv,
+  exchangeEbayCode,
+  saveEbayTokens,
+  EbayOAuthError,
+} from '../../lib/marketplace/ebay-oauth';
+import {
+  buildEtsyAuthorizeUrl,
+  createCodeVerifier,
+  etsyAppFromEnv,
+  exchangeEtsyCode,
+  saveEtsyTokens,
+  EtsyOAuthError,
+} from '../../lib/marketplace/etsy-oauth';
+import { fetchEtsyShopId, EtsyApiError } from '../../lib/marketplace/etsy';
+import {
+  amazonAppFromEnv,
+  buildAmazonAuthorizeUrl,
+  buildAmazonLoginReturnUrl,
+  exchangeAmazonCode,
+  isAmazonCallbackUri,
+  saveAmazonTokens,
+  AmazonOAuthError,
+} from '../../lib/marketplace/amazon-oauth';
+import { fetchMarketplaceParticipations, pickMarketplace, AmazonApiError } from '../../lib/marketplace/amazon';
+import { parseChannelConfig, type ChannelConfig } from '../../lib/marketplace/channel';
 import type { MarketplacePlatform } from '../../lib/marketplace/types';
 
 /**
- * OAuth connect routes: initiate platform authorization and handle callbacks.
+ * OAuth connect flow (admin only; mounted behind authMiddleware + adminOnly).
  *
- * POST /v1/marketplace/connect/:platform — Generate auth URL for the given platform.
- * GET  /v1/marketplace/connect/:platform/callback — OAuth callback handler.
+ *   POST /connect/:platform          → { authUrl, state }; records a single-use state
+ *   GET  /connect/:platform/callback → consumes the state, exchanges the code,
+ *                                      stores tokens, creates/activates the channel
+ *
+ * The state is the CSRF defence: 256 bits of randomness, bound to the platform,
+ * valid for 10 minutes, and deleted atomically on first use. The channel row is
+ * only created (or re-activated) once tokens have actually been obtained.
  */
+
+export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+/** Single-merchant DO: every channel belongs to the one store. */
+const DEFAULT_STORE_ID = 'default';
+
+const PLATFORMS: readonly MarketplacePlatform[] = ['etsy', 'ebay', 'amazon'];
+
+function parsePlatform(raw: string): MarketplacePlatform {
+  if (!PLATFORMS.includes(raw as MarketplacePlatform)) {
+    throw ApiError.invalidRequest('Invalid platform. Supported: etsy, ebay, amazon');
+  }
+  return raw as MarketplacePlatform;
+}
+
+function notImplemented(platform: string): ApiError {
+  return new ApiError('not_implemented', 501, `${platform} connection is not implemented yet`);
+}
+
+function randomState(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Only allow redirecting back to our own front-end origins (no open redirect). */
+function safeReturnTo(raw: unknown, origins: string[]): string | null {
+  if (typeof raw !== 'string' || !raw) return null;
+  try {
+    const url = new URL(raw);
+    return origins.includes(url.origin) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function withParams(url: string, params: Record<string, string>): string {
+  const u = new URL(url);
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+  return u.toString();
+}
 
 export function connectRoutes(): Hono<HonoEnv> {
   const app = new Hono<HonoEnv>();
 
-  // ── POST /connect/:platform — Initiate OAuth ────────────────────────────
-
   app.post('/:platform', async (c) => {
-    const db = getDb(c.var.db);
-    const platform = c.req.param('platform') as MarketplacePlatform;
-    const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+    const platform = parsePlatform(c.req.param('platform'));
 
-    if (!['etsy', 'ebay', 'amazon'].includes(platform)) {
-      throw ApiError.invalidRequest('Invalid platform. Supported: etsy, ebay, amazon');
-    }
-
-    // Validate API key auth (admin token).
-    const apiKey = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!apiKey) {
-      throw ApiError.unauthorized('API key required');
-    }
-
-    // Look up the admin API key to get store_id.
-    const keyHash = await hashKey(apiKey);
-    const keyRow = await db.query<{ id: string; role: string }>(
-      `SELECT id, role FROM api_keys WHERE key_hash = ?`,
-      [keyHash],
-    );
-
-    if (keyRow.length === 0 || keyRow[0].role !== 'admin') {
-      throw ApiError.unauthorized('Invalid or non-admin API key');
-    }
-
-    // Get the store_id from the admin user's config.
-    const configRows = await db.query<{ value: string }>(
-      `SELECT value FROM config WHERE key = 'store_id'`,
-      [],
-    );
-    const storeId = configRows.length > 0 ? JSON.parse(configRows[0].value) : null;
-    if (!storeId) {
-      throw ApiError.invalidRequest('Store not configured. Complete setup first.');
-    }
-
-    // Check if channel already exists.
-    const existing = await db.query<{ id: string }>(
-      `SELECT id FROM marketplace_channels WHERE platform = ? AND store_id = ?`,
-      [platform, storeId],
-    );
-
-    let channelId: string;
-
-    if (existing.length > 0) {
-      // Channel already connected — return existing.
-      channelId = existing[0].id;
+    let authorize: (state: string) => Promise<{ authUrl: string; codeVerifier?: string }>;
+    if (platform === 'ebay') {
+      const ebay = ebayAppFromEnv(c.env);
+      if (!ebay) throw ApiError.invalidRequest('eBay is not configured (EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_RU_NAME)');
+      authorize = async (state) => ({ authUrl: buildEbayAuthorizeUrl(ebay, state) });
+    } else if (platform === 'etsy') {
+      const etsy = etsyAppFromEnv(c.env);
+      if (!etsy) {
+        throw ApiError.invalidRequest('Etsy is not configured (ETSY_CLIENT_ID, ETSY_SHARED_SECRET, and ETSY_REDIRECT_URI or API_BASE_URL)');
+      }
+      // PKCE: the verifier stays server-side with the state; only its hash goes to Etsy.
+      authorize = async (state) => {
+        const codeVerifier = createCodeVerifier();
+        return { authUrl: await buildEtsyAuthorizeUrl(etsy, state, codeVerifier), codeVerifier };
+      };
+    } else if (platform === 'amazon') {
+      const amazon = amazonAppFromEnv(c.env);
+      if (!amazon) {
+        throw ApiError.invalidRequest(
+          'Amazon is not configured (AMAZON_LWA_CLIENT_ID, AMAZON_LWA_CLIENT_SECRET, AMAZON_SP_APP_ID, and AMAZON_REDIRECT_URI or API_BASE_URL)',
+        );
+      }
+      authorize = async (state) => ({ authUrl: buildAmazonAuthorizeUrl(amazon, state) });
     } else {
-      // Create a new channel record.
+      throw notImplemented(platform);
+    }
+
+    const body = (await c.req.json().catch(() => ({}))) as { channel_id?: unknown; return_to?: unknown };
+    const db = getDb(c.var.db);
+
+    // Reconnecting an existing channel (e.g. after its refresh token expired).
+    let channelId: string | null = null;
+    if (body.channel_id !== undefined) {
+      const rows = await db.query<{ id: string }>(
+        `SELECT id FROM marketplace_channels WHERE id = ? AND platform = ?`,
+        [String(body.channel_id), platform],
+      );
+      if (rows.length === 0) throw ApiError.notFound('Channel not found');
+      channelId = rows[0].id;
+    }
+
+    const returnTo = body.return_to === undefined ? null : safeReturnTo(body.return_to, allowedOrigins(c.env));
+    if (body.return_to !== undefined && !returnTo) {
+      throw ApiError.invalidRequest('return_to must be a URL on an allowed origin');
+    }
+
+    const now = Date.now();
+    await db.run(`DELETE FROM marketplace_oauth_states WHERE expires_at <= ?`, [new Date(now).toISOString()]);
+
+    const state = randomState();
+    const { authUrl, codeVerifier } = await authorize(state);
+    await db.run(
+      `INSERT INTO marketplace_oauth_states (state, platform, channel_id, code_verifier, return_to, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      [state, platform, channelId, codeVerifier ?? null, returnTo, new Date(now + OAUTH_STATE_TTL_MS).toISOString()],
+    );
+
+    return c.json({ ok: true, authUrl, state });
+  });
+
+  /**
+   * Amazon "Login URI" step of the website authorization workflow. Register
+   * <API_BASE_URL>/v1/marketplace/connect/amazon/login as the app's Login URI.
+   * Amazon sends the admin here after consent; we hand them back to Seller
+   * Central with the pending state, and Amazon then calls the redirect URI.
+   */
+  app.get('/amazon/login', async (c) => {
+    const amazon = amazonAppFromEnv(c.env);
+    if (!amazon) throw ApiError.invalidRequest('Amazon is not configured');
+    const callbackUri = c.req.query('amazon_callback_uri');
+    const amazonState = c.req.query('amazon_state');
+    if (!amazonState || !isAmazonCallbackUri(callbackUri)) {
+      throw ApiError.invalidRequest('Missing or invalid amazon_callback_uri / amazon_state');
+    }
+
+    const db = getDb(c.var.db);
+    const nowIso = new Date().toISOString();
+    const given = c.req.query('state');
+    const [pending] = await db.query<{ state: string }>(
+      given
+        ? `SELECT state FROM marketplace_oauth_states WHERE platform = 'amazon' AND state = ? AND expires_at > ?`
+        : `SELECT state FROM marketplace_oauth_states WHERE platform = 'amazon' AND expires_at > ? ORDER BY expires_at DESC LIMIT 1`,
+      given ? [given, nowIso] : [nowIso],
+    );
+    if (!pending) throw ApiError.invalidRequest('No Amazon connection in progress; start it again from the admin dashboard');
+
+    return c.redirect(buildAmazonLoginReturnUrl(amazon, callbackUri!, amazonState, pending.state), 302);
+  });
+
+  app.get('/:platform/callback', async (c) => {
+    const platform = parsePlatform(c.req.param('platform'));
+    const state = c.req.query('state');
+    if (!state) throw ApiError.invalidRequest('Missing OAuth state');
+
+    const db = getDb(c.var.db);
+
+    // Atomic consume: a replayed or concurrent callback finds nothing.
+    const [row] = await db.query<{ channel_id: string | null; code_verifier: string | null; return_to: string | null; expires_at: string }>(
+      `DELETE FROM marketplace_oauth_states WHERE state = ? AND platform = ?
+       RETURNING channel_id, code_verifier, return_to, expires_at`,
+      [state, platform],
+    );
+    if (!row) throw ApiError.invalidRequest('Invalid or already used OAuth state');
+    if (new Date(row.expires_at).getTime() <= Date.now()) {
+      throw ApiError.invalidRequest('OAuth state expired; start the connection again');
+    }
+
+    const finish = (result: Record<string, string>, status: 200 | 400 | 502 = 200) =>
+      row.return_to
+        ? c.redirect(withParams(row.return_to, { marketplace: platform, ...result }), 303)
+        : c.json({ ok: result.result === 'connected', ...result }, status);
+
+    // Seller declined consent on the marketplace's page.
+    const providerError = c.req.query('error');
+    if (providerError) return finish({ result: 'denied', error: providerError }, 400);
+
+    // Amazon names its code spapi_oauth_code.
+    const code = c.req.query('code') ?? c.req.query('spapi_oauth_code');
+    if (!code) throw ApiError.invalidRequest('No authorization code received');
+
+    if (!c.env.CRYPTOKEN) throw ApiError.internalServerError('CRYPTOKEN is not set; cannot store marketplace credentials');
+
+    // Exchange the code. Nothing is written until this succeeds.
+    let saveTokens: (credentials: CredentialManager, channelId: string) => Promise<void>;
+    let configPatch: Partial<ChannelConfig>;
+    let externalShopId: string | null = null;
+    try {
+      if (platform === 'ebay') {
+        const ebay = ebayAppFromEnv(c.env);
+        if (!ebay) throw ApiError.invalidRequest('eBay is not configured');
+        const tokens = await exchangeEbayCode(ebay, code);
+        saveTokens = (cm, id) => saveEbayTokens(cm, id, tokens);
+        configPatch = { environment: ebay.environment };
+      } else if (platform === 'amazon') {
+        const amazon = amazonAppFromEnv(c.env);
+        if (!amazon) throw ApiError.invalidRequest('Amazon is not configured');
+        const sellerId = c.req.query('selling_partner_id');
+        if (!sellerId) throw ApiError.invalidRequest('No selling_partner_id received from Amazon');
+        const tokens = await exchangeAmazonCode(amazon, code);
+        // Proves the token works and tells us where the seller sells.
+        const participations = await fetchMarketplaceParticipations({
+          accessToken: tokens.accessToken,
+          region: amazon.region,
+          environment: amazon.environment,
+        });
+        let preferred = amazon.marketplaceId;
+        if (row.channel_id) {
+          const [prev] = await db.query<{ config_json: string }>(`SELECT config_json FROM marketplace_channels WHERE id = ?`, [row.channel_id]);
+          preferred = parseChannelConfig(prev?.config_json).marketplace_id ?? preferred;
+        }
+        externalShopId = sellerId;
+        saveTokens = (cm, id) => saveAmazonTokens(cm, id, tokens);
+        configPatch = {
+          marketplace_id: amazon.environment === 'sandbox' ? preferred : pickMarketplace(participations, preferred, amazon.region),
+          region: amazon.region,
+          environment: amazon.environment,
+        };
+      } else {
+        const etsy = etsyAppFromEnv(c.env);
+        if (!etsy) throw ApiError.invalidRequest('Etsy is not configured');
+        if (!row.code_verifier) throw ApiError.invalidRequest('OAuth state has no PKCE verifier; start the connection again');
+        const tokens = await exchangeEtsyCode(etsy, code, row.code_verifier);
+        externalShopId = await fetchEtsyShopId({ accessToken: tokens.accessToken, apiKey: `${etsy.clientId}:${etsy.sharedSecret}` });
+        saveTokens = (cm, id) => saveEtsyTokens(cm, id, tokens);
+        configPatch = { shop_id: externalShopId };
+      }
+    } catch (err) {
+      if (
+        err instanceof EbayOAuthError ||
+        err instanceof EtsyOAuthError ||
+        err instanceof EtsyApiError ||
+        err instanceof AmazonOAuthError ||
+        err instanceof AmazonApiError
+      ) {
+        console.error(`[marketplace] ${platform} code exchange failed:`, err.message);
+        return finish({ result: 'error', error: 'token_exchange_failed' }, 502);
+      }
+      throw err;
+    }
+
+    // A shop that is already connected keeps its channel (and its order history).
+    let channelId = row.channel_id;
+    if (!channelId && externalShopId) {
+      const [same] = await db.query<{ id: string }>(
+        `SELECT id FROM marketplace_channels WHERE platform = ? AND external_shop_id = ? LIMIT 1`,
+        [platform, externalShopId],
+      );
+      channelId = same?.id ?? null;
+    }
+
+    if (channelId) {
+      const [existing] = await db.query<{ external_shop_id: string | null; config_json: string }>(
+        `SELECT external_shop_id, config_json FROM marketplace_channels WHERE id = ?`,
+        [channelId],
+      );
+      // Reconnecting must not silently re-point a channel at a different shop.
+      if (externalShopId && existing?.external_shop_id && existing.external_shop_id !== externalShopId) {
+        return finish({ result: 'error', error: 'shop_mismatch' }, 400);
+      }
+      await db.run(
+        `UPDATE marketplace_channels SET status = 'active', external_shop_id = COALESCE(?, external_shop_id),
+           config_json = ?, updated_at = datetime('now') WHERE id = ?`,
+        [externalShopId, JSON.stringify({ ...parseChannelConfig(existing?.config_json), ...configPatch }), channelId],
+      );
+    } else {
       channelId = uuid();
       await db.run(
-        `INSERT INTO marketplace_channels (id, platform, store_id, config_json, status) VALUES (?, ?, ?, '{}', 'active')`,
-        [channelId, platform, storeId],
+        `INSERT INTO marketplace_channels (id, platform, store_id, external_shop_id, config_json, status)
+         VALUES (?, ?, ?, ?, ?, 'active')`,
+        [channelId, platform, DEFAULT_STORE_ID, externalShopId, JSON.stringify(configPatch)],
       );
     }
 
-    // Generate platform-specific auth URL.
-    const authUrl = await generateAuthUrl(platform, channelId, body);
-
-    return c.json({ ok: true, channelId, authUrl });
-  });
-
-  // ── GET /connect/:platform/callback — OAuth redirect handler ────────────
-
-  app.get('/:platform/callback', async (c) => {
-    const platform = c.req.param('platform') as MarketplacePlatform;
-    const params = new URLSearchParams(c.req.url.split('?')[1] ?? '');
-    const code = params.get('code');
-    const state = params.get('state');
-
-    if (!code) {
-      throw ApiError.invalidRequest('No authorization code received');
-    }
-
-    // Look up the channel by store_id from config.
-    const db = getDb(c.var.db);
-    const configRows = await db.query<{ value: string }>(
-      `SELECT value FROM config WHERE key = 'store_id'`,
-      [],
-    );
-    const storeId = configRows.length > 0 ? JSON.parse(configRows[0].value) : null;
-
-    if (!storeId) {
-      throw ApiError.invalidRequest('Store not configured');
-    }
-
-    const channelRow = await db.query<{ id: string }>(
-      `SELECT id FROM marketplace_channels WHERE platform = ? AND store_id = ?`,
-      [platform, storeId],
-    );
-
-    if (channelRow.length === 0) {
-      throw ApiError.notFound('Channel not found. Connect first.');
-    }
-
-    const channelId = channelRow[0].id;
-
-    // Exchange code for tokens and store encrypted credentials.
-    await exchangeCodeForTokens(platform, channelId, code);
-
-    return c.json({ ok: true, channelId });
+    await saveTokens(new CredentialManager(db, c.env.CRYPTOKEN), channelId);
+    return finish({ result: 'connected', channelId });
   });
 
   return app;
-}
-
-// ─── Platform-specific auth URL generation ───────────────────────────────────
-
-async function generateAuthUrl(
-  platform: MarketplacePlatform,
-  channelId: string,
-  body: Record<string, unknown>,
-): Promise<string> {
-  switch (platform) {
-    case 'etsy': {
-      // Etsy OAuth 2.0 Authorization Code flow.
-      // The app's CLIENT_ID is stored in the config table as key='etsy_client_id'.
-      const rows = await globalThis.__env?.ETSY_CLIENT_ID;
-      const clientId = process.env.ETSY_CLIENT_ID ?? (body as any)?.client_id ?? '';
-      if (!clientId) {
-        throw new Error('Etsy: ETSY_CLIENT_ID environment variable not set');
-      }
-      const state = uuid();
-      // Store state for CSRF protection in KV or config table.
-      return `https://www.etsy.com/oauth_connect/authorize?client_id=${encodeURIComponent(clientId)}&state=${encodeURIComponent(state)}`;
-    }
-    case 'ebay': {
-      // eBay OAuth 2.0 Authorization Code flow with RuName redirect URI alias.
-      const clientId = process.env.EBAY_CLIENT_ID ?? (body as any)?.client_id ?? '';
-      if (!clientId) {
-        throw new Error('eBay: EBAY_CLIENT_ID environment variable not set');
-      }
-      const ruName = process.env.EBAY_RU_NAME;
-      if (!ruName) {
-        throw new Error('eBay: EBAY_RU_NAME environment variable not set');
-      }
-      const state = uuid();
-      // Store state for CSRF protection in KV or config table.
-      const scopes = [
-        'https://api.ebay.com/oauth/api_scope/sell.inventory',
-        'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
-        'https://api.ebay.com/oauth/api_scope/sell.account',
-      ].join('%20');
-      return `https://signin.ebay.com/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(ruName)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}`;
-    }
-    case 'amazon': {
-      // Amazon LWA (Login with Amazon) OAuth 2.0 Authorization Code flow.
-      const clientId = process.env.AMAZON_LWA_APP_ID ?? (body as any)?.client_id ?? '';
-      if (!clientId) {
-        throw new Error('Amazon: AMAZON_LWA_APP_ID environment variable not set');
-      }
-      const state = uuid();
-      const scopes = [
-        'calls:2021-03-01',
-        'inventory:2021-03-01',
-        'orders:2021-01-01',
-        'notifications:2020-10-01',
-      ].join('%20');
-      return `https://www.amazon.com/ap/oa?client_id=${encodeURIComponent(clientId)}&response_type=code&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}`;
-    }
-  }
-}
-
-// ─── Platform-specific token exchange ────────────────────────────────────────
-
-async function exchangeCodeForTokens(
-  platform: MarketplacePlatform,
-  channelId: string,
-  code: string,
-): Promise<void> {
-  // Placeholder — each platform implementation fills this in during its phase.
-  // Phase 1 (Etsy) will replace this with the actual token exchange logic.
-  switch (platform) {
-    case 'etsy': {
-      // Will exchange code for Etsy OAuth 2.0 access + refresh tokens.
-      console.log(`[marketplace] Token exchange placeholder for ${platform}`);
-      break;
-    }
-    case 'ebay': {
-      // Exchange authorization code for user access + refresh tokens.
-      const clientId = process.env.EBAY_CLIENT_ID ?? '';
-      const clientSecret = process.env.EBAY_CLIENT_SECRET ?? '';
-      if (!clientId || !clientSecret) {
-        throw new Error('eBay: EBAY_CLIENT_ID and EBAY_CLIENT_SECRET environment variables not set');
-      }
-
-      const tokenBody = new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-      });
-
-      const response = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenBody,
-      });
-
-      if (!response.ok) {
-        throw new Error(`eBay token exchange failed: ${response.status} ${response.statusText}`);
-      }
-
-      const tokens = await response.json() as { access_token: string; refresh_token: string; expires_in: number };
-
-      // Store encrypted credentials in marketplace_credentials table.
-      const db = getDb(globalThis.__db__);
-      const encryptedAccess = await encrypt(tokens.access_token, process.env.CRYPTOKEN ?? '');
-      const encryptedRefresh = await encrypt(tokens.refresh_token, process.env.CRYPTOKEN ?? '');
-
-      // Save access token (oauth_token type).
-      await db.run(
-        `INSERT INTO marketplace_credentials 
-          (id, channel_id, credential_type, encrypted_value, metadata, created_at, updated_at)
-          VALUES (?, ?, 'oauth_token', ?, '{}', datetime('now'), datetime('now'))
-          ON CONFLICT(channel_id, credential_type) DO UPDATE SET
-            encrypted_value = excluded.encrypted_value,
-            metadata = excluded.metadata,
-            updated_at = datetime('now')`,
-        [
-          crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          channelId,
-          encryptedAccess,
-        ],
-      );
-
-      // Save refresh token (refresh_token type).
-      await db.run(
-        `INSERT INTO marketplace_credentials 
-          (id, channel_id, credential_type, encrypted_value, metadata, created_at, updated_at)
-          VALUES (?, ?, 'refresh_token', ?, '{}', datetime('now'), datetime('now'))
-          ON CONFLICT(channel_id, credential_type) DO UPDATE SET
-            encrypted_value = excluded.encrypted_value,
-            metadata = excluded.metadata,
-            updated_at = datetime('now')`,
-        [
-          crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          channelId,
-          encryptedRefresh,
-        ],
-      );
-
-      // Store tokens in channel config for immediate use.
-      await db.run(
-        `UPDATE marketplace_channels SET config_json = json_set(config_json, 
-          '$.access_token', ?, '$.refresh_token', ?, '$.token_expires_at', ?)
-          WHERE id = ?`,
-        [tokens.access_token, tokens.refresh_token, String(Date.now() + tokens.expires_in * 1000), channelId],
-      );
-
-      console.log(`[marketplace] eBay tokens exchanged and stored for channel ${channelId}`);
-      break;
-    }
-    case 'amazon': {
-      // Exchange authorization code for LWA access + refresh tokens, plus store AWS credentials.
-      const clientId = process.env.AMAZON_LWA_APP_ID ?? '';
-      const clientSecret = process.env.AMAZON_LWA_APP_SECRET ?? '';
-      if (!clientId || !clientSecret) {
-        throw new Error('Amazon: AMAZON_LWA_APP_ID and AMAZON_LWA_APP_SECRET environment variables not set');
-      }
-
-      const tokenBody = new URLSearchParams({
-        grant_type: 'authorization_code',
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-      });
-
-      const response = await fetch('https://api.amazon.com/auth/o2/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: tokenBody,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Amazon LWA token exchange failed: ${response.status} ${response.statusText}`);
-      }
-
-      const tokens = await response.json() as { access_token: string; refresh_token: string; expires_in: number };
-
-      // Store encrypted credentials in marketplace_credentials table.
-      const db = getDb(globalThis.__db__);
-      const encryptedAccess = await encrypt(tokens.access_token, process.env.CRYPTOKEN ?? '');
-      const encryptedRefresh = await encrypt(tokens.refresh_token, process.env.CRYPTOKEN ?? '');
-
-      // Save LWA access token (oauth_token type).
-      await db.run(
-        `INSERT INTO marketplace_credentials 
-          (id, channel_id, credential_type, encrypted_value, metadata, created_at, updated_at)
-          VALUES (?, ?, 'oauth_token', ?, '{}', datetime('now'), datetime('now'))
-          ON CONFLICT(channel_id, credential_type) DO UPDATE SET
-            encrypted_value = excluded.encrypted_value,
-            metadata = excluded.metadata,
-            updated_at = datetime('now')`,
-        [
-          crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          channelId,
-          encryptedAccess,
-        ],
-      );
-
-      // Save LWA refresh token (refresh_token type).
-      await db.run(
-        `INSERT INTO marketplace_credentials 
-          (id, channel_id, credential_type, encrypted_value, metadata, created_at, updated_at)
-          VALUES (?, ?, 'refresh_token', ?, '{}', datetime('now'), datetime('now'))
-          ON CONFLICT(channel_id, credential_type) DO UPDATE SET
-            encrypted_value = excluded.encrypted_value,
-            metadata = excluded.metadata,
-            updated_at = datetime('now')`,
-        [
-          crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          channelId,
-          encryptedRefresh,
-        ],
-      );
-
-      // Store AWS credentials (api_key type stores Access Key ID).
-      const awsAccessKey = process.env.AMAZON_AWS_ACCESS_KEY ?? '';
-      const awsSecretKey = process.env.AMAZON_AWS_SECRET_KEY ?? '';
-      if (awsAccessKey && awsSecretKey) {
-        const encryptedAwsAccess = await encrypt(awsAccessKey, process.env.CRYPTOKEN ?? '');
-        const encryptedAwsSecret = await encrypt(awsSecretKey, process.env.CRYPTOKEN ?? '');
-
-        // AWS Access Key ID.
-        await db.run(
-          `INSERT INTO marketplace_credentials 
-            (id, channel_id, credential_type, encrypted_value, metadata, created_at, updated_at)
-            VALUES (?, ?, 'api_key', ?, '{}', datetime('now'), datetime('now'))
-            ON CONFLICT(channel_id, credential_type) DO UPDATE SET
-              encrypted_value = excluded.encrypted_value,
-              metadata = excluded.metadata,
-              updated_at = datetime('now')`,
-          [
-            crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            channelId,
-            encryptedAwsAccess,
-          ],
-        );
-
-        // AWS Secret Access Key — stored with a custom credential_type.
-        await db.run(
-          `INSERT INTO marketplace_credentials 
-            (id, channel_id, credential_type, encrypted_value, metadata, created_at, updated_at)
-            VALUES (?, ?, 'secret_key', ?, '{}', datetime('now'), datetime('now'))
-            ON CONFLICT(channel_id, credential_type) DO UPDATE SET
-              encrypted_value = excluded.encrypted_value,
-              metadata = excluded.metadata,
-              updated_at = datetime('now')`,
-          [
-            crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            channelId,
-            encryptedAwsSecret,
-          ],
-        );
-      }
-
-      // Store tokens in channel config for immediate use.
-      await db.run(
-        `UPDATE marketplace_channels SET config_json = json_set(config_json, 
-          '$.access_token', ?, '$.refresh_token', ?, '$.token_expires_at', ?)
-          WHERE id = ?`,
-        [tokens.access_token, tokens.refresh_token, String(Date.now() + tokens.expires_in * 1000), channelId],
-      );
-
-      console.log(`[marketplace] Amazon LWA tokens exchanged and stored for channel ${channelId}`);
-      break;
-    }
-  }
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-async function hashKey(key: string): Promise<string> {
-  const data = new TextEncoder().encode(key);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
 }

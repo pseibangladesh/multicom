@@ -30,7 +30,6 @@ import { Tooltip } from "@heroui/react";
 import { Chip } from "@heroui/react";
 import clsx from "clsx";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { resolveTitle } from "@/utils/description";
@@ -321,12 +320,12 @@ export default function InventoryPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">{t("admin-inventory-title")}</h1>
           <button
-            className="p-2 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
+            className="p-2 rounded hover:bg-default-200 transition-colors disabled:opacity-50"
             onClick={() => loadData(cursor)}
           >
             <RefreshCw className="" size={20} />
@@ -484,7 +483,7 @@ export default function InventoryPage() {
                         <div className="space-y-5">
                           {/* Product info */}
                           <div className="flex items-center gap-3 p-3 rounded-lg border">
-                            <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 border">
+                            <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-default-100 border border-default-200">
                               <Package className="text-gray-600" size={18} />
                             </div>
                             <div>
@@ -563,8 +562,8 @@ export default function InventoryPage() {
                                       className={clsx(
                                         "flex items-center justify-between gap-3 p-3 rounded-lg border transition-colors",
                                         isSelected
-                                          ? "bg-blue-50 border-blue-300"
-                                          : "hover:bg-gray-50",
+                                          ? "bg-blue-50 border-blue-300 dark:bg-blue-950/40 dark:border-blue-800"
+                                          : "border-default-200 hover:bg-default-100",
                                       )}
                                     >
                                       {/* Warehouse info + status */}
@@ -787,7 +786,7 @@ export default function InventoryPage() {
                                     {[10, 25, 50, 100].map((n) => (
                                       <button
                                         key={n}
-                                        className="px-2 py-1 text-xs  rounded-lg border hover:bg-gray-100 transition-colors"
+                                        className="px-2 py-1 text-xs  rounded-lg border border-default-200 hover:bg-default-100 transition-colors"
                                         type="button"
                                         onClick={() =>
                                           setAdjustDelta(String(n))
@@ -828,6 +827,6 @@ export default function InventoryPage() {
           </Modal.Backdrop>
         </Modal>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

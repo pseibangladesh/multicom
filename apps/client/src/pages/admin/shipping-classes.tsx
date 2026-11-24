@@ -26,7 +26,6 @@ import { Card } from "@heroui/react";
 import { Chip } from "@heroui/react";
 import { Package } from "lucide-react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import {
   ShippingClass,
@@ -170,7 +169,7 @@ export default function ShippingClassesPage() {
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
-    <DefaultLayout>
+    <>
       <AdminCrudLayout
         addLabel={t("admin-shipping-classes-btn-new")}
         filterPlaceholder={t("admin-shipping-classes-filter-placeholder")}
@@ -423,6 +422,6 @@ export default function ShippingClassesPage() {
           </Modal.Backdrop>
         </Modal>
       </AdminCrudLayout>
-    </DefaultLayout>
+    </>
   );
 }

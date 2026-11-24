@@ -3,255 +3,92 @@
  * License: AGPL-3.0-or-later
  */
 
-import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { TextField, Label, Input, Card, Button } from '@heroui/react';
-import { X } from 'lucide-react';
-import { getBaseURL } from '@/utils/base-url';
+import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Card } from "@heroui/react";
+
+import { useAuth } from "@/authentication";
+import {
+  EmailAuthForm,
+  type AuthMode,
+} from "@/features/auth/components/email-auth-form";
+import { ContentLoading } from "@/shared/ui/feedback/content-loading";
 
 /**
- * Customer login page using Better Auth email + password or magic link.
- * Session cookies are managed server-side via /api/auth/* endpoints.
+ * Sign-in / create-account page (Better Auth email + password).
+ *
+ * Query parameters:
+ * - `mode=signup` opens "create account";
+ * - `email` prefills the address;
+ * - `returnTo` is where to go once signed in (default: the account page);
+ * - `verified=1` / `error=…` are added when the emailed confirmation link
+ *   brings the user back here (signed in on success).
  */
 export default function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [useMagicLink, setUseMagicLink] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const mode: AuthMode =
+    searchParams.get("mode") === "signup" ? "signup" : "signin";
+  const returnTo = searchParams.get("returnTo") || "/account";
+  const linkFailed = !!searchParams.get("error");
 
-  // Check if already authenticated — redirect to account
+  // Signed in (already, after the form, or by the confirmation link) → continue.
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const apiBase = getBaseURL() || '';
-        const resp = await fetch(`${apiBase}/api/auth/session`);
-        const data = await resp.json();
-        if (data.session?.user) {
-          const returnTo = searchParams.get('returnTo') || '/account';
-          navigate(returnTo);
-        }
-      } catch {
-        // Not authenticated, stay on login page
-      }
-    };
-    checkAuth();
-  }, [navigate, searchParams]);
+    if (!isLoading && isAuthenticated) navigate(returnTo, { replace: true });
+  }, [isLoading, isAuthenticated, navigate, returnTo]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const setMode = (next: AuthMode) => {
+    const params = new URLSearchParams(searchParams);
 
-    if (!email) {
-      setError(t('login-email-required'));
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const apiBase = getBaseURL() || '';
-
-      if (useMagicLink) {
-        // Magic link flow — sends an email with a sign-in link
-        await fetch(`${apiBase}/api/auth/signin/email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
-        });
-      } else {
-        // Email + password flow
-        if (!password) {
-          setError(t('login-password-required'));
-          setLoading(false);
-          return;
-        }
-        const resp = await fetch(`${apiBase}/api/auth/signin/credentials`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include',
-        });
-
-        if (!resp.ok) {
-          const data = await resp.json();
-          throw new Error(data?.message || 'Invalid credentials');
-        }
-      }
-
-      setSent(true);
-    } catch (err) {
-      console.error('Login error:', err);
-      setError(err instanceof Error ? err.message : t('login-error'));
-      setLoading(false);
-    }
+    if (next === "signup") params.set("mode", "signup");
+    else params.delete("mode");
+    params.delete("error");
+    setSearchParams(params, { replace: true });
   };
 
-  if (sent) {
+  // Until the session is known, don't flash the form at a signed-in visitor.
+  if (isLoading || isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
-        <Card className="w-full max-w-md">
-          <Card.Header className="flex gap-3 justify-center">
-            <div className="text-center">
-              <h1 className="text-2xl font-bold">{t('login-check-email')}</h1>
-            </div>
-          </Card.Header>
-          <Card.Content className="gap-4">
-            <div className="text-center space-y-4">
-              <p className="text-gray-600">
-                {useMagicLink ? t('login-sent-link') : t('login-success')}
-              </p>
-              <p className="font-semibold text-lg">{email}</p>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-gray-700">
-                  {useMagicLink ? t('login-instructions') : t('login-welcome-back')}
-                </p>
-              </div>
-
-              <div className="pt-4 border-t">
-                <p className="text-sm text-gray-500 mb-4">
-                  {t('login-didnt-receive')}
-                </p>
-                <Button
-                  variant="tertiary"
-                  onClick={() => {
-                    setSent(false);
-                    setEmail('');
-                    setPassword('');
-                  }}
-                  className="w-full"
-                >
-                  {t('login-try-another-email')}
-                </Button>
-              </div>
-            </div>
-          </Card.Content>
-        </Card>
+      <div className="min-h-dvh bg-bx-paper">
+        <ContentLoading />
       </div>
     );
   }
 
+  const isSignUp = mode === "signup";
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <Card.Header className="flex gap-3 flex-col justify-center">
+    <div className="flex min-h-dvh items-center justify-center bg-bx-paper p-4 text-bx-ink">
+      <Card className="w-full max-w-md border border-bx-line bg-bx-surface-raised shadow-none">
+        <Card.Header className="flex flex-col justify-center gap-3">
           <div className="text-center">
-            <h1 className="text-3xl font-bold">{t('login-title')}</h1>
-            <p className="text-gray-500 mt-2">
-              {t('login-subtitle')}
+            <h1 className="font-display text-3xl text-bx-ink">
+              {isSignUp ? t("login-signup-title") : t("login-title")}
+            </h1>
+            <p className="mt-2 text-bx-stone">
+              {isSignUp ? t("login-signup-subtitle") : t("login-subtitle")}
             </p>
           </div>
         </Card.Header>
 
         <Card.Content className="gap-6">
-          <form onSubmit={handleLogin} className="space-y-4">
-            <TextField
-              name="email"
-              type="email"
-              isRequired
-              isInvalid={!!error}
-              className="w-full"
+          {linkFailed && (
+            <p
+              className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+              role="alert"
             >
-              <Label>{t('login-email')}</Label>
-              <div className="flex items-center">
-                <Input
-                  placeholder={t('login-enter-email')}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                  fullWidth
-                />
-                {email && (
-                  <button
-                    type="button"
-                    onClick={() => setEmail('')}
-                    className="ml-2 p-1 text-gray-400 hover:text-gray-600"
-                    aria-label="Clear email"
-                  >
-                    <X size={18} />
-                  </button>
-                )}
-              </div>
-            </TextField>
-
-            {!useMagicLink && (
-              <TextField
-                name="password"
-                type="password"
-                isRequired={!useMagicLink}
-                className="w-full"
-              >
-                <Label>{t('login-password')}</Label>
-                <Input
-                  placeholder={t('login-enter-password')}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
-                  fullWidth
-                />
-              </TextField>
-            )}
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            )}
-
-            {/* Toggle between password and magic link */}
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={useMagicLink}
-                  onChange={(e) => setUseMagicLink(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                <span className="text-sm text-gray-600">
-                  {t('login-magic-link') || 'Use magic link instead'}
-                </span>
-              </label>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full font-semibold"
-              isDisabled={loading || !email}
-              isPending={loading}
-            >
-              {loading
-                ? t('login-sending')
-                : useMagicLink
-                  ? t('login-send-link')
-                  : t('login-sign-in')}
-            </Button>
-          </form>
-
-          <div className="text-center text-sm text-gray-600">
-            <p>
-              {useMagicLink
-                ? t('login-passwordless-info')
-                : t('login-account-info')}
+              {t("login-verify-failed")}
             </p>
-          </div>
-
-          <div className="pt-4 border-t text-center text-sm">
-            <p className="text-gray-600 mb-2">
-              {t('login-new-customer')}
-            </p>
-            <p className="text-gray-500">
-              {useMagicLink
-                ? t('login-signup-auto')
-                : t('login-create-account')}
-            </p>
-          </div>
+          )}
+          <EmailAuthForm
+            initialEmail={searchParams.get("email") || ""}
+            mode={mode}
+            onModeChange={setMode}
+          />
         </Card.Content>
       </Card>
     </div>

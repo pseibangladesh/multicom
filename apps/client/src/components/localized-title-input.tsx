@@ -40,6 +40,12 @@ interface LocalizedTitleInputProps {
   locale?: string;
   /** Optional callback to change locale (used by parent) */
   onLocaleChange?: (locale: string) => void;
+  /** id for the text input, so a <label htmlFor> can name it. */
+  id?: string;
+  /** Accessible name when there is no visible <label>. */
+  ariaLabel?: string;
+  /** Placeholder override (default: the product-title placeholder). */
+  placeholder?: string;
 }
 
 export function LocalizedTitleInput({
@@ -47,6 +53,9 @@ export function LocalizedTitleInput({
   onChange,
   required = false,
   locale,
+  id,
+  ariaLabel,
+  placeholder,
 }: LocalizedTitleInputProps) {
   const { t } = useTranslation();
 
@@ -97,25 +106,28 @@ export function LocalizedTitleInput({
         className="flex-1"
         required={required}
         value={inputValue}
+        aria-label={ariaLabel}
+        id={id}
         onChange={(e) => handleInputChange(e.target.value)}
-        placeholder={t('admin-products-title-placeholder')}
+        placeholder={placeholder ?? t('admin-products-title-placeholder')}
         dir={isRTL ? 'rtl' : 'ltr'}
       />
 
       {/* AI translate — only shown if user has the AI permission */}
       {canUseAi && (
         <Tooltip>
-          <Tooltip.Trigger>
-            <Button
-              isIconOnly
-              size="sm"
-              variant="tertiary"
-              isPending={isTranslating}
-              onPress={handleAiTranslate}
-            >
-              {!isTranslating && <Sparkles size={14} />}
-            </Button>
-          </Tooltip.Trigger>
+          {/* The button is the trigger itself: Tooltip.Trigger would wrap it
+              in a second focusable role="button" element. */}
+          <Button
+            isIconOnly
+            aria-label={t('admin-products-title-ai')}
+            size="sm"
+            variant="tertiary"
+            isPending={isTranslating}
+            onPress={handleAiTranslate}
+          >
+            {!isTranslating && <Sparkles aria-hidden size={14} />}
+          </Button>
           <Tooltip.Content>
             {t('admin-products-title-ai')}
           </Tooltip.Content>

@@ -9,7 +9,6 @@
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import DefaultLayout from "@/layouts/default";
 import { getCmsPage } from "@/config/cms-content";
 import { title as titleCls } from "@/shared/ui/primitives";
 import { PageNotFound } from "@/pages/404";
@@ -29,7 +28,7 @@ export default function CmsPage() {
   );
 
   return (
-    <DefaultLayout>
+    <>
       <section
         className="flex flex-col items-center justify-start gap-6 py-10 md:py-16"
         dir={isRtl ? "rtl" : "ltr"}
@@ -56,6 +55,6 @@ export default function CmsPage() {
           </div>
         </div>
       </section>
-    </DefaultLayout>
+    </>
   );
 }

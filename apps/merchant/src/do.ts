@@ -24,6 +24,9 @@
  */
 
 import { DurableObject } from 'cloudflare:workers';
+import { createAuth, type BetterAuthInstance } from './lib/auth';
+import type { VerifiedSession } from './lib/session';
+import { isAdminEmail } from './lib/session';
 
 export interface MerchantEnv {
   MERCHANT: DurableObjectNamespace<MerchantDO>;
@@ -32,6 +35,14 @@ export interface MerchantEnv {
   STORE_NAME?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  BETTER_AUTH_SECRET: string;
+  API_BASE_URL?: string;
+  CORS_ORIGIN?: string;
+  STORE_URL?: string;
+  ADMIN_EMAILS?: string;
+  /** Bootstrap API keys, hashed into api_keys when the object starts. */
+  MERCHANT_SK?: string;
+  MERCHANT_PK?: string;
 }
 
 export type WSEventType =
@@ -50,7 +61,8 @@ export interface WSEvent {
   timestamp: string;
 }
 
-const SCHEMA = `
+/** Base schema, run on every boot before the inline migrations. Exported for schema tests. */
+export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS migrations (
   name TEXT PRIMARY KEY,
   applied_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -61,6 +73,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   key_hash TEXT NOT NULL UNIQUE,
   key_prefix TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('public', 'admin')),
+  name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -214,6 +227,7 @@ CREATE TABLE IF NOT EXISTS products (
   title TEXT NOT NULL,
   description TEXT DEFAULT '',
   image_url TEXT,
+  images TEXT,
   shipping_class_id TEXT REFERENCES shipping_classes(id),
   vendor TEXT,
   tags TEXT,
@@ -241,6 +255,9 @@ CREATE TABLE IF NOT EXISTS variants (
   thumbnail_url TEXT,
   shipping_class_id TEXT REFERENCES shipping_classes(id),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'draft')),
+  color TEXT,
+  size TEXT,
+  availability TEXT NOT NULL DEFAULT 'in_stock' CHECK (availability IN ('in_stock', 'out_of_stock', 'preorder')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -297,6 +314,8 @@ CREATE TABLE IF NOT EXISTS carts (
   shipping_country TEXT,
   billing_same_as_shipping INTEGER DEFAULT 1,
   taxes_json TEXT,
+  -- 'buy_now': created by the Buy now page (one item, never the shopper's cart)
+  source TEXT NOT NULL DEFAULT 'cart' CHECK (source IN ('cart', 'buy_now')),
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -508,6 +527,47 @@ CREATE TABLE IF NOT EXISTS config (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- A signed-in customer's shopping cart (items JSON), so it follows them to
+-- any device. Signed-out shoppers keep theirs in the browser.
+CREATE TABLE IF NOT EXISTS customer_carts (
+  customer_id TEXT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+  items       TEXT NOT NULL DEFAULT '[]',
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Home page sections, in order (Admin → Page builder). The two built-in rows
+-- are seeded by migration 042_home_sections_seed.
+CREATE TABLE IF NOT EXISTS home_sections (
+  id            TEXT PRIMARY KEY,
+  type          TEXT NOT NULL CHECK (type IN ('banner', 'catalogue', 'showcase')),
+  title         TEXT,
+  category_id   TEXT REFERENCES categories(id) ON DELETE CASCADE,
+  product_limit INTEGER NOT NULL DEFAULT 12,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden')),
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_home_sections_status_sort ON home_sections (status, sort_order);
+
+CREATE TABLE IF NOT EXISTS banners (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  image_url TEXT,
+  image_alt TEXT NOT NULL DEFAULT '',
+  cta_primary_label TEXT,
+  cta_primary_href TEXT,
+  cta_secondary_label TEXT,
+  cta_secondary_href TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('active', 'draft')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_banners_status_sort ON banners (status, sort_order);
+
 CREATE TABLE IF NOT EXISTS ucp_checkout_sessions (
   id TEXT PRIMARY KEY,
   status TEXT NOT NULL DEFAULT 'incomplete',
@@ -622,8 +682,7 @@ CREATE INDEX IF NOT EXISTS idx_product_reviews_customer
 
 -- ============================================================
 -- SAVED CARTS (migration 026, column renamed in 038)
--- Original column was 'auth0_user_id' (Auth0 JWT sub claim).
--- Renamed to 'user_id' via migration 038 for Better Auth compatibility.
+-- 'user_id' is the Better Auth user id (the column was renamed in migration 038).
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS saved_carts (
@@ -652,6 +711,8 @@ CREATE TABLE IF NOT EXISTS categories (
   thumbnail_url TEXT,
   position      INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  -- 'showcase': only used by page-builder sections, never shown to shoppers as a category
+  visibility    TEXT NOT NULL DEFAULT 'listed' CHECK (visibility IN ('listed', 'showcase')),
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -681,7 +742,7 @@ CREATE TABLE IF NOT EXISTS store_themes (
 );
 
 INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
-  VALUES ('theme_classic', 'Fufuni Classic', 1, '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}');
+  VALUES ('theme_classic', 'Bengal Exchange Classic', 1, '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}');
 INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
   VALUES ('theme_luxury', 'Luxury Minimal', 0, '{"themeSlug":"luxury","radius":"none","accentOklch":"oklch(15% 0 0)"}');
 
@@ -700,6 +761,132 @@ CREATE TABLE IF NOT EXISTS order_email_settings (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ============================================================
+-- MARKETPLACE (Etsy, eBay, Amazon): final shape of migrations 037-039
+-- ============================================================
+-- Tables here match what the inline 037_marketplace_*, 038_* and 039_*
+-- migrations produce. On a fresh DB the later ALTER TABLE steps then fail
+-- harmlessly (column exists) and are recorded as applied.
+--
+-- Deliberately NOT here (they stay migration-only):
+--   * columns that 038/039 add to core tables (products/variants/orders
+--     updated_at + triggers, orders.channel_id, orders.tracking_carrier) and
+--     their indexes. SCHEMA runs before migrations and is not error-tolerant,
+--     so an index on a not-yet-added column would stop an older DO booting.
+--   * uq_marketplace_orders_channel_external: a UNIQUE index that failed here
+--     (duplicate rows on an old DO) would do the same. Migration
+--     038_marketplace_orders_unique_external creates it.
+-- Tests: tests/schema-marketplace.test.ts.
+
+CREATE TABLE IF NOT EXISTS marketplace_channels (
+  id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
+  store_id TEXT NOT NULL,
+  external_shop_id TEXT,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'active'
+       CHECK (status IN ('active', 'paused', 'error')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_credentials (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL REFERENCES marketplace_channels(id),
+  credential_type TEXT NOT NULL
+    CHECK (credential_type IN ('api_key', 'oauth_token', 'refresh_token')),
+  encrypted_value TEXT NOT NULL,
+  metadata TEXT DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT,
+  UNIQUE(channel_id, credential_type)
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_product_mappings (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL REFERENCES marketplace_channels(id),
+  variant_id TEXT REFERENCES variants(id),
+  external_listing_id TEXT NOT NULL,
+  external_sku TEXT,
+  status TEXT NOT NULL DEFAULT 'active'
+       CHECK (status IN ('active', 'inactive', 'error')),
+  last_sync_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(channel_id, external_listing_id)
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_orders (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL REFERENCES marketplace_channels(id),
+  internal_order_id TEXT REFERENCES orders(id),
+  external_order_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  raw_payload TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_sync_jobs (
+  id TEXT PRIMARY KEY,
+  channel_id TEXT NOT NULL REFERENCES marketplace_channels(id),
+  job_type TEXT NOT NULL
+    CHECK (job_type IN ('push_products', 'push_inventory', 'pull_orders', 'sync_all')),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'in_progress', 'completed', 'failed')),
+  payload TEXT DEFAULT '{}',
+  error_message TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_oauth_states (
+  state TEXT PRIMARY KEY,
+  platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
+  channel_id TEXT REFERENCES marketplace_channels(id) ON DELETE CASCADE,
+  code_verifier TEXT,
+  return_to TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_order_lines (
+  id TEXT PRIMARY KEY,
+  marketplace_order_id TEXT NOT NULL REFERENCES marketplace_orders(id) ON DELETE CASCADE,
+  external_line_item_id TEXT NOT NULL,
+  order_item_id TEXT REFERENCES order_items(id),
+  sku TEXT,
+  qty INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  inventory_deducted INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (marketplace_order_id, external_line_item_id)
+);
+
+CREATE TABLE IF NOT EXISTS marketplace_webhook_events (
+  id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
+  channel_id TEXT REFERENCES marketplace_channels(id) ON DELETE SET NULL,
+  external_event_id TEXT NOT NULL,
+  topic TEXT,
+  payload TEXT NOT NULL,
+  received_at TEXT NOT NULL DEFAULT (datetime('now')),
+  processed_at TEXT,
+  error TEXT,
+  UNIQUE (platform, external_event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketplace_channels_platform ON marketplace_channels(platform);
+CREATE INDEX IF NOT EXISTS idx_marketplace_channels_store ON marketplace_channels(store_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_credentials_channel ON marketplace_credentials(channel_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_product_mappings_channel ON marketplace_product_mappings(channel_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_channel ON marketplace_orders(channel_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_orders_internal ON marketplace_orders(internal_order_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_sync_jobs_channel_status ON marketplace_sync_jobs(channel_id, status);
+CREATE INDEX IF NOT EXISTS idx_marketplace_oauth_states_expires ON marketplace_oauth_states(expires_at);
+CREATE INDEX IF NOT EXISTS idx_marketplace_order_lines_order_item ON marketplace_order_lines(order_item_id);
+CREATE INDEX IF NOT EXISTS idx_marketplace_webhook_events_unprocessed ON marketplace_webhook_events(processed_at, received_at);
 `;
 
 
@@ -708,10 +895,42 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
   private sessions: Map<WebSocket, { topics: Set<string> }> = new Map();
   private initialized = false;
   private keysInitialized = false;
+  private auth: BetterAuthInstance | null = null;
+
+  /**
+   * Builds Better Auth once per DO instance. Sign-in requires a verified email
+   * (lib/auth.ts); store admins (ADMIN_EMAILS) are marked verified here so a
+   * deploy that turns verification on never locks them out.
+   */
+  private createAuthInstance(): BetterAuthInstance {
+    const admins = (this.env.ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    if (admins.length > 0) {
+      try {
+        this.sql.exec(
+          `UPDATE "user" SET email_verified = 1 WHERE email_verified = 0 AND lower(email) IN (${admins.map(() => '?').join(',')})`,
+          ...admins,
+        );
+      } catch (err) {
+        console.warn('[Auth] Could not mark admin accounts verified:', err);
+      }
+    }
+    return createAuth(this.env, this.ctx.storage);
+  }
 
   constructor(ctx: DurableObjectState, env: MerchantEnv) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
+    // Seed the MERCHANT_SK / MERCHANT_PK keys before the object serves anything.
+    // Routes reach the DO over RPC (query/run), which never goes through
+    // fetch(), so doing this only in fetch() left POST /v1/setup/init (which is
+    // unauthenticated while api_keys is empty) open on a fresh deployment.
+    void ctx.blockConcurrencyWhile(async () => {
+      this.ensureInitialized();
+      await this.initializeDefaultKeys();
+    });
   }
 
   private async hashKey(key: string): Promise<string> {
@@ -1114,7 +1333,7 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
           name: '030_store_themes_seed_classic',
           sql: `INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
             VALUES (
-              'theme_classic', 'Fufuni Classic', 1,
+              'theme_classic', 'Bengal Exchange Classic', 1,
               '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}'
             )`,
         },
@@ -1280,27 +1499,54 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
           name: '037_skip_better_auth_tables',
           sql: "SELECT 1",
         },
-        // ── Migration 038 ── Rename auth0_user_id → user_id in saved_carts ────
-        // D1/SQLite lacks ALTER TABLE ... RENAME COLUMN, so we recreate the table.
-        // Wrapped in try/catch via the migration error handler so it's safe on fresh DBs
-        // (where embedded schema already uses 'user_id') and existing DBs (with data to migrate).
         {
-          name: '038_rename_auth0_user_id_to_user_id',
-          sql: `
-            CREATE TABLE IF NOT EXISTS saved_carts_new (
-              id            INTEGER PRIMARY KEY AUTOINCREMENT,
-              user_id       TEXT NOT NULL,
-              cart_id       TEXT NOT NULL,
-              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-              updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
-              UNIQUE(user_id, cart_id),
-              FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
-            );
-            INSERT OR IGNORE INTO saved_carts_new (id, user_id, cart_id, created_at, updated_at)
-            SELECT id, auth0_user_id, cart_id, created_at, updated_at FROM saved_carts;
-            DROP TABLE IF EXISTS saved_carts;
-            ALTER TABLE saved_carts_new RENAME TO saved_carts;
-            CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(user_id);
+  name: '037_better_auth_tables_actual',
+  sql: `
+    CREATE TABLE IF NOT EXISTS "user" (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      email_verified INTEGER NOT NULL DEFAULT 0,
+      image TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS "session" (
+      id TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS "account" (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+      access_token TEXT,
+      refresh_token TEXT,
+      id_token TEXT,
+      access_token_expires_at INTEGER,
+      refresh_token_expires_at INTEGER,
+      scope TEXT,
+      password TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS "verification" (
+      id TEXT PRIMARY KEY,
+      identifier TEXT NOT NULL,
+      value TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER,
+      updated_at INTEGER
+    );
+  `
+},
+       
         // ── Migration 037 ── Marketplace integrations (Etsy, eBay, Amazon) ──
         {
           name: '037_marketplace_channels',
@@ -1397,6 +1643,190 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
               ON marketplace_sync_jobs(channel_id, status);
           `,
         },
+
+        // ── Migration 038 ── Marketplace repair + change tracking ──────────
+        // Split into small steps on purpose: the runner marks a migration as
+        // applied even when its SQL throws, so one failing statement must not
+        // silently skip unrelated changes. tests/schema-038.test.ts asserts
+        // the end state.
+        //
+        // SQLite can't ADD COLUMN with a non-constant default, so updated_at is
+        // added nullable, backfilled from created_at, and kept current by
+        // triggers (no route has to remember to set it).
+        ...(['products', 'variants', 'orders'] as const).flatMap((table) => [
+          {
+            name: `038_${table}_updated_at`,
+            sql: `
+              ALTER TABLE ${table} ADD COLUMN updated_at TEXT;
+              UPDATE ${table} SET updated_at = created_at WHERE updated_at IS NULL;
+              CREATE INDEX IF NOT EXISTS idx_${table}_updated_at ON ${table}(updated_at);
+            `,
+          },
+          {
+            name: `038_${table}_updated_at_triggers`,
+            sql: `
+              CREATE TRIGGER IF NOT EXISTS trg_${table}_updated_at_insert
+              AFTER INSERT ON ${table} FOR EACH ROW WHEN NEW.updated_at IS NULL
+              BEGIN
+                UPDATE ${table} SET updated_at = COALESCE(NEW.created_at, datetime('now')) WHERE id = NEW.id;
+              END;
+              CREATE TRIGGER IF NOT EXISTS trg_${table}_updated_at_update
+              AFTER UPDATE ON ${table} FOR EACH ROW WHEN NEW.updated_at IS OLD.updated_at
+              BEGIN
+                UPDATE ${table} SET updated_at = datetime('now') WHERE id = NEW.id;
+              END;
+            `,
+          },
+        ]),
+        {
+          // NULL channel_id = order placed on the web store.
+          name: '038_orders_channel_id',
+          sql: `
+            ALTER TABLE orders ADD COLUMN channel_id TEXT REFERENCES marketplace_channels(id);
+            CREATE INDEX IF NOT EXISTS idx_orders_channel ON orders(channel_id);
+          `,
+        },
+        {
+          name: '038_marketplace_credentials_expires_at',
+          sql: `
+            ALTER TABLE marketplace_credentials ADD COLUMN expires_at TEXT;
+            UPDATE marketplace_credentials
+              SET expires_at = json_extract(metadata, '$.expires_at')
+              WHERE expires_at IS NULL AND json_valid(metadata);
+          `,
+        },
+        {
+          // SQLite can't add a table constraint after the fact; a unique index
+          // enforces the same thing.
+          name: '038_marketplace_orders_unique_external',
+          sql: `
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_marketplace_orders_channel_external
+              ON marketplace_orders(channel_id, external_order_id);
+            CREATE INDEX IF NOT EXISTS idx_marketplace_orders_internal
+              ON marketplace_orders(internal_order_id);
+          `,
+        },
+        {
+          // One row per OAuth connect attempt; consumed (deleted) by the callback.
+          name: '038_marketplace_oauth_states',
+          sql: `
+            CREATE TABLE IF NOT EXISTS marketplace_oauth_states (
+              state TEXT PRIMARY KEY,
+              platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
+              channel_id TEXT REFERENCES marketplace_channels(id) ON DELETE CASCADE,
+              code_verifier TEXT,
+              return_to TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              expires_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_marketplace_oauth_states_expires
+              ON marketplace_oauth_states(expires_at);
+          `,
+        },
+        {
+          // Marketplace line items ↔ our order_items (shipments are confirmed per line).
+          name: '038_marketplace_order_lines',
+          sql: `
+            CREATE TABLE IF NOT EXISTS marketplace_order_lines (
+              id TEXT PRIMARY KEY,
+              marketplace_order_id TEXT NOT NULL REFERENCES marketplace_orders(id) ON DELETE CASCADE,
+              external_line_item_id TEXT NOT NULL,
+              order_item_id TEXT REFERENCES order_items(id),
+              sku TEXT,
+              qty INTEGER NOT NULL,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE (marketplace_order_id, external_line_item_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_marketplace_order_lines_order_item
+              ON marketplace_order_lines(order_item_id);
+          `,
+        },
+        {
+          // De-duplicates inbound marketplace notifications (the existing
+          // events table is keyed on stripe_event_id). channel_id is nullable
+          // because some notifications can't be tied to a channel until parsed.
+          name: '038_marketplace_webhook_events',
+          sql: `
+            CREATE TABLE IF NOT EXISTS marketplace_webhook_events (
+              id TEXT PRIMARY KEY,
+              platform TEXT NOT NULL CHECK (platform IN ('etsy', 'ebay', 'amazon')),
+              channel_id TEXT REFERENCES marketplace_channels(id) ON DELETE SET NULL,
+              external_event_id TEXT NOT NULL,
+              topic TEXT,
+              payload TEXT NOT NULL,
+              received_at TEXT NOT NULL DEFAULT (datetime('now')),
+              processed_at TEXT,
+              error TEXT,
+              UNIQUE (platform, external_event_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_marketplace_webhook_events_unprocessed
+              ON marketplace_webhook_events(processed_at, received_at);
+          `,
+        },
+
+        // ── Migration 039 ── Order import + shipment push ─────────────────
+        {
+          // Carrier code for the tracking number (e.g. USPS, UPS). When set it
+          // overrides the channel's default_carrier when confirming shipment.
+          name: '039_orders_tracking_carrier',
+          sql: `ALTER TABLE orders ADD COLUMN tracking_carrier TEXT;`,
+        },
+        {
+          // Units actually taken from stock for this line at import (can be
+          // less than qty when the marketplace oversold).
+          name: '039_marketplace_order_lines_inventory_deducted',
+          sql: `ALTER TABLE marketplace_order_lines ADD COLUMN inventory_deducted INTEGER NOT NULL DEFAULT 0;`,
+        },
+        // ── Migration 040 ── Admin modules: banners, variant options, API key names
+        { name: '040_banners', sql: `CREATE TABLE IF NOT EXISTS banners (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  image_url TEXT,
+  image_alt TEXT NOT NULL DEFAULT '',
+  cta_primary_label TEXT,
+  cta_primary_href TEXT,
+  cta_secondary_label TEXT,
+  cta_secondary_href TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('active', 'draft')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)` },
+        { name: '040_banners_idx_status_sort', sql: 'CREATE INDEX IF NOT EXISTS idx_banners_status_sort ON banners (status, sort_order)' },
+        { name: '040_variants_add_color', sql: 'ALTER TABLE variants ADD COLUMN color TEXT' },
+        { name: '040_variants_add_size', sql: 'ALTER TABLE variants ADD COLUMN size TEXT' },
+        {
+          name: '040_variants_add_availability',
+          sql: `ALTER TABLE variants ADD COLUMN availability TEXT NOT NULL DEFAULT 'in_stock'
+                CHECK (availability IN ('in_stock', 'out_of_stock', 'preorder'))`,
+        },
+        { name: '040_api_keys_add_name', sql: 'ALTER TABLE api_keys ADD COLUMN name TEXT' },
+        // Product image gallery (JSON array of {url, alt}; first is the cover).
+        { name: '041_products_add_images', sql: 'ALTER TABLE products ADD COLUMN images TEXT' },
+        // Buy now, page builder and showcase sections (spec 2026-11-23-buy-now-page-builder-design).
+        { name: '042_carts_add_source', sql: "ALTER TABLE carts ADD COLUMN source TEXT NOT NULL DEFAULT 'cart' CHECK (source IN ('cart', 'buy_now'))" },
+        { name: '042_categories_add_visibility', sql: "ALTER TABLE categories ADD COLUMN visibility TEXT NOT NULL DEFAULT 'listed' CHECK (visibility IN ('listed', 'showcase'))" },
+        { name: '042_home_sections', sql: `CREATE TABLE IF NOT EXISTS home_sections (
+  id            TEXT PRIMARY KEY,
+  type          TEXT NOT NULL CHECK (type IN ('banner', 'catalogue', 'showcase')),
+  title         TEXT,
+  category_id   TEXT REFERENCES categories(id) ON DELETE CASCADE,
+  product_limit INTEGER NOT NULL DEFAULT 12,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden')),
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+)` },
+        { name: '042_home_sections_idx', sql: 'CREATE INDEX IF NOT EXISTS idx_home_sections_status_sort ON home_sections (status, sort_order)' },
+        { name: '042_home_sections_seed', sql: `INSERT OR IGNORE INTO home_sections (id, type, sort_order, status) VALUES
+  ('builtin-banner', 'banner', 0, 'active'),
+  ('builtin-catalogue', 'catalogue', 100, 'active')` },
+        { name: '043_customer_carts', sql: `CREATE TABLE IF NOT EXISTS customer_carts (
+  customer_id TEXT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+  items       TEXT NOT NULL DEFAULT '[]',
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+)` },
       ];
 
       for (const migration of migrations) {
@@ -1443,8 +1873,8 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
   private async initializeDefaultKeys(): Promise<void> {
     if (this.keysInitialized) return;
 
-    const merchantSk = (this.env as any).MERCHANT_SK;
-    const merchantPk = (this.env as any).MERCHANT_PK;
+    const merchantSk = this.env.MERCHANT_SK;
+    const merchantPk = this.env.MERCHANT_PK;
 
     if (merchantSk) {
       const skHash = await this.hashKey(merchantSk);
@@ -1493,7 +1923,109 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
       return Response.json({ ok: true, storage: 'sqlite' });
     }
 
+    if (url.pathname.startsWith('/api/auth/')) {
+      return this.handleAuth(request, url);
+    }
+
     return new Response('Not found', { status: 404 });
+  }
+
+  /**
+   * RPC used by the Worker's auth middleware (lib/session.ts verifySession) on
+   * every authenticated request. Calls Better Auth's server API directly, as
+   * /api/auth/session does, instead of the rate-limited HTTP handler. The
+   * cookie's signature and expiry are still fully checked.
+   */
+  async getSessionForCookie(cookieHeader: string): Promise<VerifiedSession | null> {
+    this.auth ??= this.createAuthInstance();
+    const result = await this.auth.api.getSession({ headers: new Headers({ cookie: cookieHeader }) });
+    if (!result?.user?.id || !result.user.email) return null;
+    return {
+      userId: result.user.id,
+      email: result.user.email,
+      name: result.user.name ?? null,
+      emailVerified: result.user.emailVerified === true,
+    };
+  }
+
+  /**
+   * RPC behind POST /v1/setup/admin-user (scripts/create-admin.ts). Writes the
+   * Better Auth `user` + credential `account` rows through Better Auth's own
+   * internal adapter and password hasher (scrypt), exactly as sign-up would,
+   * but without the public sign-up endpoint. An existing user's password is
+   * only replaced when `resetPassword` is set.
+   */
+  async provisionUser(input: {
+    email: string;
+    password: string;
+    name: string;
+    resetPassword: boolean;
+  }): Promise<{ status: 'created' | 'password_reset' | 'exists'; userId: string }> {
+    this.auth ??= this.createAuthInstance();
+    const ctx = await this.auth.$context;
+    const email = input.email.trim().toLowerCase();
+
+    const { minPasswordLength, maxPasswordLength } = ctx.password.config;
+    if (input.password.length < minPasswordLength || input.password.length > maxPasswordLength) {
+      throw new Error(`Password must be ${minPasswordLength}-${maxPasswordLength} characters`);
+    }
+
+    const existing = await ctx.internalAdapter.findUserByEmail(email, { includeAccounts: true });
+    if (existing) {
+      // Created by an admin: the address is trusted (sign-in requires it).
+      if (!existing.user.emailVerified) {
+        await ctx.internalAdapter.updateUser(existing.user.id, { emailVerified: true });
+      }
+      if (!input.resetPassword) return { status: 'exists', userId: existing.user.id };
+      const hash = await ctx.password.hash(input.password);
+      if (existing.accounts.some((a) => a.providerId === 'credential')) {
+        await ctx.internalAdapter.updatePassword(existing.user.id, hash);
+      } else {
+        await ctx.internalAdapter.linkAccount({
+          userId: existing.user.id,
+          providerId: 'credential',
+          accountId: existing.user.id,
+          password: hash,
+        });
+      }
+      return { status: 'password_reset', userId: existing.user.id };
+    }
+
+    const user = await ctx.internalAdapter.createUser(
+      { email, name: input.name, emailVerified: true },
+      { method: 'admin' },
+    );
+    await ctx.internalAdapter.linkAccount({
+      userId: user.id,
+      providerId: 'credential',
+      accountId: user.id,
+      password: await ctx.password.hash(input.password),
+    });
+    return { status: 'created', userId: user.id };
+  }
+
+  private async handleAuth(request: Request, url: URL): Promise<Response> {
+    this.auth ??= this.createAuthInstance();
+
+    // Compatibility endpoint used by the client: { session: null | {...} }
+    if (url.pathname === '/api/auth/session' && request.method === 'GET') {
+      const result = await this.auth.api.getSession({ headers: request.headers });
+      if (!result) return Response.json({ session: null });
+      return Response.json({
+        session: {
+          user: {
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            image: result.user.image,
+            // UI hint only; the server enforces admin access in authMiddleware.
+            is_admin: isAdminEmail(result.user.email, this.env.ADMIN_EMAILS),
+          },
+        },
+      });
+    }
+
+    return this.auth.handler(request);
   }
 
   query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): T[] {

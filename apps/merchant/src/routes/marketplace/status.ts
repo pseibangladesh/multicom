@@ -26,6 +26,7 @@
 import { Hono } from 'hono';
 import { getDb } from '../../db';
 import { ApiError } from '../../types';
+import type { HonoEnv } from '../../types';
 
 /**
  * Channel status routes (admin auth required).
@@ -33,8 +34,8 @@ import { ApiError } from '../../types';
  * GET /v1/marketplace/:channelId/status — Health check for a connected channel.
  */
 
-export function statusRoutes(): Hono {
-  const app = new Hono();
+export function statusRoutes(): Hono<HonoEnv> {
+  const app = new Hono<HonoEnv>();
 
   // ── GET /:channelId/status ──────────────────────────────────────────────
 
@@ -42,19 +43,6 @@ export function statusRoutes(): Hono {
     const db = getDb(c.var.db);
     const channelId = c.req.param('channelId');
 
-    // Validate API key auth.
-    const apiKey = c.req.header('Authorization')?.replace('Bearer ', '');
-    if (!apiKey) throw ApiError.unauthorized('API key required');
-
-    const keyHash = await hashKey(apiKey);
-    const keyRow = await db.query<{ role: string }>(
-      `SELECT role FROM api_keys WHERE key_hash = ?`,
-      [keyHash],
-    );
-
-    if (keyRow.length === 0 || keyRow[0].role !== 'admin') {
-      throw ApiError.unauthorized('Invalid or non-admin API key');
-    }
 
     // Get channel info.
     const channel = await db.query<{
@@ -90,13 +78,6 @@ export function statusRoutes(): Hono {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function hashKey(key: string): Promise<string> {
-  const data = new TextEncoder().encode(key);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
 
 function safeJsonParse(raw: string): Record<string, unknown> {
   try {

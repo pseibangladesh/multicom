@@ -21,7 +21,7 @@ const topic: Topic = {
     'POST /v1/ucp returns { items: [{...product, quantity, unitPrice, tax, subtotal}], currency, total, taxTotal }. Call it whenever the cart changes.',
     'Inventory is checked synchronously inside the DO transaction. If any item is out of stock the full endpoint fails with 409 Conflict.',
     'Stripe webhooks (POST /v1/webhooks/stripe) handle payment_intent.succeeded → update order to paid, payment_intent.payment_failed → update order to failed, checkout.session.completed for 3DS flow.',
-    'Checkout requires Auth0 JWT (customerAuthMiddleware). The order is created under the authenticated customer\'s ID.',
+    'Checkout works for guests and signed-in customers. Paid orders are linked to the customer by email (upsertCustomerByEmail / linkOrderToCustomer in lib/customers.ts) and the customer\'s order_count / total_spent_cents are recalculated from orders (recalcCustomerStats).',
     'stripe.ts is a thin wrapper around the Stripe REST API (no SDK) that works inside Cloudflare Workers.',
     'STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET must be in Wrangler secrets (not .env file).',
   ],

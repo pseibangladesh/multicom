@@ -26,8 +26,9 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { getDb } from '../db';
-import { authMiddleware, adminOnly, databaseAdminOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, now, type HonoEnv } from '../types';
+import { isAdminEmail } from '../lib/session';
 import { SetupStripeBody, OkResponse, ErrorResponse, ConfigListResponse } from '../schemas';
 
 const adminApp = new OpenAPIHono<HonoEnv>();
@@ -128,6 +129,33 @@ adminApp.openapi(setupStripe, async (c) => {
   return c.json({ ok: true as const }, 200);
 });
 
+const SECRET_FIELD = /secret|password|passwd|token|api_?key/i;
+
+/**
+ * Config rows can hold credentials (e.g. 'stripe' → secret_key, webhook_secret).
+ * The listing shows that they are set, never their values.
+ */
+export function redactConfigValue(value: string | null): string | null {
+  if (!value) return value;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return value;
+  }
+  const redact = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(redact);
+    if (!v || typeof v !== 'object') return v;
+    return Object.fromEntries(
+      Object.entries(v as Record<string, unknown>).map(([k, x]) => [
+        k,
+        SECRET_FIELD.test(k) && x !== null && x !== '' && typeof x !== 'object' ? '[redacted]' : redact(x),
+      ])
+    );
+  };
+  return JSON.stringify(redact(parsed));
+}
+
 const getConfig = createRoute({
   method: 'get',
   path: '/config',
@@ -135,7 +163,7 @@ const getConfig = createRoute({
   summary: 'Get config values',
   description: 'Return all key/value pairs stored in the config table.',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: ConfigListResponse } }, description: 'Config values' },
   },
@@ -147,7 +175,7 @@ adminApp.openapi(getConfig, async (c) => {
     `SELECT key, value FROM config`
   );
 
-  return c.json({ items }, 200);
+  return c.json({ items: items.map((i) => ({ key: i.key, value: redactConfigValue(i.value) })) }, 200);
 });
 
 const resetDatabase = createRoute({
@@ -157,7 +185,7 @@ const resetDatabase = createRoute({
   summary: 'Wipe and reset the database',
   description: 'Clears all data so init/seed can be rerun. Requires database admin role (JWT only).',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: OkResponse } }, description: 'Database reset' },
   },
@@ -220,6 +248,146 @@ adminApp.openapi(resetDatabase, async (c) => {
   return c.json({ ok: true as const }, 200);
 });
 
+const ProvisionAdminBody = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(128),
+  name: z.string().min(1).max(100).optional(),
+  reset_password: z.boolean().optional(),
+});
+
+const provisionAdminUser = createRoute({
+  method: 'post',
+  path: '/admin-user',
+  tags: ['Setup'],
+  summary: 'Create (or reset the password of) a login account for an admin',
+  description:
+    'Used by scripts/create-admin.ts. Creates the Better Auth user + credential account directly, ' +
+    'without the public sign-up form. Admin rights still come only from ADMIN_EMAILS, which the ' +
+    'response reports as is_admin.',
+  security: [{ bearerAuth: [] }],
+  middleware: [authMiddleware, adminOnly] as const,
+  request: { body: { content: { 'application/json': { schema: ProvisionAdminBody } } } },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            status: z.enum(['created', 'password_reset', 'exists']),
+            user_id: z.string(),
+            email: z.string(),
+            is_admin: z.boolean(),
+          }),
+        },
+      },
+      description: 'Account provisioned',
+    },
+    400: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Invalid input' },
+  },
+});
+
+adminApp.openapi(provisionAdminUser, async (c) => {
+  const body = c.req.valid('json');
+  const email = body.email.trim().toLowerCase();
+  const stub = c.env.MERCHANT.get(c.env.MERCHANT.idFromName('default'));
+  let result: { status: 'created' | 'password_reset' | 'exists'; userId: string };
+  try {
+    result = await stub.provisionUser({
+      email,
+      password: body.password,
+      name: body.name?.trim() || email.split('@')[0],
+      resetPassword: body.reset_password === true,
+    });
+  } catch (err) {
+    throw ApiError.invalidRequest(err instanceof Error ? err.message : 'Could not create the account');
+  }
+  return c.json(
+    { status: result.status, user_id: result.userId, email, is_admin: isAdminEmail(email, c.env.ADMIN_EMAILS) },
+    200
+  );
+});
+
+// Demo data only: everything seed.ts creates. Base data (currencies,
+// countries), API keys, settings, OAuth, webhooks and Better Auth users stay.
+// Listed children before parents; foreign keys are also switched off while
+// deleting, because other tables (e.g. marketplace listings) may point here.
+export const DEMO_DATA_TABLES = [
+  'product_reviews',
+  'refunds',
+  'discount_usage',
+  'order_items',
+  'orders',
+  'cart_items',
+  'carts',
+  'saved_carts',
+  'customer_addresses',
+  'customers',
+  'product_categories',
+  'categories',
+  'inventory_logs',
+  'inventory',
+  'warehouse_inventory_logs',
+  'warehouse_inventory',
+  'variant_prices',
+  'variants',
+  'products',
+  'region_shipping_rates',
+  'region_warehouses',
+  'region_countries',
+  'regions',
+  'shipping_rate_prices',
+  'shipping_rates',
+  'warehouses',
+  'tax_rates',
+] as const;
+
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+const resetDemoData = createRoute({
+  method: 'post',
+  path: '/demo-reset',
+  tags: ['Setup'],
+  summary: 'Delete demo data (local development only)',
+  description:
+    'Used by `seed.ts --force`. Deletes catalog, regions, orders and customers but keeps currencies, ' +
+    'countries, API keys and settings. Refused unless the worker is reached on localhost.',
+  security: [{ bearerAuth: [] }],
+  middleware: [authMiddleware, adminOnly] as const,
+  responses: {
+    200: {
+      content: { 'application/json': { schema: z.object({ ok: z.literal(true), deleted: z.number() }) } },
+      description: 'Demo data deleted',
+    },
+    403: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not a local worker' },
+  },
+});
+
+adminApp.openapi(resetDemoData, async (c) => {
+  // On Cloudflare the hostname is the route's own domain, never localhost.
+  if (!LOCAL_HOSTNAMES.has(new URL(c.req.url).hostname)) {
+    throw ApiError.forbidden('demo-reset is only available on a local worker (wrangler dev)');
+  }
+
+  const db = getDb(c.var.db);
+  const existing = new Set(
+    (await db.query<{ name: string }>(`SELECT name FROM sqlite_master WHERE type = 'table'`)).map((t) => t.name)
+  );
+
+  let deleted = 0;
+  await db.run('PRAGMA foreign_keys = OFF');
+  try {
+    for (const table of DEMO_DATA_TABLES) {
+      if (!existing.has(table)) continue;
+      const [{ n }] = await db.query<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`);
+      await db.run(`DELETE FROM ${table}`);
+      deleted += n;
+    }
+  } finally {
+    await db.run('PRAGMA foreign_keys = ON');
+  }
+
+  return c.json({ ok: true as const, deleted }, 200);
+});
+
 const listMigrations = createRoute({
   method: 'get',
   path: '/migrations/list',
@@ -227,7 +395,7 @@ const listMigrations = createRoute({
   summary: 'List applied migrations',
   description: 'Returns rows from the migrations table.',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: MigrationListResponse } }, description: 'Applied migrations' },
   },
@@ -248,7 +416,7 @@ const cleanMigrations = createRoute({
   summary: 'Clean migrations table',
   description: 'Deletes all rows from the migrations table.',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: OkResponse } }, description: 'Migrations cleared' },
   },
@@ -267,7 +435,7 @@ const runMigrations = createRoute({
   summary: 'Run pending migrations',
   description: 'Ensures schema migrations are applied by triggering the migration helper.',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: OkResponse } }, description: 'Migrations executed' },
   },

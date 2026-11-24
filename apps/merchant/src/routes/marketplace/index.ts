@@ -25,10 +25,12 @@
 
 import { Hono } from 'hono';
 import type { HonoEnv } from '../../types';
+import { authMiddleware, adminOnly } from '../../middleware/auth';
 import { connectRoutes } from './connect';
 import { webhookRoutes } from './webhook';
 import { syncRoutes } from './sync-products';
 import { statusRoutes } from './status';
+import { marketplaceOrderRoutes } from './orders';
 
 /**
  * Unified marketplace routes mounted at /v1/marketplace.
@@ -40,22 +42,29 @@ import { statusRoutes } from './status';
  *   POST   /v1/marketplace/:channelId/sync/products — Trigger product sync
  *   POST   /v1/marketplace/:channelId/sync/inventory — Trigger inventory sync
  *   GET    /v1/marketplace/:channelId/status        — Channel health check
+ *   POST   /v1/marketplace/:channelId/orders/import — Pull orders now
+ *   POST   /v1/marketplace/:channelId/orders/:orderId/shipment — Confirm shipment on the marketplace
  */
 
 export function marketplaceRoutes(): Hono<HonoEnv> {
   const app = new Hono<HonoEnv>();
 
-  // OAuth connect routes
-  app.route('/connect', connectRoutes());
-
-  // Webhook receiver (public — no auth required, signature verified in handler)
+  // Webhook receivers: public on purpose (marketplaces can't present our
+  // credentials). eBay notifications are ECDSA-verified before anything is
+  // recorded; other platforms answer 501. See ./webhook.ts.
   app.route('/webhook', webhookRoutes());
 
-  // Sync triggers (admin auth required)
-  app.route('/:channelId/sync', syncRoutes());
-
-  // Status / health
-  app.route('/:channelId/status', statusRoutes());
+  // Everything else is admin-only: Better Auth admin session or sk_ key.
+  // This includes the OAuth callback; the admin's browser carries the session
+  // cookie on the redirect back from the marketplace, and the single-use state
+  // is checked on top of that.
+  const admin = new Hono<HonoEnv>();
+  admin.use('*', authMiddleware, adminOnly);
+  admin.route('/connect', connectRoutes());
+  admin.route('/:channelId/sync', syncRoutes());
+  admin.route('/:channelId/status', statusRoutes());
+  admin.route('/:channelId/orders', marketplaceOrderRoutes());
+  app.route('/', admin);
 
   return app;
 }

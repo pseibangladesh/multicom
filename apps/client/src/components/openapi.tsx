@@ -27,6 +27,8 @@ import { useEffect, useState, useCallback } from "react";
 import SwaggerUI from "swagger-ui-react";
 import "swagger-ui-react/swagger-ui.css";
 import { Button } from "@heroui/react";
+import { useTranslation } from "react-i18next";
+
 import { getBaseURL } from "@/utils/base-url";
 
 export interface OpenAPIProps {
@@ -68,6 +70,7 @@ export function OpenAPI({
   description,
   bearer,
 }: OpenAPIProps) {
+  const { t } = useTranslation();
   // compute the URL from prop or fallback to env
   const baseUrl = getBaseURL();
   const url =
@@ -100,6 +103,7 @@ export function OpenAPI({
     const specString = JSON.stringify(openApiSpec, null, 2);
     const blob = new Blob([specString], { type: "application/json" });
     const link = document.createElement("a");
+
     link.href = URL.createObjectURL(blob);
     link.download = "openapi.json";
     document.body.appendChild(link);
@@ -119,7 +123,7 @@ export function OpenAPI({
   /**
    * whenever a bearer token is provided by the parent, apply it
    * to the UI. the parent is responsible for refreshing/obtaining
-   * a token (e.g. via Auth0) so this component has no SDK
+   * a token (e.g. an API key) so this component has no SDK
    * dependency.
    */
   useEffect(() => {
@@ -194,10 +198,10 @@ export function OpenAPI({
         <Button
           variant="secondary"
           size="sm"
-          onClick={downloadOpenApiSpec}
+          onPress={downloadOpenApiSpec}
           isDisabled={!openApiSpec}
         >
-          Télécharger OpenAPI
+          {t("openapi-download")}
         </Button>
       </div>
       <SwaggerUI
@@ -208,4 +212,3 @@ export function OpenAPI({
     </div>
   );
 }
-

@@ -16,21 +16,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  * @description
- * This file configures the i18n instance with the following settings:
- *  * The default language is English (en-US)
- *  * The available languages are defined in the availableLanguages array
- *  * The i18n instance is initialized with the i18next-http-backend plugin
- *  * The i18n instance is exported as the default export
- * How to add a new language ?
- *  * Add a new object to the availableLanguages array with the following properties:
- *    * code: The ISO 639-1 language code (e.g., "en-US")
- *    * nativeName: The native name of the language (e.g., "English")
- *    * isRTL: Whether the language is right-to-left (e.g., false)
- *  * Create a new JSON file in the locales/{namespace} directory with the language code (e.g., "en-US.json")
- *  * Manually add a switch case to the loadPath function in the i18n configuration to load the new JSON file
- *  * The new language should now be available for selection in the LanguageSwitch component
- * @see src/components/language-switch.tsx
- * @see src/locales/base/en-US.json
+ * i18next setup. The language list lives in src/lib/languages.ts; to add a
+ * language, add it there, add src/locales/base/<code>.json and its URL in
+ * LOCALE_URLS below.
  */
 
 import i18n from "i18next";
@@ -39,40 +27,78 @@ import i18nextHttpBackend, {
   type HttpBackendOptions,
 } from "i18next-http-backend";
 
-export interface AvailableLanguage {
-  code: string; // ISO 639-1 language code
-  nativeName: string; // Native name of the language
-  isRTL: boolean; // Right-to-left language
-  isDefault?: boolean; // Default language
+import {
+  FALLBACK_LANGUAGE,
+  LANGUAGE_STORAGE_KEY,
+  languageDirection,
+  resolveLanguage,
+} from "@/lib/languages";
+
+export {
+  availableLanguages,
+  languageDirection,
+  type AvailableLanguage,
+} from "@/lib/languages";
+
+// Vite cannot resolve new URL(`./locales/base/${lng}.json`, import.meta.url),
+// so each locale file is listed literally.
+const LOCALE_URLS: Record<string, URL> = {
+  "en-US": new URL("./locales/base/en-US.json", import.meta.url),
+  "fr-FR": new URL("./locales/base/fr-FR.json", import.meta.url),
+  "es-ES": new URL("./locales/base/es-ES.json", import.meta.url),
+  "zh-CN": new URL("./locales/base/zh-CN.json", import.meta.url),
+  "ar-SA": new URL("./locales/base/ar-SA.json", import.meta.url),
+  "he-IL": new URL("./locales/base/he-IL.json", import.meta.url),
+  "bn-BD": new URL("./locales/base/bn-BD.json", import.meta.url),
+};
+
+function storedLanguage(): string | null {
+  try {
+    return localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Sets <html lang> and <html dir> for a language. */
+function applyDocumentLanguage(code: string) {
+  if (typeof document === "undefined") return;
+  const lang = resolveLanguage(code);
+
+  document.documentElement.lang = lang;
+  document.documentElement.dir = languageDirection(lang);
 }
 
 /**
- * Complete list of languages supported by the application.
- * The entry with `isDefault: true` is used as the i18next `fallbackLng`.
- * RTL languages have `isRTL: true` which flips the UI layout direction.
- *
- * @see {@link AvailableLanguage}
+ * Switches the UI language: i18next, saved choice, and <html lang/dir>.
+ * Direction is also applied on every languageChanged event (below), so it
+ * does not depend on any particular component being mounted.
  */
-export const availableLanguages: AvailableLanguage[] = [
-  { code: "en-US", nativeName: "English", isRTL: false, isDefault: true },
-  { code: "fr-FR", nativeName: "Français", isRTL: false },
-  { code: "es-ES", nativeName: "Español", isRTL: false },
-  { code: "zh-CN", nativeName: "中文", isRTL: false },
-  { code: "ar-SA", nativeName: "العربية", isRTL: true },
-  { code: "he-IL", nativeName: "עברית", isRTL: true },
-];
+export async function applyLanguage(requested: string): Promise<void> {
+  const code = resolveLanguage(requested);
 
-const fallbackLng = "en-US";
+  try {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, code);
+  } catch {
+    // storage unavailable: the language still applies for this visit
+  }
+  await i18n.changeLanguage(code);
+}
+
+i18n.on("languageChanged", applyDocumentLanguage);
+
+// An unsupported saved code (e.g. an old "en") falls back to English.
+const initialLanguage = resolveLanguage(storedLanguage());
 
 i18n
   .use(i18nextHttpBackend)
   .use(initReactI18next) // passes i18n down to react-i18next
   .init<HttpBackendOptions>({
-    lng:
-      localStorage.getItem("preferredLanguage") ||
-      availableLanguages.find((lang) => lang.isDefault)?.code ||
-      fallbackLng,
-    fallbackLng: fallbackLng,
+    lng: initialLanguage,
+    fallbackLng: FALLBACK_LANGUAGE,
+    // Load only the exact codes (e.g. "fr-FR"), not "fr" as well: every short
+    // code used to map to the en-US file, which was then fetched twice.
+    load: "currentOnly",
 
     ns: ["base"],
     defaultNS: "base",
@@ -83,44 +109,11 @@ i18n
       transKeepBasicHtmlNodesFor: ["br", "strong", "i", "p", "sub", "sup"],
     },
     backend: {
-      loadPath: (lng, ns) => {
-        let url: URL = new URL("./locales/base/en-US.json", import.meta.url);
-
-        // Vite does not know how to resolve
-        // new URL(`./locales/${ns}/${reqlng}.json`, import.meta.url)
-        // so we need to manually handle the different namespaces and languages
-        switch (ns[0]) {
-          case "base":
-            switch (lng[0]) {
-              case "en-US":
-                url = new URL("./locales/base/en-US.json", import.meta.url);
-                break;
-              case "fr-FR":
-                url = new URL("./locales/base/fr-FR.json", import.meta.url);
-                break;
-              case "es-ES":
-                url = new URL("./locales/base/es-ES.json", import.meta.url);
-                break;
-              case "zh-CN":
-                url = new URL("./locales/base/zh-CN.json", import.meta.url);
-                break;
-              case "ar-SA":
-                url = new URL("./locales/base/ar-SA.json", import.meta.url);
-                break;
-              case "he-IL":
-                url = new URL("./locales/base/he-IL.json", import.meta.url);
-                break;
-              default:
-                url = new URL("./locales/base/en-US.json", import.meta.url);
-            }
-            break;
-          default:
-            url = new URL("./locales/base/en-US.json", import.meta.url);
-        }
-
-        return url.toString();
-      },
+      loadPath: (lng) =>
+        (LOCALE_URLS[lng[0]] ?? LOCALE_URLS[FALLBACK_LANGUAGE]).toString(),
     },
   });
+
+applyDocumentLanguage(initialLanguage);
 
 export default i18n;

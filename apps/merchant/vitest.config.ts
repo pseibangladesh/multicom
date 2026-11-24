@@ -22,14 +22,21 @@
  * SOFTWARE.
  */
 
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Lets tests import src/do.ts in Node (see tests/helpers/merchant-db.ts).
+      'cloudflare:workers': fileURLToPath(new URL('./tests/helpers/cloudflare-workers-stub.ts', import.meta.url)),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
-    exclude: ['node_modules', 'tests/auth.test.ts'], // Skip auth.test.ts - requires cloudflare:workers
+    exclude: ['node_modules'],
     testTimeout: 30000, // 30s for integration tests with rate limiting
     hookTimeout: 30000, // 30s for beforeAll/afterAll cleanup
   },

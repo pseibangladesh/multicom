@@ -246,7 +246,7 @@ adminApp.openapi(adjustInventory, async (c) => {
 
   const available = level.on_hand - level.reserved;
 
-  await checkLowInventory(c.var.db, c.executionCtx, sku, available);
+  await checkLowInventory(c.var.db, c.executionCtx as any, sku, available);
 
   return c.json({
     sku: level.sku,
@@ -414,7 +414,7 @@ adminApp.openapi(adjustWarehouseInventory, async (c) => {
   const available = level.on_hand - level.reserved;
 
   // Check low inventory at warehouse level
-  await checkLowInventory(c.var.db, c.executionCtx, sku, available);
+   await checkLowInventory(c.var.db, c.executionCtx as any, sku, available);
 
   // Get all warehouses for this SKU and product info
   const allWarehouses = await db.query<any>(

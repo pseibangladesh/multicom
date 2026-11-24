@@ -25,7 +25,12 @@
 
 import { createMiddleware } from 'hono/factory';
 import { getDb } from '../db';
-import { ApiError, now, type AuthRole, type HonoEnv } from '../types';
+import { ApiError, now, type AuthRole, type Env, type HonoEnv } from '../types';
+import { hasSessionCookie, isAdminEmail, verifySession } from '../lib/session';
+
+function merchantStub(env: Env) {
+  return env.MERCHANT.get(env.MERCHANT.idFromName('default'));
+}
 
 // ============================================================
 // AUTH MIDDLEWARE
@@ -36,9 +41,9 @@ import { ApiError, now, type AuthRole, type HonoEnv } from '../types';
  *
  * Accepts three token formats (in priority order):
  * 1. **Better Auth session cookie** — secure HttpOnly cookie set by /api/auth/*
- *    The session is verified server-side against the D1 database.
- * 2. **Admin API key** (`sk_` prefix) — stored in the database.
- * 3. **OAuth key** (64-char hex) — scoped API key.
+ *    Verified by Better Auth inside MerchantDO; grants admin only for ADMIN_EMAILS.
+ * 2. **OAuth token** (64-char hex) — scoped, for AI agents.
+ * 3. **API key** (`sk_` admin / `pk_` public) — hashed in the database.
  */
 export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   const db = getDb(c.var.db);
@@ -46,32 +51,20 @@ export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   const stripeWebhookSecret = c.env.STRIPE_WEBHOOK_SECRET || null;
 
   // ── Priority 1: Better Auth session cookie ────────────────────────
-  const sessionCookie = c.req.header('cookie') || '';
-  const sessionMatch = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
-
-  if (sessionMatch) {
+  // Only sessions whose email is listed in ADMIN_EMAILS get admin; any other
+  // session (e.g. a customer) falls through to the Bearer checks below.
+  const cookieHeader = c.req.header('cookie');
+  if (hasSessionCookie(cookieHeader)) {
     try {
-      const token = sessionMatch[1];
-      const hashedToken = await hashKey(token);
-
-      const sessionResult = await db.query<any>(
-        `SELECT s.*, u.email, u.name
-         FROM sessions s
-         JOIN users u ON u.id = s.user_id
-         WHERE s.token = ? AND s.expires_at > ?
-         LIMIT 1`,
-        [hashedToken, now()]
-      );
-
-      if (sessionResult.length > 0) {
-        const row = sessionResult[0];
+      const session = await verifySession(merchantStub(c.env), cookieHeader);
+      if (session && isAdminEmail(session.email, c.env.ADMIN_EMAILS)) {
         c.set('auth', {
           role: 'admin',
           stripeSecretKey,
           stripeWebhookSecret,
-          email: row.email,
-          name: row.name,
-          userId: row.user_id,
+          email: session.email,
+          name: session.name ?? undefined,
+          userId: session.userId,
         });
         await next();
         return;
@@ -138,83 +131,17 @@ export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   await next();
 });
 
-// ── Role-gate middleware (unchanged from previous implementation) ──
+// ── Role gate ───────────────────────────────────────────────────────
 
-export const superAdminOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('authadmin')) {
-      console.warn('Superadmin access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('Superadmin access required');
-    }
-  } else if (auth.role !== 'authadmin') {
-    console.warn('Superadmin access required, but user has role:', auth.role);
-    throw ApiError.forbidden('Superadmin access required');
-  }
-
-  await next();
-});
-
-export const databaseAdminOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('databaseadmin')) {
-      console.warn('Database admin access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('Database admin access required');
-    }
-  } else if (auth.role !== 'databaseadmin') {
-    console.warn('Database admin access required, but user has role:', auth.role);
-    throw ApiError.forbidden('Database admin access required');
-  }
-
-  await next();
-});
-
-export const aiAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('aiadmin')) {
-      console.warn('AI admin access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('AI admin access required');
-    }
-  } else if (auth.role !== 'aiadmin') {
-    console.warn('AI admin access required, but user has role:', auth.role);
-    throw ApiError.forbidden('AI admin access required');
-  }
-
-  await next();
-});
-
+/**
+ * Admin only: an ADMIN_EMAILS session or an `sk_` key. Everything an admin can
+ * do (catalogue, setup and migrations, mail, AI settings) uses this one gate.
+ */
 export const adminOnly = createMiddleware<HonoEnv>(async (c, next) => {
   const auth = c.get('auth');
 
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('admin')) {
-      console.warn('Admin access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('Admin access required');
-    }
-  } else if (auth.role !== 'admin') {
-    console.warn('Admin access required, but user has role:', auth.role);
+  if (auth.role !== 'admin') {
     throw ApiError.forbidden('Admin access required');
-  }
-
-  await next();
-});
-
-export const mailAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
-  const auth = c.get('auth');
-
-  if (Array.isArray(auth.role)) {
-    if (!auth.role.includes('mail')) {
-      console.warn('Mail API access required, but user has roles:', auth.role);
-      throw ApiError.forbidden('Mail API access required');
-    }
-  } else if (auth.role !== 'mail') {
-    console.warn('Mail API access required, but user has role:', auth.role);
-    throw ApiError.forbidden('Mail API access required');
   }
 
   await next();
@@ -225,32 +152,22 @@ export const mailAccessOnly = createMiddleware<HonoEnv>(async (c, next) => {
  * Used for customer-facing routes like /v1/me/*, /v1/downloads, etc.
  */
 export const customerAuthMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
-  // ── Priority 1: Better Auth session cookie ────────────────────────
-  const sessionCookie = c.req.header('cookie') || '';
-  const sessionMatch = sessionCookie.match(/better-auth\.session_token=([^;]+)/);
-
-  if (sessionMatch) {
+  const cookieHeader = c.req.header('cookie');
+  if (hasSessionCookie(cookieHeader)) {
     try {
-      const token = sessionMatch[1];
-      const hashedToken = await hashKey(token);
-      const db = getDb(c.var.db);
-
-      const sessionResult = await db.query<any>(
-        `SELECT s.*, u.email, u.name
-         FROM sessions s
-         JOIN users u ON u.id = s.user_id
-         WHERE s.token = ? AND s.expires_at > ?
-         LIMIT 1`,
-        [hashedToken, now()]
-      );
-
-      if (sessionResult.length > 0) {
-        const row = sessionResult[0];
+      const session = await verifySession(merchantStub(c.env), cookieHeader);
+      // Customer data is matched by email (including guest orders), so only a
+      // verified email may see it. Sign-in already requires one; this also
+      // covers sessions created before that rule existed.
+      if (session && session.emailVerified === false) {
+        throw ApiError.forbidden('Please verify your email address first');
+      }
+      if (session) {
         c.set('auth', {
           role: 'customer',
-          email: row.email,
-          name: row.name,
-          userId: row.user_id,
+          email: session.email,
+          name: session.name ?? undefined,
+          userId: session.userId,
           stripeSecretKey: null,
           stripeWebhookSecret: null,
         });
@@ -258,6 +175,7 @@ export const customerAuthMiddleware = createMiddleware<HonoEnv>(async (c, next) 
         return;
       }
     } catch (err) {
+      if (err instanceof ApiError) throw err;
       console.warn('Better Auth session verification failed:', err);
     }
   }

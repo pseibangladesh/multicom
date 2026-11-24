@@ -27,6 +27,8 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 import { z } from 'zod';
 import { getDb } from '../db';
+import { recalcCustomerStats, refreshOrderCustomer, upsertCustomerByEmail } from '../lib/customers';
+import { getStripeSettings } from '../lib/payment-config';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, uuid, now, generateOrderNumber, type HonoEnv } from '../types';
 import { validateDiscount, calculateDiscount, type Discount } from './discounts';
@@ -165,7 +167,7 @@ const updateOrder = createRoute({
 
 adminApp.openapi(updateOrder, async (c) => {
   const { orderId } = c.req.valid('param');
-  const { status, tracking_number, tracking_url } = c.req.valid('json');
+  const { status, tracking_number, tracking_url, tracking_carrier } = c.req.valid('json');
   const db = getDb(c.var.db);
 
   const [order] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
@@ -194,12 +196,19 @@ adminApp.openapi(updateOrder, async (c) => {
     params.push(tracking_url || null);
   }
 
+  if (tracking_carrier !== undefined) {
+    updates.push('tracking_carrier = ?');
+    params.push(tracking_carrier || null);
+  }
+
   if (updates.length === 0) {
     throw ApiError.invalidRequest('No fields to update');
   }
 
   params.push(orderId);
   await db.run(`UPDATE orders SET ${updates.join(', ')} WHERE id = ?`, params);
+  // e.g. canceled: no longer counts towards the customer's orders and spend.
+  if (status !== undefined && status !== order.status) await refreshOrderCustomer(getDb(c.var.db), orderId);
 
   const [updated] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
   const orderItems = await db.query<any>(`SELECT * FROM order_items WHERE order_id = ?`, [orderId]);
@@ -209,7 +218,7 @@ adminApp.openapi(updateOrder, async (c) => {
     let eventType: WebhookEventType = 'order.updated';
     if (status === 'shipped') eventType = 'order.shipped';
 
-    await dispatchWebhooks(c.var.db, c.executionCtx, eventType, {
+    await dispatchWebhooks(c.var.db, c.executionCtx as any, eventType, {
       order: formattedOrder,
       previous_status: order.status,
     });
@@ -217,7 +226,7 @@ adminApp.openapi(updateOrder, async (c) => {
     const emailableStatuses: OrderEmailEvent[] = ['processing', 'shipped', 'delivered', 'refunded', 'canceled'];
     if (emailableStatuses.includes(status as OrderEmailEvent)) {
       c.executionCtx.waitUntil(
-        sendOrderStatusEmail(c.env, c.var.db, orderId, status as OrderEmailEvent).catch(() => {}),
+        sendOrderStatusEmail(c.env, getDb(c.var.db), orderId, status as OrderEmailEvent).catch(() => {})
       );
     }
   }
@@ -312,10 +321,11 @@ adminApp.openapi(refundOrder, async (c) => {
   const { orderId } = c.req.valid('param');
   const { amount_cents, reason, notes } = c.req.valid('json');
 
-  const stripeSecretKey = c.get('auth').stripeSecretKey;
-  if (!stripeSecretKey) throw ApiError.invalidRequest('Stripe not connected');
-
   const db = getDb(c.var.db);
+
+  // Refunds work even while Stripe checkout is switched off.
+  const { secretKey: stripeSecretKey } = await getStripeSettings(db, c.env);
+  if (!stripeSecretKey) throw ApiError.invalidRequest('Stripe not connected');
 
   const [order] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
   if (!order) throw ApiError.notFound('Order not found');
@@ -347,18 +357,19 @@ adminApp.openapi(refundOrder, async (c) => {
     const isFullRefund = !amount_cents || amount_cents >= order.total_cents;
     const newStatus = isFullRefund ? 'refunded' : 'partially_refunded';
     await db.run(`UPDATE orders SET status = ?, updated_at = ? WHERE id = ?`, [newStatus, now(), orderId]);
+    await refreshOrderCustomer(db, orderId); // money spent drops by the refund
 
     if (isFullRefund) {
       const [refundedOrder] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
       const orderItems = await db.query<any>(`SELECT * FROM order_items WHERE order_id = ?`, [orderId]);
 
-      await dispatchWebhooks(c.var.db, c.executionCtx, 'order.refunded', {
+      await dispatchWebhooks(c.var.db, c.executionCtx as any, 'order.refunded', {
         order: formatOrder(refundedOrder, orderItems),
         refund: { stripe_refund_id: refund.id, amount_cents: refund.amount },
       });
 
       c.executionCtx.waitUntil(
-        sendOrderStatusEmail(c.env, c.var.db, orderId, 'refunded').catch(() => {}),
+        sendOrderStatusEmail(c.env, getDb(c.var.db), orderId, status as OrderEmailEvent).catch(() => {})
       );
     }
 
@@ -408,11 +419,11 @@ adminApp.openapi(listRefunds, async (c) => {
   if (!order) throw ApiError.notFound('Order not found');
 
   const refunds = await db.query(
-    `SELECT id, stripe_refund_id, amount_cents, currency, reason, notes, status, created_at
-     FROM refunds WHERE order_id = ? ORDER BY created_at DESC`,
-    [orderId]
-  );
-  return c.json(refunds);
+  `SELECT id, stripe_refund_id, amount_cents, currency, reason, notes, status, created_at
+   FROM refunds WHERE order_id = ? ORDER BY created_at DESC`,
+  [orderId]
+) as any[];
+return c.json(refunds, 200);
 });
 
 const createTestOrder = createRoute({
@@ -543,32 +554,8 @@ adminApp.openapi(createTestOrder, async (c) => {
 
   const totalCents = subtotal - discountAmountCents;
   const timestamp = now();
-  let customerId: string | null = null;
-
-  const [existingCustomer] = await db.query<any>(
-    `SELECT id, order_count, total_spent_cents FROM customers WHERE email = ?`,
-    [customer_email]
-  );
-
-  if (existingCustomer) {
-    customerId = existingCustomer.id;
-    await db.run(
-      `UPDATE customers SET 
-        order_count = order_count + 1,
-        total_spent_cents = total_spent_cents + ?,
-        last_order_at = ?,
-        updated_at = ?
-      WHERE id = ?`,
-      [totalCents, timestamp, timestamp, customerId]
-    );
-  } else {
-    customerId = uuid();
-    await db.run(
-      `INSERT INTO customers (id, email, order_count, total_spent_cents, last_order_at)
-       VALUES (?, ?, 1, ?, ?)`,
-      [customerId, customer_email, totalCents, timestamp]
-    );
-  }
+  // Totals are recalculated from the orders once this order exists.
+  const customerId: string = await upsertCustomerByEmail(db, customer_email);
 
   if (discount && discountAmountCents > 0) {
     const currentTime = now();
@@ -647,6 +634,7 @@ adminApp.openapi(createTestOrder, async (c) => {
       timestamp,
     ]
   );
+  await recalcCustomerStats(db, customerId);
 
   for (const item of orderItems) {
     await db.run(

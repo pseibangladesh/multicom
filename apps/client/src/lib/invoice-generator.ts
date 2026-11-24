@@ -79,7 +79,7 @@ export function generateInvoice(data: InvoiceData): void {
   doc.setProperties({
     title: `Invoice ${data.orderNumber}`,
     subject: `Order ${data.orderNumber}`,
-    author: "Fufuni",
+    author: "Bengal Exchange",
   });
 
   const pageHeight = doc.internal.pageSize.getHeight();

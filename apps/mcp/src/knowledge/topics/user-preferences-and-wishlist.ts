@@ -7,20 +7,19 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'user-preferences-and-wishlist',
-  description: 'Per-user state — wishlist stored in Auth0 user_metadata, saved carts, and the custom hooks that wrap the metadata updates.',
-  tags: ["account","auth","auth0","security","user"],
+  description: 'Per-customer state on the server — wishlist, saved carts, the account cart and preferences under /v1/me/*, and the React Query hooks that use them.',
+  tags: ["account","auth","security","user"],
   sources: [
     'apps/client/src/hooks/use-wishlist.ts',
   ],
   systemPrompt: BASE_SYSTEM,
   manualFacts: [
-    'Wishlist is stored in Auth0 user_metadata (not a SQL table). Key: "wishlist", value: string[] of product IDs.',
-    'useWishlist() returns: { wishlist, isLoading, addToWishlist, removeFromWishlist, isInWishlist, toggleWishlist }.',
-    'useWishlist() requires the user to be authenticated. Call isInWishlist(productId) before showing the wishlist button state.',
-    'Wishlist mutations call PATCH /api/v2/users/:userId/metadata on the Auth0 Management API via the getAuth0ManagementToken() helper from useSecuredApi(). The token is cached in memory for 60 s.',
-    'Saved carts are stored in the saved_carts SQL table (not user_metadata). One saved cart per user. Endpoints: GET /v1/me/saved-cart, PUT /v1/me/saved-cart (upsert), DELETE /v1/me/saved-cart.',
-    'The CartProvider (apps/client/src/contexts/cart-context.tsx) auto-loads the saved cart from the API when the user logs in, and auto-saves on change (debounced 2 s).',
-    'User preferences (locale, currency display) are stored in the user_preferences table. GET /v1/me/preferences, PUT /v1/me/preferences. Requires customerAuthMiddleware.',
+    'All per-customer state lives in the database, keyed by the signed-in session, so it is the same on every device. Routes use customerAuthMiddleware + resolveCustomer(); a customer can only ever reach their own data.',
+    'Wishlist: customers.metadata.wishlist (string[] of product ids). GET /v1/me/wishlist, POST /v1/me/wishlist { productId }, DELETE /v1/me/wishlist/:productId; writes return { wishlist }.',
+    'useWishlist() (apps/client/src/hooks/use-wishlist.ts) is a React Query hook keyed ["me", userId, "wishlist"]. Returns { wishlist, isLoading, isError, toggle(productId), isFavorite(productId) }. Signed out it returns an empty list.',
+    'Saved carts: snapshots in customers.metadata. GET /v1/me/saved-carts returns { saved_carts } newest first; POST /v1/me/saved-carts saves a cart (it must belong to the customer\'s email); DELETE /v1/me/saved-carts/:cartId. Hook: useSavedCarts().',
+    'Account cart: the customer_carts table (one row per customer). GET /v1/me/cart and PUT /v1/me/cart { items } (max 100 lines, qty 1–999). CartProvider (apps/client/src/hooks/use-cart.tsx) loads it on sign-in, merges the guest cart into it, and saves changes (debounced 400 ms). Guests keep their cart in localStorage only.',
+    'Preferences: GET /v1/me/preferences and PUT /v1/me/preferences, stored on the customer record.',
   ],
   buildPrompt: (src) => appendFacts(`
 Below is use-wishlist.ts.
@@ -29,9 +28,9 @@ ${src}
 
 Task: Write a "User Preferences & Wishlist Reference".
 Include:
-1. Wishlist storage: where data lives (Auth0 user_metadata), why not a SQL table.
+1. Wishlist storage: where data lives (customers.metadata) and the /v1/me/wishlist endpoints.
 2. useWishlist() hook: all return values, usage example with heart-button toggle.
-3. Auth0 Management API call: how the token is obtained and cached.
+3. The account cart: /v1/me/cart and how the guest cart is merged on sign-in.
 4. Saved cart: storage location, endpoints, auto-save behaviour.
 5. CartProvider integration with saved-cart API.
 6. User preferences: endpoints, what fields are stored.

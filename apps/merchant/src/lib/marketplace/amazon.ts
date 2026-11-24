@@ -24,501 +24,745 @@
  */
 
 /**
- * Amazon SP-API client implementing IMarketplaceClient.
- * Auth layers: LWA tokens + Restricted Data Tokens + AWS Signature V4 signing
- * Base URL pattern: https://sellingpartnerapi-{region}.amazon.com
- */
-
-import type { IMarketplaceClient, MarketProduct, MarketInventoryItem, MarketOrder } from './types';
-import { mapMarketplaceToProduct, mapMarketplaceToOrder } from './data-mapper';
-import { signRequestV4 } from './crypto-utils';
-
-type AmazonRegion = 'NA' | 'EU' | 'FEA';
-const REGION_HOSTS: Record<AmazonRegion, string> = {
-  NA: 'sellingpartnerapi-na.amazon.com',
-  EU: 'sellingpartnerapi-eu.amazon.com',
-  FEA: 'sellingpartnerapi-fe.amazon.com',
-};
-
-function getRegion(): AmazonRegion {
-  return (process.env.AMAZON_REGION as AmazonRegion) || 'NA';
-}
-
-interface LwaTokenResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  token_type: string;
-}
-
-/** SHA-256 hex digest helper. */
-async function sha256Hex(payload: string): Promise<string> {
-  const encoded = new TextEncoder().encode(payload);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
-  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * Amazon SP-API client implementing IMarketplaceClient.
+ * Amazon Selling Partner API client implementing IMarketplaceClient.
  *
- * Usage:
- *   const client = new AmazonClient(config, getToken, rateLimiter);
- *   await client.refreshTokens();
- *   const products = await client.listProducts();
+ * Auth: every request carries an LWA access token in `x-amz-access-token`
+ * (AWS SigV4 signing is no longer required by SP-API). Calls that return
+ * buyer PII (email, shipping address) use a Restricted Data Token (RDT)
+ * instead; if the app lacks the PII role, orders import without them.
+ *
+ * APIs used:
+ *   Listings Items 2021-08-01  products, price and quantity (keyed by seller SKU)
+ *   Catalog Items 2022-04-01   barcode → ASIN, so a SKU can be offered on an existing product
+ *   Orders v0                  order import and shipment confirmation
+ *   Tokens 2021-03-01          RDTs for PII
+ *   Sellers v1                 health check and marketplace discovery on connect
+ *
+ * Amazon is merchant-fulfilled (MFN) here: stock is pushed to the DEFAULT
+ * fulfillment channel and FBA orders are not imported unless asked for, since
+ * Amazon ships those from its own stock.
  */
-export class AmazonClient implements IMarketplaceClient {
-  readonly platform = 'amazon' as const;
-  config: Record<string, unknown>;
 
-  constructor(
-    config: Record<string, unknown>,
-    private getToken: () => Promise<string>,
-    private rateLimiter: { acquire(platform?: string): Promise<boolean> },
-  ) {
-    this.config = config;
+import type { IMarketplaceClient, MarketInventoryItem, MarketOrder, MarketProduct, ShipmentClient } from './types';
+import type { AmazonTokenProvider, AmazonEnvironment, AmazonRegion } from './amazon-oauth';
+import { amazonApiBase, amazonMarketplace } from './amazon-oauth';
+import { resolveBuyerEmail } from './buyer';
+
+export const AMAZON_DEFAULT_CARRIER_FALLBACK = 'Other';
+const USER_AGENT = 'BengalExchange/1.0 (Language=TypeScript; Platform=Cloudflare Workers)';
+const LISTINGS = '/listings/2021-08-01/items';
+const LISTING_DATA = 'summaries,attributes,offers,fulfillmentAvailability';
+const MAX_THROTTLE_RETRIES = 3;
+
+export class AmazonApiError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message);
+    this.name = 'AmazonApiError';
   }
+}
 
-  // ── Helpers ─────────────────────────────────────────────────────────────
+export interface AmazonListingDefaults {
+  /** Amazon product type for brand-new products, e.g. "SHIRT", "HOME", "PRODUCT". */
+  productType?: string;
+  /** Listing condition, default "new_new". */
+  conditionType?: string;
+  /** Brand name for brand-new products. */
+  brand?: string;
+  /** Listing language, default from the marketplace (en_US, de_DE, ...). */
+  languageTag?: string;
+}
 
-  private getRegion(): AmazonRegion {
-    return (this.config.region as AmazonRegion) || getRegion();
-  }
+export interface AmazonClientOptions {
+  tokens: AmazonTokenProvider;
+  /** Selling partner (merchant) ID, from the authorization callback. */
+  sellerId: string;
+  marketplaceId: string;
+  region: AmazonRegion;
+  environment?: AmazonEnvironment;
+  channelId?: string;
+  listing?: AmazonListingDefaults;
+  defaultCarrier?: string;
+  /** Also import Fulfilled-by-Amazon orders (they deduct local stock). Default false. */
+  importFbaOrders?: boolean;
+  /** Request buyer email/address with a Restricted Data Token. Default true. */
+  restrictedData?: boolean;
+  fetch?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => Date;
+}
 
-  private getHost(): string {
-    return REGION_HOSTS[this.getRegion()];
-  }
+// ─── Wire types (only the fields we read) ────────────────────────────────────
 
-  /** Get AWS credentials from config. */
-  private async getAwsCredentials(): Promise<{ accessKeyId: string; secretAccessKey: string; region: string }> {
-    const ak = this.config.aws_access_key as string | undefined;
-    const sk = this.config.aws_secret_key as string | undefined;
-    if (!ak || !sk) throw new Error('Amazon: AWS credentials not configured');
-    return { accessKeyId: ak, secretAccessKey: sk, region: this.getRegion() };
-  }
+interface SpApiError {
+  code?: string;
+  message?: string;
+  details?: string;
+}
 
-  /** Get RDT (Restricted Data Token) for PII operations. Caches briefly. */
-  private async getRdt(): Promise<string | null> {
-    const rdt = this.config.restricted_data_token as string | undefined;
-    if (rdt) return `Bearer ${rdt}`;
+interface AmazonMoney {
+  CurrencyCode?: string;
+  Amount?: string;
+}
 
-    // Try to fetch RDT via the Tokens API.
-    try {
-      const lwaToken = await this.getToken();
-      const body = new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:aws:unified-authorization',
-        audience: 'https://sell.amazon.com',
-        scope: 'https://api.amazonservices.com/orders/v2',
-      });
+export interface AmazonOrderWire {
+  AmazonOrderId: string;
+  PurchaseDate?: string;
+  OrderStatus?: string;
+  FulfillmentChannel?: 'AFN' | 'MFN' | string;
+  OrderTotal?: AmazonMoney;
+  MarketplaceId?: string;
+  BuyerInfo?: { BuyerEmail?: string; BuyerName?: string };
+  ShippingAddress?: {
+    Name?: string;
+    AddressLine1?: string;
+    AddressLine2?: string;
+    AddressLine3?: string;
+    City?: string;
+    StateOrRegion?: string;
+    PostalCode?: string;
+    CountryCode?: string;
+    Phone?: string;
+  };
+}
 
-      const result = await fetch(`https://${this.getHost()}/2021-06-30/authorizationTokens`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${lwaToken}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      });
+export interface AmazonOrderItemWire {
+  OrderItemId: string;
+  ASIN?: string;
+  SellerSKU?: string;
+  Title?: string;
+  QuantityOrdered?: number;
+  ItemPrice?: AmazonMoney;
+  ItemTax?: AmazonMoney;
+  ShippingPrice?: AmazonMoney;
+  ShippingTax?: AmazonMoney;
+  ShippingDiscount?: AmazonMoney;
+  PromotionDiscount?: AmazonMoney;
+}
 
-      if (result.ok) {
-        const data = await result.json() as { payload?: { restrictedDataToken: string } };
-        this.config.restricted_data_token = data.payload?.restrictedDataToken;
-        return `Bearer ${data.payload?.restrictedDataToken}`;
-      }
-    } catch { /* RDT unavailable — will fail on restricted calls */ }
-    return null;
-  }
+interface ListingMoney {
+  currencyCode?: string;
+  currency?: string;
+  amount?: string | number;
+}
 
-  /** Sign and send an SP-API request with SigV4. */
-  private async fetchSigned(method: string, pathname: string, body?: Record<string, unknown>): Promise<Response> {
-    const host = this.getHost();
-    const token = await this.getToken();
-    const payload = body ? JSON.stringify(body) : '';
-    const payloadHash = await sha256Hex(payload);
+export interface AmazonListingItemWire {
+  sku: string;
+  summaries?: Array<{
+    marketplaceId?: string;
+    asin?: string;
+    productType?: string;
+    status?: string[];
+    itemName?: string;
+    mainImage?: { link?: string };
+  }>;
+  attributes?: Record<string, Array<Record<string, unknown>> | undefined>;
+  offers?: Array<{ marketplaceId?: string; offerType?: string; price?: ListingMoney }>;
+  fulfillmentAvailability?: Array<{ fulfillmentChannelCode?: string; quantity?: number }>;
+}
 
-    const sig = await signRequestV4(
-      method, host, pathname, {},
-      await this.getAwsCredentials(),
-      payloadHash,
-    );
+interface ListingSubmission {
+  sku?: string;
+  status?: 'ACCEPTED' | 'INVALID' | string;
+  issues?: Array<{ code?: string; message?: string; severity?: 'ERROR' | 'WARNING' | 'INFO' | string; attributeNames?: string[] }>;
+}
 
-    const headers: Record<string, string> = {
-      'x-amz-date': new Date().toISOString().replace(/\.\d{3}Z$/, 'Z').replace(/[-:]/g, '').split('.')[0] + 'Z',
-      'x-amz-content-sha256': sig.contentSha256,
-      Authorization: sig.authorization,
-      'Content-Type': 'application/json; charset=utf-8',
-    };
+// ─── Money ───────────────────────────────────────────────────────────────────
 
-    if (payload) headers['Content-Length'] = String(new TextEncoder().encode(payload).length);
+export function amazonMoneyToCents(m: { Amount?: string | number; amount?: string | number } | undefined | null): number {
+  const raw = m?.Amount ?? m?.amount;
+  const n = typeof raw === 'number' ? raw : Number.parseFloat(raw ?? '');
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
 
-    const result = await fetch(`https://${host}${pathname}`, { method, headers, body: payload });
+function centsToDecimal(cents: number): number {
+  return Math.round(cents) / 100;
+}
 
-    // Auto-refresh LWA token on 401.
-    if (result.status === 401) {
-      try { await this.refreshTokens(); } catch { /* ignore */ }
-    }
+// ─── Mapping ─────────────────────────────────────────────────────────────────
 
-    return result;
-  }
+const UNPAID_STATUSES = new Set(['Pending', 'PendingAvailability']);
+const CANCELLED_STATUSES = new Set(['Canceled', 'Cancelled', 'Unfulfillable']);
 
-  /** Send a signed request with optional RDT header for PII operations. */
-  private async fetchSignedRestricted(method: string, pathname: string, body?: Record<string, unknown>): Promise<Response> {
-    const host = this.getHost();
-    const token = await this.getToken();
-    const payload = body ? JSON.stringify(body) : '';
-    const payloadHash = await sha256Hex(payload);
-
-    const sig = await signRequestV4(
-      method, host, pathname, {},
-      await this.getAwsCredentials(),
-      payloadHash,
-    );
-
-    const rdtHeader = await this.getRdt();
-
-    const headers: Record<string, string> = {
-      'x-amz-date': new Date().toISOString().replace(/\.\\d{3}Z$/, 'Z').replace(/[-:]/g, '').split('.')[0] + 'Z',
-      'x-amz-content-sha256': sig.contentSha256,
-      Authorization: sig.authorization,
-      'Content-Type': 'application/json; charset=utf-8',
-    };
-
-    if (rdtHeader) headers['X-Amz-security-token'] = rdtHeader.replace('Bearer ', '');
-
-    if (payload) headers['Content-Length'] = String(new TextEncoder().encode(payload).length);
-
-    const result = await fetch(`https://${host}${pathname}`, { method, headers, body: payload });
-
-    if (result.status === 401) {
-      try { await this.refreshTokens(); } catch { /* ignore */ }
-    }
-
-    return result;
-  }
-
-  // ── IMarketplaceClient: Authentication ──────────────────────────────────
-
-  async refreshTokens(): Promise<void> {
-    const refreshToken = this.config.refresh_token as string | undefined;
-    if (!refreshToken) throw new Error('Amazon: no LWA refresh token configured');
-
-    const clientId = this.config.client_id as string;
-    const clientSecret = this.config.client_secret as string;
-    if (!clientId || !clientSecret) throw new Error('Amazon: LWA credentials not configured');
-
-    const body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: clientId, client_secret: clientSecret });
-
-    const response = await fetch('https://api.amazon.com/auth/o2/token', {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body,
+export function mapAmazonOrder(order: AmazonOrderWire, items: AmazonOrderItemWire[], channelStoreId = ''): MarketOrder {
+  const ext = order.AmazonOrderId;
+  const lines = items
+    .filter((i) => (i.QuantityOrdered ?? 0) > 0)
+    .map((i) => {
+      const qty = i.QuantityOrdered ?? 1;
+      return {
+        sku: i.SellerSKU ?? i.ASIN ?? '',
+        title: i.Title ?? '',
+        qty,
+        unitPriceCents: Math.round(amazonMoneyToCents(i.ItemPrice) / qty),
+        externalLineItemId: i.OrderItemId,
+      };
     });
 
-    if (!response.ok) throw new Error(`Amazon LWA refresh failed: ${response.status}`);
-    const tokens = await response.json() as LwaTokenResponse;
-    this.config.access_token = tokens.access_token;
-    this.config.refresh_token = tokens.refresh_token;
-    this.config.token_expires_at = Date.now() + tokens.expires_in * 1000;
+  const sum = (pick: (i: AmazonOrderItemWire) => AmazonMoney | undefined) =>
+    items.reduce((s, i) => s + amazonMoneyToCents(pick(i)), 0);
+  const subtotalCents = sum((i) => i.ItemPrice) - sum((i) => i.PromotionDiscount);
+  const taxCents = sum((i) => i.ItemTax) + sum((i) => i.ShippingTax);
+  const shippingCents = sum((i) => i.ShippingPrice) - sum((i) => i.ShippingDiscount);
+
+  const a = order.ShippingAddress;
+  const hasAddress = Boolean(a && (a.AddressLine1 || a.City || a.PostalCode));
+  const line2 = [a?.AddressLine2, a?.AddressLine3].filter(Boolean).join(', ');
+  const status = order.OrderStatus ?? '';
+  const currency =
+    order.OrderTotal?.CurrencyCode ?? items.find((i) => i.ItemPrice?.CurrencyCode)?.ItemPrice?.CurrencyCode ??
+    amazonMarketplace(order.MarketplaceId)?.currency ?? 'USD';
+
+  return {
+    externalOrderId: ext,
+    platform: 'amazon',
+    channelStoreId,
+    customerEmail: resolveBuyerEmail(order.BuyerInfo?.BuyerEmail, ext),
+    items: lines,
+    subtotalCents,
+    taxCents,
+    shippingCents,
+    totalCents: order.OrderTotal?.Amount !== undefined ? amazonMoneyToCents(order.OrderTotal) : subtotalCents + taxCents + shippingCents,
+    currency,
+    status: status === 'Shipped' ? 'FULFILLED' : 'NOT_STARTED',
+    paymentStatus: UNPAID_STATUSES.has(status) ? 'PENDING' : 'PAID',
+    cancelled: CANCELLED_STATUSES.has(status),
+    ...(hasAddress && a && {
+      shippingAddress: {
+        name: a.Name ?? order.BuyerInfo?.BuyerName ?? '',
+        line1: a.AddressLine1 ?? '',
+        ...(line2 && { line2 }),
+        city: a.City ?? '',
+        ...(a.StateOrRegion && { state: a.StateOrRegion }),
+        postalCode: a.PostalCode ?? '',
+        country: a.CountryCode ?? '',
+        ...(a.Phone && { phone: a.Phone }),
+      },
+    }),
+    createdAt: order.PurchaseDate && !Number.isNaN(Date.parse(order.PurchaseDate)) ? new Date(order.PurchaseDate).toISOString() : new Date().toISOString(),
+  };
+}
+
+function firstValue(attrs: AmazonListingItemWire['attributes'], key: string): string | undefined {
+  const v = attrs?.[key]?.[0]?.value;
+  return typeof v === 'string' ? v : undefined;
+}
+
+export function mapAmazonListing(item: AmazonListingItemWire, marketplaceId: string): MarketProduct {
+  const summary = item.summaries?.find((s) => s.marketplaceId === marketplaceId) ?? item.summaries?.[0];
+  const offer = item.offers?.find((o) => o.marketplaceId === marketplaceId && (o.offerType ?? 'B2C') === 'B2C') ?? item.offers?.[0];
+  const availability = item.fulfillmentAvailability?.find((f) => f.fulfillmentChannelCode === 'DEFAULT');
+  const statuses = summary?.status ?? [];
+  return {
+    id: summary?.asin ?? item.sku,
+    sku: item.sku,
+    title: summary?.itemName ?? firstValue(item.attributes, 'item_name') ?? '',
+    description: firstValue(item.attributes, 'product_description') ?? '',
+    priceCents: amazonMoneyToCents(offer?.price),
+    currency: offer?.price?.currencyCode ?? offer?.price?.currency ?? amazonMarketplace(marketplaceId)?.currency ?? 'USD',
+    imageUrl: summary?.mainImage?.link ?? null,
+    quantity: availability?.quantity ?? 0,
+    weightG: 0,
+    requiresShipping: true,
+    status: statuses.includes('BUYABLE') ? 'active' : statuses.includes('DISCOVERABLE') ? 'inactive' : 'draft',
+  };
+}
+
+/** Barcode → Amazon identifier type, by digit count. */
+export function barcodeType(barcode: string | null | undefined): 'UPC' | 'EAN' | 'GTIN' | null {
+  const b = (barcode ?? '').trim();
+  if (!/^\d+$/.test(b)) return null;
+  if (b.length === 12) return 'UPC';
+  if (b.length === 8 || b.length === 13) return 'EAN';
+  if (b.length === 14) return 'GTIN';
+  return null;
+}
+
+const KNOWN_CARRIERS = [
+  'USPS', 'UPS', 'FedEx', 'DHL', 'DHL eCommerce', 'OnTrac', 'Amazon Shipping', 'Royal Mail', 'Parcelforce', 'DPD', 'Evri',
+  'Hermes', 'GLS', 'Canada Post', 'Australia Post', 'Japan Post', 'Yamato Transport', 'Sagawa Express', 'Blue Dart', 'Other',
+];
+
+/** Amazon's carrierCode list; anything else is sent as "Other" with the name. */
+export function amazonCarrier(raw: string): { carrierCode: string; carrierName?: string } {
+  const name = raw.trim();
+  const hit = KNOWN_CARRIERS.find((c) => c.toLowerCase() === name.toLowerCase());
+  if (hit) return { carrierCode: hit };
+  return { carrierCode: 'Other', ...(name && { carrierName: name }) };
+}
+
+// ─── Discovery on connect ────────────────────────────────────────────────────
+
+export interface MarketplaceParticipation {
+  marketplace: { id: string; countryCode?: string; defaultCurrencyCode?: string; name?: string };
+  participation?: { isParticipating?: boolean };
+}
+
+/** GET /sellers/v1/marketplaceParticipations: proves the token works and lists the seller's marketplaces. */
+export async function fetchMarketplaceParticipations(opts: {
+  accessToken: string;
+  region: AmazonRegion;
+  environment?: AmazonEnvironment;
+  fetch?: typeof fetch;
+}): Promise<MarketplaceParticipation[]> {
+  const res = await (opts.fetch ?? fetch)(`${amazonApiBase(opts.region, opts.environment)}/sellers/v1/marketplaceParticipations`, {
+    headers: { 'x-amz-access-token': opts.accessToken, Accept: 'application/json', 'User-Agent': USER_AGENT },
+  });
+  const data = (await res.json().catch(() => ({}))) as { payload?: MarketplaceParticipation[]; errors?: SpApiError[] };
+  if (!res.ok) {
+    throw new AmazonApiError(`Amazon GET /sellers/v1/marketplaceParticipations failed (${res.status}): ${data.errors?.[0]?.message ?? ''}`, res.status);
+  }
+  return data.payload ?? [];
+}
+
+/** The configured marketplace if the seller sells there, else their first one in this region. */
+export function pickMarketplace(participations: MarketplaceParticipation[], preferred: string, region: AmazonRegion): string {
+  const active = participations.filter((p) => p.participation?.isParticipating !== false).map((p) => p.marketplace.id);
+  if (active.includes(preferred)) return preferred;
+  return active.find((id) => amazonMarketplace(id)?.region === region) ?? active[0] ?? preferred;
+}
+
+// ─── Client ──────────────────────────────────────────────────────────────────
+
+type Query = Record<string, string | number | undefined>;
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+export class AmazonClient implements IMarketplaceClient, ShipmentClient {
+  readonly platform = 'amazon' as const;
+  readonly config: Record<string, unknown>;
+
+  private readonly fetchFn: typeof fetch;
+  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly base: string;
+  private readonly rdtCache = new Map<string, { token: string; expiresAt: number }>();
+  private readonly productTypeBySku = new Map<string, string>();
+  private piiUnavailable = false;
+
+  constructor(private readonly opts: AmazonClientOptions) {
+    this.fetchFn = opts.fetch ?? ((...args) => fetch(...args));
+    this.sleep = opts.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.base = amazonApiBase(opts.region, opts.environment);
+    this.config = { sellerId: opts.sellerId, marketplaceId: opts.marketplaceId, region: opts.region, environment: opts.environment ?? 'production' };
   }
 
-  async getAccessToken(): Promise<string> {
-    const expiresAt = this.config.token_expires_at as number | undefined;
-    if (expiresAt && Date.now() + 300_000 > expiresAt) await this.refreshTokens();
-    const token = this.config.access_token as string | undefined;
-    if (!token) throw new Error('Amazon: no access token available');
-    return token;
+  private now(): Date {
+    return this.opts.now?.() ?? new Date();
   }
 
-  // ── IMarketplaceClient: Products ────────────────────────────────────────
+  private get marketplace() {
+    return amazonMarketplace(this.opts.marketplaceId);
+  }
 
-  async listProducts(params?: { limit?: number; cursor?: string }): Promise<{ items: MarketProduct[]; nextCursor?: string }> {
-    const allowed = await this.rateLimiter.acquire('amazon');
-    if (!allowed) throw new Error('Amazon: rate limit exceeded');
+  private get languageTag(): string {
+    return this.opts.listing?.languageTag ?? this.marketplace?.languageTag ?? 'en_US';
+  }
 
-    const result = await this.fetchSigned(
-      'GET', `/listings/2021-08-01/items/${this.config.seller_id}?marketplaceIds=${this.config.marketplace_id}&attributes=price,inventory`,
-    );
+  // ── HTTP ────────────────────────────────────────────────────────────────
 
-    if (!result.ok) throw new Error(`Amazon listProducts failed: ${result.status}`);
-    const data = await result.json() as { payload?: { [key: string]: unknown } };
+  private async request<T>(
+    method: Method,
+    path: string,
+    init: { query?: Query; json?: unknown; token?: string; allowStatus?: number[] } = {},
+  ): Promise<{ status: number; data: T | null }> {
+    const url = new URL(this.base + path);
+    for (const [k, v] of Object.entries(init.query ?? {})) if (v !== undefined && v !== '') url.searchParams.set(k, String(v));
 
-    // Parse listings from response — Amazon returns items keyed by ASIN.
-    const payload = data.payload as Record<string, unknown> | undefined;
-    const productsList = (payload?.listings as Record<string, unknown>[]) ?? [];
+    const send = (token: string) =>
+      this.fetchFn(url.toString(), {
+        method,
+        headers: {
+          'x-amz-access-token': token,
+          Accept: 'application/json',
+          'User-Agent': USER_AGENT,
+          ...(init.json !== undefined && { 'Content-Type': 'application/json' }),
+        },
+        ...(init.json !== undefined && { body: JSON.stringify(init.json) }),
+      });
 
-    const items: MarketProduct[] = [];
-    for (const listing of productsList) {
-      try {
-        const product = mapAmazonListingToProduct(listing as Record<string, unknown>, this.config);
-        items.push(product);
-      } catch { /* skip malformed */ }
+    let refreshed = false;
+    let token = init.token ?? (await this.opts.tokens.getAccessToken());
+    let res: Response;
+    for (let attempt = 0; ; attempt++) {
+      res = await send(token);
+      // An expired LWA token comes back as 403 (sometimes 401). Refresh once.
+      if ((res.status === 401 || res.status === 403) && !init.token && !refreshed) {
+        refreshed = true;
+        token = await this.opts.tokens.refresh();
+        continue;
+      }
+      // Throttled: back off briefly; after that the sync queue retries the job.
+      if ((res.status === 429 || res.status === 503) && attempt < MAX_THROTTLE_RETRIES) {
+        const retryAfter = Number(res.headers.get('retry-after'));
+        await this.sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 10_000) : 1000 * 2 ** attempt);
+        continue;
+      }
+      break;
     }
 
-    return { items, nextCursor: params?.cursor };
+    const text = await res.text();
+    let data: unknown = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok && !init.allowStatus?.includes(res.status)) {
+      const err = (data as { errors?: SpApiError[] } | null)?.errors?.[0];
+      const detail = [err?.message, err?.details].filter(Boolean).join(' ');
+      throw new AmazonApiError(`Amazon ${method} ${path} failed (${res.status})${detail ? `: ${detail}` : ''}`, res.status, err?.code);
+    }
+    return { status: res.status, data: res.ok ? (data as T) : null };
   }
 
-  async getProduct(id: string): Promise<MarketProduct> {
-    const result = await this.fetchSigned(
-      'GET', `/listings/2021-08-01/items/${this.config.seller_id},${id}?marketplaceIds=${this.config.marketplace_id}&attributes=price,inventory`,
-    );
-
-    if (!result.ok) throw new Error(`Amazon getProduct failed: ${result.status}`);
-    const data = await result.json() as { payload?: Record<string, unknown> };
-    return mapAmazonListingToProduct(data.payload as Record<string, unknown>, this.config);
+  /**
+   * Restricted Data Token for one PII resource. Null when the app has no
+   * PII role (orders then import without email/address); cached until expiry.
+   */
+  private async restrictedToken(path: string, dataElements: string[]): Promise<string | null> {
+    if (this.opts.restrictedData === false || this.piiUnavailable) return null;
+    const key = `${path}|${dataElements.join(',')}`;
+    const cached = this.rdtCache.get(key);
+    if (cached && cached.expiresAt > this.now().getTime()) return cached.token;
+    try {
+      const { data } = await this.request<{ restrictedDataToken?: string; expiresIn?: number }>('POST', '/tokens/2021-03-01/restrictedDataToken', {
+        json: { restrictedResources: [{ method: 'GET', path, dataElements }] },
+      });
+      if (!data?.restrictedDataToken) return null;
+      this.rdtCache.set(key, { token: data.restrictedDataToken, expiresAt: this.now().getTime() + ((data.expiresIn ?? 3600) - 60) * 1000 });
+      return data.restrictedDataToken;
+    } catch (err) {
+      if (err instanceof AmazonApiError && (err.status === 400 || err.status === 403)) {
+        console.warn('[amazon] No PII access (restricted role missing); importing orders without buyer email/address');
+        this.piiUnavailable = true;
+        return null;
+      }
+      throw err;
+    }
   }
 
-  async upsertProduct(product: MarketProduct): Promise<string> {
-    const requiredFields: Record<string, string> = {
-      seller_sku: product.sku,
-      price: String(product.priceCents / 100),
-      quantity: String(product.quantity),
-      condition: 'NEW',
+  // ── Authentication ──────────────────────────────────────────────────────
+
+  async refreshTokens(): Promise<void> {
+    await this.opts.tokens.refresh();
+  }
+
+  getAccessToken(): Promise<string> {
+    return this.opts.tokens.getAccessToken();
+  }
+
+  // ── Products ────────────────────────────────────────────────────────────
+
+  private get listingsPath() {
+    return `${LISTINGS}/${encodeURIComponent(this.opts.sellerId)}`;
+  }
+
+  async listProducts(params: { limit?: number; cursor?: string } = {}) {
+    const { data } = await this.request<{ items?: AmazonListingItemWire[]; pagination?: { nextToken?: string } }>('GET', this.listingsPath, {
+      query: {
+        marketplaceIds: this.opts.marketplaceId,
+        includedData: LISTING_DATA,
+        pageSize: Math.min(Math.max(params.limit ?? 20, 1), 20),
+        pageToken: params.cursor,
+      },
+    });
+    const items = data?.items ?? [];
+    for (const i of items) {
+      const pt = i.summaries?.[0]?.productType;
+      if (pt) this.productTypeBySku.set(i.sku, pt);
+    }
+    const nextCursor = data?.pagination?.nextToken;
+    return { items: items.map((i) => mapAmazonListing(i, this.opts.marketplaceId)), ...(nextCursor && { nextCursor }) };
+  }
+
+  private async getListingItem(sku: string): Promise<AmazonListingItemWire | null> {
+    const { status, data } = await this.request<AmazonListingItemWire>('GET', `${this.listingsPath}/${encodeURIComponent(sku)}`, {
+      query: { marketplaceIds: this.opts.marketplaceId, includedData: LISTING_DATA },
+      allowStatus: [404],
+    });
+    if (status === 404 || !data) return null;
+    const pt = data.summaries?.[0]?.productType;
+    if (pt) this.productTypeBySku.set(sku, pt);
+    return data;
+  }
+
+  async getProduct(sku: string): Promise<MarketProduct> {
+    const item = await this.getListingItem(sku);
+    if (!item) throw new AmazonApiError(`Amazon: no listing has SKU ${sku}`, 404);
+    return mapAmazonListing(item, this.opts.marketplaceId);
+  }
+
+  private offerAttributes(product: MarketProduct) {
+    const mp = this.opts.marketplaceId;
+    const quantity = product.status === 'active' ? Math.max(0, product.quantity) : 0;
+    return {
+      purchasable_offer: [
+        { marketplace_id: mp, currency: product.currency.toUpperCase(), our_price: [{ schedule: [{ value_with_tax: centsToDecimal(product.priceCents) }] }] },
+      ],
+      fulfillment_availability: [{ fulfillment_channel_code: 'DEFAULT', quantity }],
     };
+  }
 
-    if (product.title) requiredFields.title = product.title;
-    if (product.description) requiredFields.description = product.description;
-    if (product.imageUrl) requiredFields.primary_image_url = product.imageUrl;
-    if (product.weightG > 0) requiredFields.weight = JSON.stringify({ value: product.weightG, unit: 'GRAMS' });
+  private checkSubmission(sku: string, data: ListingSubmission | null): void {
+    const errors = (data?.issues ?? []).filter((i) => i.severity === 'ERROR');
+    if (data?.status === 'INVALID' || errors.length > 0) {
+      const text = errors.map((i) => `${i.message ?? i.code}${i.attributeNames?.length ? ` [${i.attributeNames.join(', ')}]` : ''}`).join('; ');
+      // A rejected listing is a data problem, not an outage: not retryable.
+      throw new AmazonApiError(`Amazon rejected SKU ${sku}: ${text || data?.status || 'invalid'}`, 400, 'LISTING_INVALID');
+    }
+  }
 
-    const result = await this.fetchSigned(
-      'PUT', `/listings/2021-08-01/items/${this.config.seller_id},${product.sku}?marketplaceIds=${this.config.marketplace_id}`,
-      requiredFields,
+  /** Barcode → ASIN (and its product type) through the catalog. */
+  private async findCatalogItem(barcode: string | null | undefined): Promise<{ asin: string; productType?: string } | null> {
+    const type = barcodeType(barcode);
+    if (!type) return null;
+    const { data } = await this.request<{ items?: Array<{ asin: string; productTypes?: Array<{ marketplaceId?: string; productType?: string }> }> }>(
+      'GET',
+      '/catalog/2022-04-01/items',
+      {
+        query: {
+          identifiers: barcode!.trim(),
+          identifiersType: type,
+          marketplaceIds: this.opts.marketplaceId,
+          includedData: 'summaries,productTypes',
+        },
+      },
     );
+    const item = data?.items?.[0];
+    if (!item) return null;
+    const pt = item.productTypes?.find((p) => p.marketplaceId === this.opts.marketplaceId) ?? item.productTypes?.[0];
+    return { asin: item.asin, ...(pt?.productType && { productType: pt.productType }) };
+  }
 
-    if (!result.ok) {
-      // Item may not exist — try creating via PUT (Amazon treats PUT as create-or-update).
-      throw new Error(`Amazon upsertProduct failed: ${result.status}`);
+  /**
+   * Existing listing → update price and quantity. New SKU → an offer on the
+   * catalog product matching its barcode, or (with a product type set on the
+   * channel) a new product. Returns the seller SKU, which is how Amazon keys listings.
+   */
+  async upsertProduct(product: MarketProduct): Promise<string> {
+    const mpCurrency = this.marketplace?.currency;
+    if (mpCurrency && product.currency.toUpperCase() !== mpCurrency) {
+      throw new AmazonApiError(
+        `Amazon: SKU ${product.sku} is priced in ${product.currency.toUpperCase()} but this marketplace sells in ${mpCurrency}`,
+        400,
+        'CURRENCY_MISMATCH',
+      );
+    }
+    const path = `${this.listingsPath}/${encodeURIComponent(product.sku)}`;
+    const query = { marketplaceIds: this.opts.marketplaceId };
+    const offer = this.offerAttributes(product);
+
+    const existing = await this.getListingItem(product.sku);
+    if (existing) {
+      const productType = this.productTypeBySku.get(product.sku) ?? this.opts.listing?.productType ?? 'PRODUCT';
+      const { data } = await this.request<ListingSubmission>('PATCH', path, {
+        query,
+        json: {
+          productType,
+          patches: [
+            { op: 'replace', path: '/attributes/purchasable_offer', value: offer.purchasable_offer },
+            { op: 'replace', path: '/attributes/fulfillment_availability', value: offer.fulfillment_availability },
+          ],
+        },
+      });
+      this.checkSubmission(product.sku, data);
+      return product.sku;
     }
 
+    const mp = this.opts.marketplaceId;
+    const condition = [{ value: this.opts.listing?.conditionType ?? 'new_new', marketplace_id: mp }];
+    const catalog = await this.findCatalogItem(product.barcode);
+
+    let body: Record<string, unknown>;
+    if (catalog) {
+      body = {
+        productType: catalog.productType ?? this.opts.listing?.productType ?? 'PRODUCT',
+        requirements: 'LISTING_OFFER_ONLY',
+        attributes: { condition_type: condition, merchant_suggested_asin: [{ value: catalog.asin, marketplace_id: mp }], ...offer },
+      };
+    } else {
+      const productType = this.opts.listing?.productType;
+      if (!productType) {
+        throw new AmazonApiError(
+          `Amazon: SKU ${product.sku} is not on Amazon yet. Give it a barcode (UPC/EAN) that exists in Amazon's catalog, or set a product type on the channel to create a new product.`,
+          400,
+          'PRODUCT_TYPE_REQUIRED',
+        );
+      }
+      const lang = this.languageTag;
+      const idType = barcodeType(product.barcode);
+      body = {
+        productType,
+        requirements: 'LISTING',
+        attributes: {
+          item_name: [{ value: product.title.slice(0, 200), language_tag: lang, marketplace_id: mp }],
+          ...(this.opts.listing?.brand && { brand: [{ value: this.opts.listing.brand, language_tag: lang, marketplace_id: mp }] }),
+          ...(product.description && {
+            product_description: [{ value: product.description.slice(0, 2000), language_tag: lang, marketplace_id: mp }],
+          }),
+          ...(idType
+            ? { externally_assigned_product_identifier: [{ type: idType.toLowerCase(), value: product.barcode!.trim(), marketplace_id: mp }] }
+            : { supplier_declared_has_product_identifier_exemption: [{ value: true, marketplace_id: mp }] }),
+          ...(product.imageUrl && { main_product_image_locator: [{ media_location: product.imageUrl, marketplace_id: mp }] }),
+          condition_type: condition,
+          ...offer,
+        },
+      };
+    }
+
+    const { data } = await this.request<ListingSubmission>('PUT', path, { query, json: body });
+    this.checkSubmission(product.sku, data);
+    this.productTypeBySku.set(product.sku, String(body.productType));
     return product.sku;
   }
 
-  async deleteProduct(externalId: string): Promise<void> {
-    const result = await this.fetchSigned(
-      'DELETE', `/listings/2021-08-01/items/${this.config.seller_id},${externalId}?marketplaceIds=${this.config.marketplace_id}`,
-    );
-
-    if (!result.ok && result.status !== 404) {
-      throw new Error(`Amazon deleteProduct failed: ${result.status}`);
-    }
+  async deleteProduct(sku: string): Promise<void> {
+    await this.request('DELETE', `${this.listingsPath}/${encodeURIComponent(sku)}`, {
+      query: { marketplaceIds: this.opts.marketplaceId },
+      allowStatus: [404],
+    });
+    this.productTypeBySku.delete(sku);
   }
 
-  // ── IMarketplaceClient: Inventory ───────────────────────────────────────
+  // ── Inventory ───────────────────────────────────────────────────────────
 
-  async listInventory(params?: { limit?: number }): Promise<MarketInventoryItem[]> {
-    const allowed = await this.rateLimiter.acquire('amazon');
-    if (!allowed) throw new Error('Amazon: rate limit exceeded');
-
-    const result = await this.fetchSigned(
-      'GET', `/inventory/v2?limit=${params?.limit ?? 25}`,
-    );
-
-    if (!result.ok) throw new Error(`Amazon listInventory failed: ${result.status}`);
-    const data = await result.json() as { payload?: { inventoryUnits?: Array<{ sellerId: string; sellerSku: string; available?: number }> } };
-
-    const units = data.payload?.inventoryUnits ?? [];
-    return units.map((u) => ({ sku: u.sellerSku, quantity: u.available ?? 0 }));
+  async listInventory(params: { limit?: number } = {}): Promise<MarketInventoryItem[]> {
+    const max = params.limit ?? Infinity;
+    const out: MarketInventoryItem[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.listProducts({ cursor });
+      out.push(...page.items.map((p) => ({ sku: p.sku, quantity: p.quantity })));
+      cursor = page.nextCursor;
+    } while (cursor && out.length < max);
+    return max === Infinity ? out : out.slice(0, max);
   }
 
   async updateInventory(sku: string, quantity: number): Promise<void> {
-    // Update quantity via Listings Items PATCH.
-    const allowed = await this.rateLimiter.acquire('amazon');
-    if (!allowed) throw new Error('Amazon: rate limit exceeded');
-
-    const result = await this.fetchSigned(
-      'PATCH', `/listings/2021-08-01/items/${this.config.seller_id},${sku}?marketplaceIds=${this.config.marketplace_id}`,
-      { name: sku, seller_sku: sku, quantity },
-    );
-
-    if (!result.ok) throw new Error(`Amazon updateInventory failed: ${result.status}`);
+    let productType = this.productTypeBySku.get(sku);
+    if (!productType) {
+      const item = await this.getListingItem(sku);
+      if (!item) throw new AmazonApiError(`Amazon: no listing has SKU ${sku}`, 404);
+      productType = this.productTypeBySku.get(sku) ?? this.opts.listing?.productType ?? 'PRODUCT';
+    }
+    const { data } = await this.request<ListingSubmission>('PATCH', `${this.listingsPath}/${encodeURIComponent(sku)}`, {
+      query: { marketplaceIds: this.opts.marketplaceId },
+      json: {
+        productType,
+        patches: [
+          { op: 'replace', path: '/attributes/fulfillment_availability', value: [{ fulfillment_channel_code: 'DEFAULT', quantity: Math.max(0, quantity) }] },
+        ],
+      },
+    });
+    this.checkSubmission(sku, data);
   }
 
-  // ── IMarketplaceClient: Orders ──────────────────────────────────────────
+  // ── Orders ──────────────────────────────────────────────────────────────
 
-  async listOrders(params?: { from?: Date; to?: Date; limit?: number }): Promise<MarketOrder[]> {
-    const allowed = await this.rateLimiter.acquire('amazon');
-    if (!allowed) throw new Error('Amazon: rate limit exceeded');
+  private async getOrderItems(orderId: string): Promise<AmazonOrderItemWire[]> {
+    const out: AmazonOrderItemWire[] = [];
+    let nextToken: string | undefined;
+    do {
+      const { data } = await this.request<{ payload?: { OrderItems?: AmazonOrderItemWire[]; NextToken?: string } }>(
+        'GET',
+        `/orders/v0/orders/${encodeURIComponent(orderId)}/orderItems`,
+        { query: { NextToken: nextToken } },
+      );
+      out.push(...(data?.payload?.OrderItems ?? []));
+      nextToken = data?.payload?.NextToken;
+    } while (nextToken);
+    return out;
+  }
 
-    // Build time-range filter URL — Amazon's searchOrders API supports created_after/created_before.
-    let pathname = '/orders/v2/orders?limit=25';
-    if (params?.from) {
-      pathname += `&created_after=${encodeURIComponent(params.from.toISOString())}`;
-    } else {
-      // Default: last 24 hours.
-      const yesterday = new Date(Date.now() - 86_400_000);
-      pathname += `&created_after=${encodeURIComponent(yesterday.toISOString())}`;
-    }
-    if (params?.to) {
-      pathname += `&created_before=${encodeURIComponent(params.to.toISOString())}`;
-    }
-    if (params?.limit) {
-      pathname = pathname.replace('limit=25', `limit=${params.limit}`);
-    }
+  /**
+   * Orders updated (default) or created in the window. Updated is what the
+   * import wants: a Pending order becomes importable once payment clears.
+   */
+  async listOrders(params: { from?: Date; to?: Date; limit?: number; by?: 'created' | 'modified' } = {}): Promise<MarketOrder[]> {
+    const max = Math.min(params.limit ?? 500, 500);
+    const from = params.from ?? new Date(this.now().getTime() - 24 * 60 * 60 * 1000);
+    // Amazon rejects an upper bound later than two minutes ago.
+    const latest = new Date(this.now().getTime() - 2 * 60 * 1000);
+    const to = params.to && params.to < latest ? params.to : undefined;
+    const [afterKey, beforeKey] = params.by === 'created' ? ['CreatedAfter', 'CreatedBefore'] : ['LastUpdatedAfter', 'LastUpdatedBefore'];
 
-    const result = await this.fetchSigned('GET', pathname);
-
-    if (!result.ok) throw new Error(`Amazon listOrders failed: ${result.status}`);
-    const data = await result.json() as { payload?: Array<Record<string, unknown>> };
-
-    const orders = data.payload ?? [];
-    return orders.map((o) => mapAmazonOrderToOrder(o, this.config));
+    const rdt = await this.restrictedToken('/orders/v0/orders', ['buyerInfo', 'shippingAddress']);
+    const out: MarketOrder[] = [];
+    let nextToken: string | undefined;
+    do {
+      const query: Query = nextToken
+        ? { MarketplaceIds: this.opts.marketplaceId, NextToken: nextToken }
+        : {
+            MarketplaceIds: this.opts.marketplaceId,
+            [afterKey]: from.toISOString(),
+            [beforeKey]: to?.toISOString(),
+            FulfillmentChannels: this.opts.importFbaOrders ? undefined : 'MFN',
+            MaxResultsPerPage: Math.min(100, max),
+          };
+      const { data } = await this.request<{ payload?: { Orders?: AmazonOrderWire[]; NextToken?: string } }>('GET', '/orders/v0/orders', {
+        query,
+        ...(rdt && { token: rdt }),
+      });
+      for (const order of data?.payload?.Orders ?? []) {
+        if (out.length >= max) break;
+        out.push(mapAmazonOrder(order, await this.getOrderItems(order.AmazonOrderId), this.opts.channelId));
+      }
+      nextToken = data?.payload?.NextToken;
+    } while (nextToken && out.length < max);
+    return out;
   }
 
   async getOrder(externalOrderId: string): Promise<MarketOrder> {
-    // Requires RDT for PII access.
-    const allowed = await this.rateLimiter.acquire('amazon');
-    if (!allowed) throw new Error('Amazon: rate limit exceeded');
+    const path = `/orders/v0/orders/${encodeURIComponent(externalOrderId)}`;
+    const rdt = await this.restrictedToken(path, ['buyerInfo', 'shippingAddress']);
+    const { data } = await this.request<{ payload?: AmazonOrderWire }>('GET', path, rdt ? { token: rdt } : {});
+    if (!data?.payload) throw new AmazonApiError(`Amazon: order ${externalOrderId} not found`, 404);
+    return mapAmazonOrder(data.payload, await this.getOrderItems(externalOrderId), this.opts.channelId);
+  }
 
-    const result = await this.fetchSignedRestricted(
-      'GET', `/orders/v2/orders/${encodeURIComponent(externalOrderId)}`,
-    );
+  /** Confirm shipment with tracking (Orders v0 confirmShipment; not a PII call). */
+  async createShippingFulfillment(input: {
+    orderId: string;
+    trackingNumber: string;
+    shippingCarrierCode: string;
+    lineItems?: Array<{ lineItemId: string; quantity: number }>;
+  }): Promise<void> {
+    const lines =
+      input.lineItems && input.lineItems.length > 0
+        ? input.lineItems
+        : (await this.getOrderItems(input.orderId))
+            .filter((i) => (i.QuantityOrdered ?? 0) > 0)
+            .map((i) => ({ lineItemId: i.OrderItemId, quantity: i.QuantityOrdered ?? 1 }));
 
-    if (!result.ok) throw new Error(`Amazon getOrder failed: ${result.status}`);
-    const data = await result.json() as { payload?: Record<string, unknown> };
-    return mapAmazonOrderToOrder(data.payload as Record<string, unknown>, this.config);
+    await this.request('POST', `/orders/v0/orders/${encodeURIComponent(input.orderId)}/shipmentConfirmation`, {
+      json: {
+        marketplaceId: this.opts.marketplaceId,
+        packageDetail: {
+          packageReferenceId: '1',
+          ...amazonCarrier(input.shippingCarrierCode),
+          trackingNumber: input.trackingNumber,
+          shipDate: this.now().toISOString(),
+          orderItems: lines.map((l) => ({ orderItemId: l.lineItemId, quantity: l.quantity })),
+        },
+      },
+    });
   }
 
   async updateShipment(externalOrderId: string, trackingNumber: string, _trackingUrl?: string): Promise<void> {
-    // POST /orders/v2/{orderId}/shipments — requires RDT for PII.
-    const allowed = await this.rateLimiter.acquire('amazon');
-    if (!allowed) throw new Error('Amazon: rate limit exceeded');
-
-    const body = {
-      shipments: [{
-        order_items: [{ order_item_id: '1', quantity: 1 }],
-        shipping_provider_name: 'Custom',
-        shipping_method: 'Standard',
-        package_details: [{
-          package_type: 'Package',
-          length: 10, width: 10, height: 10,
-          weight: { value: 1, unit: 'gram' },
-        }],
-      }],
-    };
-
-    const result = await this.fetchSignedRestricted(
-      'POST', `/orders/v2/${encodeURIComponent(externalOrderId)}/shipments`,
-      body,
-    );
-
-    if (!result.ok) {
-      console.error(`[Amazon] Shipment update failed for order ${externalOrderId}: ${result.status}`);
-    }
+    await this.createShippingFulfillment({
+      orderId: externalOrderId,
+      trackingNumber,
+      shippingCarrierCode: this.opts.defaultCarrier ?? AMAZON_DEFAULT_CARRIER_FALLBACK,
+    });
   }
 
-  // ── IMarketplaceClient: Health ──────────────────────────────────────────
+  // ── Health ──────────────────────────────────────────────────────────────
 
   async healthCheck(): Promise<boolean> {
     try {
-      const token = await this.getToken();
-      const result = await fetch(`https://${this.getHost()}/orders/v2/orders?limit=1`, {
-        headers: { 'x-amz-date': new Date().toISOString().replace(/\.\\d{3}Z$/, 'Z').replace(/[-:]/g, '').split('.')[0] + 'Z' },
-      });
-      // 401/403 is expected without SigV4 — anything else means API is reachable.
-      return result.status === 401 || result.status === 200;
+      await this.request('GET', '/sellers/v1/marketplaceParticipations');
+      return true;
     } catch {
       return false;
     }
   }
 }
-
-// ─── Mapping helpers ─────────────────────────────────────────────────────────
-
-/** Map an Amazon Listings Items response to the internal MarketProduct type. */
-function mapAmazonListingToProduct(
-  external: Record<string, unknown>,
-  config: Record<string, unknown>,
-): MarketProduct {
-  const productData = (external.listings as Record<string, unknown>[])?.[0] ?? external;
-  const priceObj = productData?.price as Record<string, unknown> | undefined;
-  const quantity = Number(productData?.quantity ?? productData?.seller_sku_listing_buffer ?? 0);
-
-  return mapMarketplaceToProduct(
-    {
-      sku: String(productData?.seller_sku ?? external.asin ?? ''),
-      title: String(productData?.name ?? productData?.title ?? ''),
-      description: String(productData?.description ?? ''),
-      price_cents: (() => {
-        if (priceObj && typeof priceObj === 'object' && typeof priceObj.amount === 'string') {
-          return Math.round(parseFloat(priceObj.amount) * 100);
-        }
-        if (priceObj && typeof priceObj.value === 'number') return Math.round(priceObj.value * 100);
-        return 0;
-      })(),
-      currency: String((priceObj?.currency as string) ?? 'USD'),
-      quantity,
-      image_url: String(productData?.primary_image_url ?? ''),
-      status: (productData?.status as string) === 'ACTIVE' ? 'active' : 'draft',
-    },
-    { id: String(external.asin ?? ''), currency: 'USD' },
-  );
-}
-
-/** Map an Amazon Orders v2 response to the internal MarketOrder type. */
-function mapAmazonOrderToOrder(
-  external: Record<string, unknown>,
-  config: Record<string, unknown>,
-): MarketOrder {
-  // Amazon returns orders at the line-item (offer) granularity.
-  const lineItems = Array.isArray(external?.order_line_items)
-    ? (external.order_line_items as Array<Record<string, unknown>>).map((item) => ({
-        sku: String(item?.seller_sku ?? item?.product_sku ?? ''),
-        title: String(item?.product_supplier_details?.product_description ?? item?.title ?? ''),
-        qty: Number(item?.quantity ?? 1),
-        unitPriceCents: (() => {
-          const p = item?.price as Record<string, unknown> | undefined;
-          if (p && typeof p.amount === 'string') return Math.round(parseFloat(p.amount) * 100);
-          return 0;
-        })(),
-      }))
-    : [];
-
-  // Amazon order-level amounts.
-  const orderTotal = (() => {
-    const t = external?.order_total as Record<string, unknown> | undefined;
-    if (t && typeof t.amount === 'string') return Math.round(parseFloat(t.amount) * 100);
-    return lineItems.reduce((s, i) => s + i.unitPriceCents * i.qty, 0);
-  })();
-
-  const shippingCost = (() => {
-    const s = external?.shipping_total as Record<string, unknown> | undefined;
-    if (s && typeof s.amount === 'string') return Math.round(parseFloat(s.amount) * 100);
-    return 0;
-  })();
-
-  const taxAmount = (() => {
-    const t = external?.tax_total as Record<string, unknown> | undefined;
-    if (t && typeof t.amount === 'string') return Math.round(parseFloat(t.amount) * 100);
-    return 0;
-  })();
-
-  const buyer = external?.buyer as Record<string, unknown> | undefined;
-  const buyerEmail = buyer?.email as string | undefined ?? '';
-
-  // Shipping address is only available with RDT (PII-restricted).
-  const shippingAddr = (() => {
-    const addr = external?.shipping_address as Record<string, unknown> | undefined;
-    if (!addr) return undefined;
-    return {
-      name: String(addr.name ?? ''),
-      line1: String(addr.street1 ?? addr.address_line1 ?? ''),
-      line2: addr.street2 ? String(addr.street2) : undefined,
-      city: String(addr.city ?? ''),
-      state: addr.state ? String(addr.state) : undefined,
-      postalCode: String(addr.postal_code ?? addr.zip ?? ''),
-      country: String(addr.country ?? 'US'),
-      phone: addr.phone ? String(addr.phone) : undefined,
-    };
-  })();
-
-  return mapMarketplaceToOrder(
-    {
-      order_id: String(external?.amazon_order_id ?? external?.order_id ?? ''),
-      customer_email: buyerEmail,
-      line_items: lineItems.map((i) => ({ ...i, sku: i.sku })),
-      subtotal_cents: orderTotal - shippingCost - taxAmount,
-      tax_cents: taxAmount,
-      shipping_cents: shippingCost,
-      total_cents: orderTotal,
-      currency: String(external?.currency ?? 'USD'),
-      status: String(external?.order_status ?? 'pending'),
-      created_at: String(external?.created_time ?? external?.created_at ?? Date.now()),
-      shipping_address: shippingAddr,
-    },
-    { platform: 'amazon', channelStoreId: String(config.shop_id ?? config.channel_id ?? '') },
-  );
-}
-

@@ -43,13 +43,14 @@ export type {
   SyncJob,
   CredentialType,
 } from './types';
-export type { IMarketplaceClient } from './types';
+export type { IMarketplaceClient, ShipmentClient } from './types';
 export type { RateLimitConfig } from './rate-limiter';
 
 export { PLATFORM_RATES } from './rate-limiter';
 export type { RateLimiter as RateLimiterClass } from './rate-limiter';
 export { CredentialManager, type Database } from './auth-manager';
 export { mapProductToMarketplace, mapMarketplaceToProduct, mapMarketplaceToOrder } from './data-mapper';
-export { EtsyClient } from './etsy';
+export { EtsyClient, mapEtsyReceipt, mapEtsyListing } from './etsy';
+export { EtsyTokenManager, buildEtsyAuthorizeUrl, exchangeEtsyCode, etsyAppFromEnv } from './etsy-oauth';
 export { EbayClient } from './ebay';
 export { AmazonClient } from './amazon';

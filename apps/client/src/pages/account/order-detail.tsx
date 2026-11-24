@@ -106,7 +106,7 @@ export default function OrderDetail() {
 
   const handleDownloadPDF = async () => {
     // Generate and download the invoice PDF using jsPDF
-    const storeName = import.meta.env.VITE_STORE_NAME || "Fufuni Store";
+    const storeName = import.meta.env.VITE_STORE_NAME || "Bengal Exchange Store";
     const locale = "en-US"; // Could also use i18n locale here
 
     downloadInvoicePdf(

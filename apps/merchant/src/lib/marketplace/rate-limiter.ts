@@ -138,7 +138,7 @@ export class RateLimiter {
     }
 
     // Both limits OK — atomically increment both counters.
-    await this.kv.batch([
+    await Promise.all([
       {
         type: 'urlencoded',
         key: secK,

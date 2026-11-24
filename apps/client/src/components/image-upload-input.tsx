@@ -181,9 +181,9 @@ export function ImageUploadInput({
 
       {/* Error message */}
       {error && (
-        <div className="flex items-start gap-2 p-3 bg-red-50 rounded border border-red-200">
+        <div className="flex items-start gap-2 p-3 bg-red-50 rounded border border-red-200 dark:bg-red-950/40 dark:border-red-900">
           <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
         </div>
       )}
 

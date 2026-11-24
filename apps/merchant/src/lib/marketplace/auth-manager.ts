@@ -23,8 +23,8 @@
  * SOFTWARE.
  */
 
-import { decrypt } from './crypto-utils';
-import type { MarketCredential } from './types';
+import { decrypt, encrypt } from './crypto-utils';
+import type { CredentialType } from './types';
 
 /**
  * Manages encrypted credentials for marketplace channels.
@@ -55,64 +55,67 @@ export class CredentialManager {
    */
   async saveCredential(credential: {
     channelId: string;
-    type: 'api_key' | 'oauth_token' | 'refresh_token';
+    type: CredentialType;
     value: string;
+    /** ISO 8601 expiry, stored in the queryable expires_at column (migration 038). */
+    expiresAt?: string | null;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    const encrypted = await encryptForStorage(credential.value, this.encryptionKey);
+    const encrypted = await encrypt(credential.value, this.encryptionKey);
 
-    // Upsert: INSERT OR REPLACE on (channel_id, credential_type) unique constraint.
     await this.db.run(
-      `INSERT INTO marketplace_credentials 
-        (id, channel_id, credential_type, encrypted_value, metadata, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `INSERT INTO marketplace_credentials
+        (id, channel_id, credential_type, encrypted_value, metadata, expires_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         ON CONFLICT(channel_id, credential_type) DO UPDATE SET
           encrypted_value = excluded.encrypted_value,
           metadata = excluded.metadata,
+          expires_at = excluded.expires_at,
           updated_at = datetime('now')`,
       [
-        crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        crypto.randomUUID(),
         credential.channelId,
         credential.type,
         encrypted,
         JSON.stringify(credential.metadata ?? {}),
+        credential.expiresAt ?? null,
       ],
     );
   }
 
   // ── Read credentials ────────────────────────────────────────────────────
 
-  /**
-   * Retrieve and decrypt a credential for a channel.
-   * @returns The decrypted plaintext value, or null if not found.
-   */
-  async getSecret(
+  /** Decrypted credential plus its expiry, or null if not stored. */
+  async getCredential(
     channelId: string,
-    type: 'api_key' | 'oauth_token' | 'refresh_token',
-  ): Promise<string | null> {
-    const rows = await this.db.query<MarketCredential>(
-      `SELECT encrypted_value, metadata FROM marketplace_credentials 
+    type: CredentialType,
+  ): Promise<{ value: string; expiresAt: string | null } | null> {
+    const rows = await this.db.query<{ encrypted_value: string; expires_at: string | null }>(
+      `SELECT encrypted_value, expires_at FROM marketplace_credentials
        WHERE channel_id = ? AND credential_type = ?`,
       [channelId, type],
     );
 
     if (rows.length === 0) return null;
 
-    const row = rows[0];
     try {
-      return await decrypt(row.encryptedValue, this.encryptionKey);
+      return { value: await decrypt(rows[0].encrypted_value, this.encryptionKey), expiresAt: rows[0].expires_at };
     } catch {
-      throw new Error(
-        `Failed to decrypt ${type} for channel ${channelId}. Check encryption key.`,
-      );
+      throw new Error(`Failed to decrypt ${type} for channel ${channelId}. Check encryption key.`);
     }
+  }
+
+  /**
+   * Retrieve and decrypt a credential for a channel.
+   * @returns The decrypted plaintext value, or null if not found.
+   */
+  async getSecret(channelId: string, type: CredentialType): Promise<string | null> {
+    return (await this.getCredential(channelId, type))?.value ?? null;
   }
 
   /** Get all decrypted credentials for a channel. */
   async getChannelCredentials(channelId: string): Promise<Record<string, string>> {
-    const types: Array<'api_key' | 'oauth_token' | 'refresh_token'> = [
-      'api_key', 'oauth_token', 'refresh_token',
-    ];
+    const types: CredentialType[] = ['api_key', 'oauth_token', 'refresh_token'];
 
     const result: Record<string, string> = {};
     for (const type of types) {
@@ -128,14 +131,13 @@ export class CredentialManager {
 
   /**
    * Get credential metadata without decrypting the value.
-   * Useful for checking expiry timestamps.
    */
   async getMetadata(
     channelId: string,
-    type: 'api_key' | 'oauth_token' | 'refresh_token',
+    type: CredentialType,
   ): Promise<Record<string, unknown> | null> {
     const rows = await this.db.query<{ metadata: string }>(
-      `SELECT metadata FROM marketplace_credentials 
+      `SELECT metadata FROM marketplace_credentials
        WHERE channel_id = ? AND credential_type = ?`,
       [channelId, type],
     );
@@ -145,19 +147,23 @@ export class CredentialManager {
   }
 
   /**
-   * Check if a token is near expiry (< 5 minutes remaining).
+   * True if the token expires within `marginMs` (default 5 minutes), or has
+   * already expired. False when no expiry is recorded.
    */
   async isTokenNearExpiry(
     channelId: string,
     type: 'oauth_token' | 'refresh_token',
+    now: Date = new Date(),
+    marginMs = 5 * 60 * 1000,
   ): Promise<boolean> {
-    const meta = await this.getMetadata(channelId, type);
-    if (!meta || !meta.expires_at) return false;
+    const rows = await this.db.query<{ expires_at: string | null }>(
+      `SELECT expires_at FROM marketplace_credentials WHERE channel_id = ? AND credential_type = ?`,
+      [channelId, type],
+    );
+    const expiresAt = rows[0]?.expires_at;
+    if (!expiresAt) return false;
 
-    const expiresAt = new Date(meta.expires_at as string);
-    const now = new Date();
-    const fiveMinutesMs = 5 * 60 * 1000;
-    return expiresAt.getTime() - now.getTime() < fiveMinutesMs;
+    return new Date(expiresAt).getTime() - now.getTime() < marginMs;
   }
 
   // ── Cleanup ─────────────────────────────────────────────────────────────
@@ -171,41 +177,4 @@ export class CredentialManager {
       [channelId],
     );
   }
-}
-
-// ─── Local helpers (used by both saveCredential and decrypt) ─────────────────
-
-/**
- * Encrypt plaintext for storage. Mirrors the logic in crypto-utils.decrypt
- * but uses AES-GCM encryption with PBKDF2 key derivation.
- */
-async function encryptForStorage(plaintext: string, password: string): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const pwBytes = new TextEncoder().encode(password);
-  const baseKey = await crypto.subtle.importKey(
-    'raw', pwBytes, 'PBKDF2', false, ['deriveBits'],
-  );
-  const derived = new Uint8Array(
-    await crypto.subtle.deriveBits(
-      { name: 'PBKDF2', hash: 'SHA-256', salt: new Uint8Array(16), iterations: 100_000 },
-      baseKey,
-      384, // 48 bytes = 32 key + 16 IV for AES-GCM (using last 32 as key, first 16 as... wait)
-    ),
-  );
-
-  // Actually use the same pattern as crypto-utils.ts: derive a CryptoKey directly.
-  const aesKey = await crypto.subtle.importKey(
-    'raw', derived.slice(0, 32), 'AES-GCM', false, ['encrypt'],
-  );
-
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    aesKey,
-    new TextEncoder().encode(plaintext),
-  );
-
-  const combined = new Uint8Array(iv.length + encrypted.byteLength);
-  combined.set(iv, 0);
-  combined.set(new Uint8Array(encrypted), iv.length);
-  return btoa(String.fromCharCode(...combined));
 }

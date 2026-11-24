@@ -37,7 +37,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { config as loadEnv } from 'dotenv';
 
 // Load environment variables
-const result = loadEnv({ path: '/Users/rlemeill/Development/fufuni/.env' });
+const result = loadEnv({ path: '/Users/rlemeill/Development/bengal-exchange/.env' });
 if (!result.error) {
   console.log('✓ .env file loaded successfully');
 }

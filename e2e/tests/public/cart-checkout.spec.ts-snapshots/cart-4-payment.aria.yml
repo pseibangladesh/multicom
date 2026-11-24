@@ -1,0 +1,7 @@
+- main:
+  - heading "Shopping Cart" [level=1]
+  - heading "checkout-select-payment" [level=2]
+  - radiogroup: 💳 Stripe (Credit/Debit Card)
+  - button "checkout-pay-now"
+  - button "back-to-shipping"
+  - button "Back to Cart"

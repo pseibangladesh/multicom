@@ -1,61 +1,112 @@
-/**
- * Better Auth integration for the merchant worker.
- *
- * Provides session-based authentication using secure HttpOnly cookies.
- * Replaces the previous Auth0 JWT flow while preserving API key and OAuth token paths.
- */
-
 import { betterAuth } from 'better-auth';
-import type { Env, DOStub } from '../types';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { drizzle } from 'drizzle-orm/durable-sqlite';
+import * as schema from '../db/schema';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { allowedOrigins, isAdminEmail } from './session';
+import { sendAuthEmail, type AuthEmailEnv } from './auth-email';
 
-// Better Auth uses Drizzle ORM under the hood. We provide a minimal adapter
-// that translates between Better Auth's Drizzle interface and our D1-backed DO.
-function createD1Adapter(db: DOStub) {
-  // We wrap the DO stub in a Drizzle-compatible interface.
-  // The actual schema will be applied via migration at startup.
-  return db as any;
+export interface AuthEnv extends AuthEmailEnv {
+  BETTER_AUTH_SECRET: string;
+  ADMIN_EMAILS?: string;
+  API_BASE_URL?: string;
+  CORS_ORIGIN?: string;
+  STORE_URL?: string;
 }
 
 /**
- * Creates a Better Auth instance bound to the current request's environment.
- * Called per-request so each worker invocation gets its own auth config.
+ * Creates the Better Auth instance. Must be called INSIDE MerchantDO:
+ * DurableObjectStorage is only reachable from the object itself, not from a
+ * stub in the Worker. The Worker forwards /api/auth/* to the DO (see do.ts).
  */
-export function createAuth(env: Env & { MERCHANT: any }) {
-  const id = env.MERCHANT.idFromName('default');
-  const stub = env.MERCHANT.get(id);
+/** Better Auth signs session cookies with this; short or missing secrets are forgeable. */
+export const MIN_AUTH_SECRET_LENGTH = 32;
+
+/**
+ * Fails closed instead of letting Better Auth fall back to its built-in
+ * development secret, which is public. The message never includes the value.
+ */
+export function assertAuthSecret(secret: string | undefined): string {
+  if (!secret || secret.trim().length < MIN_AUTH_SECRET_LENGTH) {
+    throw new Error(
+      `BETTER_AUTH_SECRET must be set to at least ${MIN_AUTH_SECRET_LENGTH} characters ` +
+        '(generate one with `openssl rand -base64 32`, then `wrangler secret put BETTER_AUTH_SECRET`)'
+    );
+  }
+  return secret;
+}
+
+export function createAuth(env: AuthEnv, storage: DurableObjectStorage) {
+  const secret = assertAuthSecret(env.BETTER_AUTH_SECRET);
+  const db = drizzle(storage, { schema });
+  const baseURL = env.API_BASE_URL || 'http://127.0.0.1:8787';
 
   return betterAuth({
-    baseURL: env.API_BASE_URL || 'http://127.0.0.1:8787',
-    secret: env.BETTER_AUTH_SECRET || process.env.BETTER_AUTH_SECRET || 'dev-secret-change-in-production',
-    database: createD1Adapter(stub),
-    // Email + password authentication (replaces Auth0 Passwordless)
+    baseURL,
+    basePath: '/api/auth',
+    secret,
+    // The storefront runs on another origin; Better Auth rejects sign-in/up
+    // requests whose Origin isn't trusted.
+    trustedOrigins: allowedOrigins(env),
+    database: drizzleAdapter(db, { provider: 'sqlite', schema }),
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false,
+      // Account data (orders, addresses, spend) is matched to customers by
+      // email, including orders placed as a guest. Without proof that the
+      // email is theirs, anyone could register someone else's address and
+      // read that person's history, so signing in needs a verified email.
+      requireEmailVerification: true,
       minPasswordLength: 8,
-      sendResetPassword: async ({ user, url, token }, request) => {
-        // TODO: implement email reset via Mailgun in a later phase
-        console.log(`[Auth] Password reset requested for user ${user.email}, url=${url}`);
-        return Promise.resolve();
+      sendResetPassword: async ({ user, url }) => {
+        await sendAuthEmail(env, 'reset-password', user.email, url);
       },
     },
-    // Session configuration — secure cookies by default
+    emailVerification: {
+      sendOnSignUp: true,
+      // An unverified sign-in is refused (403 EMAIL_NOT_VERIFIED) and gets a fresh link.
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
+      expiresIn: 60 * 60 * 24, // 24 hours
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendAuthEmail(env, 'verify-email', user.email, url);
+      },
+    },
+    hooks: {
+      // Admin rights come from ADMIN_EMAILS, and email verification is off, so
+      // whoever signs up first with such an address would become admin. Admin
+      // accounts are created with scripts/create-admin.ts instead (it uses the
+      // internal adapter, which this endpoint hook does not affect).
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/sign-up/email') return;
+        const email: unknown = (ctx.body as { email?: unknown } | undefined)?.email;
+        if (typeof email === 'string' && isAdminEmail(email, env.ADMIN_EMAILS)) {
+          throw new APIError('FORBIDDEN', { message: 'Sign-up is not available for this email address.' });
+        }
+      }),
+    },
     session: {
-      expiresIn: 60 * 60 * 24 * 30, // 30 days
-      updateAge: 60 * 60 * 24,       // renew every 24h
+      expiresIn: 60 * 60 * 24 * 30,
+      updateAge: 60 * 60 * 24,
       cookieCache: {
         enabled: true,
-        maxAge: 5 * 60, // cache session data for 5 minutes
+        maxAge: 5 * 60,
       },
     },
-    // Rate limiting to prevent brute-force attacks
     rateLimit: {
       enabled: true,
       window: 60,
       max: 10,
     },
-    // Cloudflare-specific: use CF-Connecting-IP for rate limiting
     advanced: {
+      // Always enforce the Origin (CSRF) check; Better Auth otherwise turns it
+      // off when it detects a test environment.
+      disableOriginCheck: false,
+      // In production the store (e.g. GitHub Pages) and API are different sites,
+      // so the cookie must be SameSite=None; Secure. Locally (http://localhost
+      // on both ports) the default Lax cookie is same-site and works.
+      ...(baseURL.startsWith('https://') && {
+        defaultCookieAttributes: { sameSite: 'none' as const, secure: true },
+      }),
       ipAddress: {
         ipAddressHeaders: ['cf-connecting-ip', 'x-forwarded-for'],
       },

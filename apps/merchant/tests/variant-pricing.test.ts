@@ -37,7 +37,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { config as loadEnv } from 'dotenv';
 
-loadEnv({ path: '/Users/rlemeill/Development/fufuni/.env' });
+loadEnv({ path: '/Users/rlemeill/Development/bengal-exchange/.env' });
 
 const API_URL = 'http://localhost:8787';
 const ADMIN_KEY = (process.env.MERCHANT_SK || '')

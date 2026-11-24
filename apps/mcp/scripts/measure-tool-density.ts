@@ -23,9 +23,9 @@ async function main() {
   // Mock list_tools response based on manifest structure
   const mockResponse = {
     tools: [
-      { name: 'list_topics', description: 'List all Fufuni knowledge topics' },
-      { name: 'get_topic', description: 'Get a Fufuni knowledge topic by slug' },
-      { name: 'search_topics', description: 'Search Fufuni knowledge (legacy)' },
+      { name: 'list_topics', description: 'List all Bengal Exchange knowledge topics' },
+      { name: 'get_topic', description: 'Get a Bengal Exchange knowledge topic by slug' },
+      { name: 'search_topics', description: 'Search Bengal Exchange knowledge (legacy)' },
       { name: 'get_manifest', description: 'Get the MCP knowledge manifest' },
       // 4 more reserved for Phase 2+
       { name: 'retrieve_knowledge', description: '[Phase 2] Hybrid semantic search' },

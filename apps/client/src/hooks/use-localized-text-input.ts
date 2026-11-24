@@ -96,13 +96,12 @@ export function useLocalizedTextInput({
   getFn,
 }: UseLocalizedTextInputOptions): UseLocalizedTextInputResult {
   const { t } = useTranslation();
-  const { getJson, hasPermission } = useSecuredApi();
+  const { getJson, isAdmin: canUseAi } = useSecuredApi();
 
   const [inputValue, setInputValue] = useState(() =>
     getFn(value, selectedLocale),
   );
   const [isTranslating, setIsTranslating] = useState(false);
-  const [canUseAi, setCanUseAi] = useState(false);
 
   // Stable refs to avoid stale closures in callbacks
   const valueRef = useRef(value);
@@ -135,15 +134,6 @@ export function useLocalizedTextInput({
       onChange(mergeFn(value, selectedLocale, inputValue));
     }
   }, [selectedLocale]);
-
-  // Check AI permission on mount
-  const aiPermission = (import.meta as any).env?.AI_PERMISSION ?? "ai:api";
-
-  useEffect(() => {
-    hasPermission(aiPermission)
-      .then(setCanUseAi)
-      .catch(() => setCanUseAi(false));
-  }, [hasPermission, aiPermission]);
 
   const isRTL =
     availableLanguages.find((l) => l.code === selectedLocale)?.isRTL ?? false;

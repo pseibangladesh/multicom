@@ -10,7 +10,7 @@
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "fufuni-mcp",
+  "name": "bengal-exchange-mcp",
   "main": "src/index.ts",
   "compatibility_date": "2025-12-01",
   "compatibility_flags": [
@@ -20,21 +20,21 @@
     "bindings": [
       {
         "name": "MCP_OBJECT",
-        "class_name": "FufuniMCP"
+        "class_name": "BengalExchangeMCP"
       }
     ]
   },
   "vectorize": [
     {
       "binding": "VECTORIZE", // available in your Worker on env.VECTORIZE
-      "index_name": "fufuni-mcp" // created via Wrangler CLI: `npx wrangler vectorize create fufuni-mcp  --dimensions=256 --metric=cosine`
+      "index_name": "bengal-exchange-mcp" // created via Wrangler CLI: `npx wrangler vectorize create bengal-exchange-mcp  --dimensions=256 --metric=cosine`
     }
   ],
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": [
-        "FufuniMCP"
+        "BengalExchangeMCP"
       ]
     }
   ],

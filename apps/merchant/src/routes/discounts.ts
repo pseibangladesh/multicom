@@ -26,6 +26,7 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 import { getDb, type Database } from '../db';
+import { getStripeSettings } from '../lib/payment-config';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import {
@@ -347,8 +348,8 @@ adminApp.openapi(createDiscount, async (c) => {
     throw ApiError.invalidRequest('percentage value must be between 0 and 100');
   }
 
-  const stripeSecretKey = c.get('auth').stripeSecretKey;
   const db = getDb(c.var.db);
+  const { secretKey: stripeSecretKey } = await getStripeSettings(db, c.env);
 
   const normalizedCode = code ? code.toUpperCase().trim() : null;
 
@@ -457,8 +458,8 @@ adminApp.openapi(updateDiscount, async (c) => {
     usage_limit_per_customer,
   } = body;
 
-  const stripeSecretKey = c.get('auth').stripeSecretKey;
   const db = getDb(c.var.db);
+  const { secretKey: stripeSecretKey } = await getStripeSettings(db, c.env);
 
   const [existing] = await db.query<any>(`SELECT * FROM discounts WHERE id = ?`, [id]);
   if (!existing) throw ApiError.notFound('Discount not found');

@@ -25,6 +25,7 @@
 
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
+import { allowedOrigins } from './lib/session';
 import { swaggerUI } from '@hono/swagger-ui';
 import { adminSetup } from './routes/setup';
 import { adminCatalog } from './routes/catalog';
@@ -38,11 +39,10 @@ import { publicImages } from './routes/images';
 import { adminDiscounts } from './routes/discounts';
 import { oauth } from './routes/oauth';
 import { ucp } from './routes/ucp';
-import { createAuthRouter, createSessionRouter } from './routes/auth';
 import { adminMe } from './routes/me';
 import { adminUserPreferencesRouter } from './routes/user-preferences';
 import { adminSavedCartsRouter } from './routes/saved-carts';
-import { publicCategories, adminCategories } from './routes/categories';
+import { publicCategories, adminCategories, adminCategoryList } from './routes/categories';
 import { adminAnalytics } from './routes/analytics';
 import { reviews, adminReviews } from './routes/reviews';
 import { adminRegions } from './routes/regions';
@@ -60,7 +60,16 @@ import { customerOrderDownloads, publicDownloads } from './routes/downloads';
 import { customerAiTokensRouter, proxyAiTokensRouter, adminAiTokensRouter } from './routes/ai-tokens';
 import { sslcommerzCheckoutApp, sslcommerzIpnApp } from './routes/sslcommerz-ipn';
 import { adminSettings } from './routes/admin-settings';
+import { publicBanners, adminBanners } from './routes/banners';
+import { publicHome, adminHomeSections } from './routes/home-sections';
+import { adminApiKeys } from './routes/api-keys';
+import { publicStorefrontSettings, adminStorefrontSettings } from './routes/storefront-settings';
+import { publicPaymentMethods } from './routes/payment-methods';
 import { marketplaceRoutes } from './routes/marketplace';
+import { adminMarketplaceChannelRoutes } from './routes/marketplace/channels';
+import { handleMarketplaceQueue } from './workers/marketplace-consumer';
+import { enqueueOrderPulls } from './lib/marketplace/sync-jobs';
+import { getDb } from './db';
 
 // ... inside the app setup ...
 
@@ -79,7 +88,21 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
   scheme: 'bearer',
 });
 
-app.use('*', cors());
+// CORS is an allowlist: only STORE_URL (or the comma-separated CORS_ORIGIN
+// override, e.g. storefront + a separate admin host) gets an
+// Access-Control-Allow-Origin header, with credentials so the Better Auth
+// session cookie is sent. Any other browser origin gets no CORS headers and
+// cannot read responses. There is no '*' fallback; if neither variable is set,
+// no browser origin is allowed (fail closed). Server-to-server callers with
+// pk_/sk_ keys are unaffected because CORS only applies to browsers.
+app.use('*', (c, next) => {
+  const allowed = allowedOrigins(c.env);
+  return cors({
+    origin: (origin) => (origin && allowed.includes(origin) ? origin : null),
+    credentials: true,
+    maxAge: 600,
+  })(c, next);
+});
 
 app.use('*', async (c, next) => {
   const id = c.env.MERCHANT.idFromName('default');
@@ -109,17 +132,33 @@ app.use('/.well-known/ucp', kvCacheMiddleware);
 app.use('/ucp/v1/products', kvCacheMiddleware);
 app.use('/ucp/v1/products/*', kvCacheMiddleware);
 app.use('/ucp/v1/categories', kvCacheMiddleware);
+app.use('/v1/storefront/home', kvCacheMiddleware);
 app.use('/v1/categories', kvInvalidateMiddleware);
 app.use('/v1/categories/*', kvInvalidateMiddleware);
 app.use('/v1/products', kvInvalidateMiddleware);
 app.use('/v1/products/*', kvInvalidateMiddleware);
+app.use('/v1/admin/home-sections', kvInvalidateMiddleware);
+app.use('/v1/admin/home-sections/*', kvInvalidateMiddleware);
+// demo-reset deletes products/categories outside those prefixes
+app.use('/v1/setup/demo-reset', kvInvalidateMiddleware);
 
 // Mount public routes BEFORE authentication middleware
 app.route('/', sitemapRouter);         // /sitemap.xml — no auth
 app.route('/v1/orders', publicOrders);
 app.route('/v1/categories', publicCategories);
+app.route('/v1/payment-methods', publicPaymentMethods); // storefront: which gateways are on
+app.route('/v1/banners', publicBanners);                 // storefront: home-page banners
+app.route('/v1/storefront', publicStorefrontSettings);    // storefront: enabled languages
+app.route('/v1/storefront', publicHome);                  // storefront: home page sections
 // Admin settings
 app.route('/v1/admin', adminSettings);
+// Mounted here, before the '/v1' routers whose use('*', customerAuthMiddleware)
+// would otherwise reject admin API keys for every later /v1 route.
+app.route('/v1/admin/settings', adminStorefrontSettings); // languages, UCP switch, AI status
+app.route('/v1/admin/banners', adminBanners);
+app.route('/v1/admin/home-sections', adminHomeSections); // page builder
+app.route('/v1/admin/categories', adminCategoryList); // all categories incl. showcase-only (public lists hide them)
+app.route('/v1/admin/api-keys', adminApiKeys);
 
 // SSLCommerz Checkout (under carts)
 app.route('/v1/carts', sslcommerzCheckoutApp);
@@ -151,7 +190,7 @@ app.onError((err, c) => {
   return c.json({ error: { code: 'internal', message } }, 500);
 });
 
-app.get('/', (c) => c.json({ name: 'fufuni', version: '0.1.0', ok: true }));
+app.get('/', (c) => c.json({ name: 'bengal-exchange', version: '0.1.0', ok: true }));
 
 app.route('/v1/setup', adminSetup);
 app.route('/v1/ai', adminAi);
@@ -187,24 +226,21 @@ app.route('/v1/admin/ai-tokens', adminAiTokensRouter);
 app.route('/v1/admin/settings', adminSettings);
 // Marketplace integrations (OAuth connect, webhooks, sync)
 app.route('/v1/marketplace', marketplaceRoutes());
+app.route('/v1/admin/marketplace', adminMarketplaceChannelRoutes()); // channel list + config (admin UI)
 app.route('/oauth', oauth);
 app.route('', oauth);
 app.route('/', ucp);
-// Better Auth routes — handles signin, signup, session management via cookies
+// Better Auth routes (sign-in, sign-up, sign-out, session). Better Auth runs
+// inside MerchantDO because the DO's SQLite storage is only reachable there.
 app.all('/api/auth/*', async (c) => {
-  const auth = createAuthRouter(c.env as any);
-  return auth.fetch(c.req.raw);
-});
-
-app.get('/api/auth/session', async (c) => {
-  const sessionApp = createSessionRouter(c.env as any);
-  return sessionApp.fetch(c.req.raw);
+  const stub = c.env.MERCHANT.get(c.env.MERCHANT.idFromName('default'));
+  return stub.fetch(c.req.raw);
 });
 
 app.doc31('/openapi.json', {
   openapi: '3.1.0',
   info: {
-    title: 'Fufuni API',
+    title: 'Bengal Exchange API',
     version: '1.0.0',
     description: 'The open-source commerce backend for Cloudflare + Stripe + Better Auth',
   },
@@ -215,10 +251,23 @@ app.get('/docs', swaggerUI({ url: '/openapi.json' }));
 
 export default {
   fetch: app.fetch,
+  // Consumer for MARKETPLACE_SYNC_QUEUE (see wrangler.jsonc "queues.consumers").
+  async queue(batch: MessageBatch<unknown>, env: Env) {
+    await handleMarketplaceQueue(batch, env);
+  },
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const id = env.MERCHANT.idFromName('default');
     const stub = env.MERCHANT.get(id);
     const cleaned = await (stub as unknown as { cleanupExpiredCarts: () => Promise<number> }).cleanupExpiredCarts();
     console.log(`Cron: cleaned ${cleaned} expired carts`);
+
+    // Order pulls for every connected channel. This is the only trigger for
+    // Etsy and the safety net for eBay (webhooks can be missed). Channels with
+    // a pull already queued or running are skipped.
+    if (env.MARKETPLACE_SYNC_QUEUE) {
+      const pulls = await enqueueOrderPulls(getDb(stub as unknown as DOStub), env.MARKETPLACE_SYNC_QUEUE);
+      console.log(`Cron: queued order pulls for ${pulls.queued.length} channel(s), ${pulls.alreadyRunning.length} already running`);
+      for (const e of pulls.errors) console.error(`Cron: order pull for ${e.channelId} not queued: ${e.error}`);
+    }
   },
 };

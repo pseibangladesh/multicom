@@ -1,12 +1,12 @@
 // Copyright (c) 2024-2026 Ronan LE MEILLAT
 // License: AGPL-3.0-or-later
 //
-// Fufuni MCP Server — serves the static knowledge-base files from mcp/ as MCP tools.
+// Bengal Exchange MCP Server — serves the static knowledge-base files from mcp/ as MCP tools.
 //
 // Usage:
 //   GET /mcp           — Streamable HTTP MCP endpoint (MCP clients)
 //   GET /sse           — SSE MCP endpoint (legacy Claude Desktop / older clients)
-//   GET /              — Health-check (returns 200 "Fufuni MCP Server")
+//   GET /              — Health-check (returns 200 "Bengal Exchange MCP Server")
 //
 // Knowledge files are pre-bundled at build time by scripts/gen-knowledge.ts into
 // src/knowledge.ts (gitignored). Run `npm run gen-knowledge` before deploying.
@@ -15,7 +15,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import { KNOWLEDGE } from "./knowledge.js";
 import { MANIFEST } from "./manifest.js";
-import { registerFufuniTools } from "./tools.js";
+import { registerBengalExchangeTools } from "./tools.js";
 import aiJsonEnc from "./config/ai.json.enc" with { type:"text" };
 import { serveIndex } from "./doc/index.js";
 import { serve404 } from "./doc/404.js";
@@ -61,14 +61,14 @@ async function checkRateLimit(request: Request, env: Env): Promise<Response | nu
   });
 }
 
-export class FufuniMCP extends McpAgent {
+export class BengalExchangeMCP extends McpAgent {
   server = new McpServer({
-    name: "Fufuni Knowledge Base",
+    name: "Bengal Exchange Knowledge Base",
     version: "2.0.0",
   });
 
   async init() {
-    registerFufuniTools(this.server, { manifest: MANIFEST, knowledge: KNOWLEDGE, aiEncJson: aiJsonEnc, env: this.env });
+    registerBengalExchangeTools(this.server, { manifest: MANIFEST, knowledge: KNOWLEDGE, aiEncJson: aiJsonEnc, env: this.env });
   }
 }
 
@@ -102,11 +102,11 @@ export default {
     }
 
     if (url.pathname === "/mcp") {
-      return FufuniMCP.serve("/mcp").fetch(request, env, ctx);
+      return BengalExchangeMCP.serve("/mcp").fetch(request, env, ctx);
     }
 
     if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-      return FufuniMCP.serveSSE("/sse").fetch(request, env, ctx);
+      return BengalExchangeMCP.serveSSE("/sse").fetch(request, env, ctx);
     }
 
     if (url.pathname.startsWith("/topic/") && url.pathname.endsWith(".md")) {

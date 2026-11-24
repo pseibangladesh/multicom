@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'ai-tokens-integration',
-  description: 'Selling AI token packages via Fufuni: variant setup, auto-generated fufkey_ API keys, balance ledger, proxy auth, outbound webhooks, and frontend account widget.',
+  description: 'Selling AI token packages via Bengal Exchange: variant setup, auto-generated fufkey_ API keys, balance ledger, proxy auth, outbound webhooks, and frontend account widget.',
   tags: ['ai', 'payments', 'webhooks', 'backend', 'integration'],
   sources: [
     'apps/merchant/src/routes/ai-tokens.ts',
@@ -51,7 +51,7 @@ const topic: Topic = {
     'GET /v1/admin/ai-tokens?limit&offset (adminOnly): paginated list of all ai_token_balances. api_key is masked (first 8 chars + "…") even for admins.',
 
     // ── ai-proxy-cloudflare integration ───────────────────────────────────────
-    'ai-proxy-cloudflare: set FUFUNI_MERCHANT_URL (wrangler var, plaintext) to the merchant API base URL. If empty/unset, balance enforcement is fully skipped (standalone / backward-compatible mode).',
+    'ai-proxy-cloudflare: set BENGAL_EXCHANGE_MERCHANT_URL (wrangler var, plaintext) to the merchant API base URL. If empty/unset, balance enforcement is fully skipped (standalone / backward-compatible mode).',
     'AI_BALANCE_SHARED_SECRET must match between merchant wrangler.toml secret and ai-proxy-cloudflare wrangler.toml secret.',
     'Typical ai-proxy flow: checkBalance(apiKey, env) → if balance <= 0 return HTTP 402; forward request; on success call deductBalance(apiKey, tokensUsed, env) non-blocking via waitUntil.',
   ],

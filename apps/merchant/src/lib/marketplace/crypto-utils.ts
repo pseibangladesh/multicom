@@ -99,7 +99,7 @@ async function deriveKey(password: string): Promise<CryptoKey> {
     pwBytes,
     'PBKDF2',
     false,
-    ['deriveBits'],
+    ['deriveKey'],
   );
 
   return crypto.subtle.deriveKey(
@@ -126,7 +126,7 @@ async function sha256Hex(payload: string): Promise<string> {
 async function hmacSha256(key: string | Uint8Array, message: string): Promise<Uint8Array> {
   const cryptoKey = typeof key === 'string'
     ? await crypto.subtle.importKey('raw', new TextEncoder().encode(key), 'HMAC', false, ['sign'])
-    : await crypto.subtle.importKey('raw', key, 'HMAC', false, ['sign']);
+    : await crypto.subtle.importKey('raw', key.buffer as ArrayBuffer, 'HMAC', false, ['sign']);
   const hashBuffer = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(message));
   return new Uint8Array(hashBuffer);
 }

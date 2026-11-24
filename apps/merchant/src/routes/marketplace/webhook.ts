@@ -25,161 +25,138 @@
 
 import { Hono } from 'hono';
 import { getDb } from '../../db';
-import { ApiError, uuid } from '../../types';
+import type { HonoEnv } from '../../types';
+import { ebayAppFromEnv } from '../../lib/marketplace/ebay-oauth';
+import {
+  EBAY_ORDER_TOPICS,
+  EBAY_SIGNATURE_HEADER,
+  EBAY_VERIFICATION_TOKEN_PATTERN,
+  EbayPublicKeyResolver,
+  ebayChallengeResponse,
+  verifyEbaySignature,
+  type EbayNotification,
+} from '../../lib/marketplace/ebay-notifications';
+import { enqueueOrderPulls } from '../../lib/marketplace/sync-jobs';
 
 /**
- * Webhook receiver routes.
+ * Marketplace webhook receivers, mounted at /v1/marketplace/webhook. Public on
+ * purpose (marketplaces can't present our credentials); every POST is
+ * signature-verified before anything is recorded or acted on.
  *
- * POST /v1/marketplace/webhook/:platform — Receive webhook events from any platform.
+ *   GET  /ebay?challenge_code=…  eBay endpoint validation
+ *   POST /ebay                   eBay Notification API (X-EBAY-SIGNATURE)
+ *   POST /etsy, /amazon          501: no verified receiver; orders are pulled on the cron
  *
- * Each platform sends webhooks to this unified endpoint. The handler verifies
- * the platform-specific signature and dispatches to the appropriate processor.
+ * eBay order topics (ORDER_CONFIRMATION, ORDER_CANCELLATION_ACTIVITY,
+ * ITEM_MARKED_SHIPPED) queue a pull_orders job for every connected eBay
+ * channel. The pull is idempotent, so the notification only says "look now";
+ * order data still comes from the Fulfillment API, never from the payload.
+ *
+ * Responses: 204 accepted (including duplicates); 412 bad signature (as eBay's
+ * SDK does; eBay retries); 503 not configured, or the key lookup failed.
  */
 
-export function webhookRoutes(): Hono {
-  const app = new Hono();
+/** eBay notifications are small; anything larger is not one. */
+const MAX_BODY_BYTES = 64 * 1024;
 
-  // ── POST /webhook/:platform — Unified webhook receiver ──────────────────
+export interface EbayNotificationEnv {
+  EBAY_CLIENT_ID?: string;
+  EBAY_CLIENT_SECRET?: string;
+  EBAY_RU_NAME?: string;
+  EBAY_ENVIRONMENT?: string;
+  EBAY_VERIFICATION_TOKEN?: string;
+  EBAY_NOTIFICATION_ENDPOINT?: string;
+  API_BASE_URL?: string;
+}
 
-  app.post('/:platform', async (c) => {
-    const platform = c.req.param('platform');
-    if (!['etsy', 'ebay', 'amazon'].includes(platform)) {
-      throw ApiError.invalidRequest('Unsupported platform for webhooks');
+/** The exact URL registered with eBay; it is part of the challenge hash. */
+export function ebayNotificationEndpoint(env: EbayNotificationEnv): string | null {
+  if (env.EBAY_NOTIFICATION_ENDPOINT) return env.EBAY_NOTIFICATION_ENDPOINT;
+  return env.API_BASE_URL ? `${env.API_BASE_URL.replace(/\/+$/, '')}/v1/marketplace/webhook/ebay` : null;
+}
+
+// One resolver per isolate and app, so the key + token caches survive between requests.
+const resolvers = new Map<string, EbayPublicKeyResolver>();
+
+export function webhookRoutes(deps: { fetch?: typeof fetch } = {}): Hono<HonoEnv> {
+  const app = new Hono<HonoEnv>();
+
+  app.get('/ebay', async (c) => {
+    const code = c.req.query('challenge_code');
+    if (!code) return c.json({ error: 'challenge_code is required' }, 400);
+    const token = c.env.EBAY_VERIFICATION_TOKEN;
+    const endpoint = ebayNotificationEndpoint(c.env);
+    if (!token || !EBAY_VERIFICATION_TOKEN_PATTERN.test(token) || !endpoint) {
+      return c.json({ error: 'eBay notifications are not configured' }, 503);
     }
-
-    // Parse raw body (signature verification needs exact bytes).
-    const rawBody = await c.req.text();
-
-    // Verify platform-specific signature.
-    const isValid = await verifySignature(platform, rawBody, c);
-    if (!isValid) {
-      return c.json({ error: 'Invalid signature' }, 401);
-    }
-
-    // Parse and process the event.
-    const payload = parsePayload(rawBody, platform);
-    await processWebhookEvent(platform, payload, rawBody);
-
-    // Respond quickly — platform will retry failures.
-    return c.json({ ok: true });
+    return c.json({ challengeResponse: await ebayChallengeResponse(code, token, endpoint) }, 200);
   });
 
+  app.post('/ebay', async (c) => {
+    const ebay = ebayAppFromEnv(c.env);
+    if (!ebay) return c.json({ error: 'eBay app is not configured' }, 503);
+
+    const declared = Number(c.req.header('content-length') ?? 0);
+    if (declared > MAX_BODY_BYTES) return c.json({ error: 'payload too large' }, 413);
+    const rawBody = await c.req.text();
+    if (rawBody.length > MAX_BODY_BYTES) return c.json({ error: 'payload too large' }, 413);
+
+    const resolverKey = `${ebay.environment}:${ebay.clientId}`;
+    let resolver = resolvers.get(resolverKey);
+    if (!resolver || deps.fetch) {
+      resolver = new EbayPublicKeyResolver(ebay, { kv: c.env.KV_CACHE, fetch: deps.fetch });
+      if (!deps.fetch) resolvers.set(resolverKey, resolver);
+    }
+
+    let valid: boolean;
+    try {
+      valid = await verifyEbaySignature({
+        header: c.req.header(EBAY_SIGNATURE_HEADER),
+        rawBody,
+        getPublicKey: (kid) => resolver.getPublicKey(kid),
+      });
+    } catch (err) {
+      // Key lookup failed (eBay or our app token): not the sender's fault, so ask for a retry.
+      console.error('[marketplace] eBay notification key lookup failed', err);
+      return c.json({ error: 'signature check unavailable' }, 503);
+    }
+    if (!valid) return c.json({ error: 'invalid signature' }, 412);
+
+    const body = JSON.parse(rawBody) as EbayNotification;
+    const topic = body.metadata?.topic ?? 'unknown';
+    const notificationId = body.notification?.notificationId;
+    if (!notificationId) return c.json({ error: 'notificationId missing' }, 400);
+
+    const db = getDb(c.var.db);
+    const eventId = crypto.randomUUID();
+    const inserted = await db.run(
+      `INSERT OR IGNORE INTO marketplace_webhook_events (id, platform, external_event_id, topic, payload) VALUES (?, 'ebay', ?, ?, ?)`,
+      [eventId, notificationId, topic, rawBody],
+    );
+    if (inserted.changes === 0) return c.body(null, 204); // redelivery of one we already have
+
+    let error: string | null = null;
+    if (EBAY_ORDER_TOPICS.has(topic)) {
+      const result = await enqueueOrderPulls(db, c.env.MARKETPLACE_SYNC_QUEUE, { platform: 'ebay' });
+      // Still 204: the event is stored, and the cron pulls orders anyway. A 5xx
+      // here would only make eBay retry and, after 24h, mark the endpoint down.
+      if (result.errors.length) error = result.errors.map((e) => `${e.channelId}: ${e.error}`).join('; ');
+    } else if (topic === 'MARKETPLACE_ACCOUNT_DELETION') {
+      // Required for production keys. Marketplace orders store the buyer's
+      // email/address but not their eBay username or userId, so there is
+      // nothing keyed on this user to erase; the event is kept as the record.
+      console.log('[marketplace] eBay account deletion notice recorded', notificationId);
+    }
+
+    await db.run(`UPDATE marketplace_webhook_events SET processed_at = datetime('now'), error = ? WHERE id = ?`, [error, eventId]);
+    return c.body(null, 204);
+  });
+
+  for (const platform of ['etsy', 'amazon']) {
+    app.post(`/${platform}`, (c) =>
+      c.json({ error: `${platform} webhooks are not supported; orders are pulled on a schedule` }, 501),
+    );
+  }
+
   return app;
-}
-
-// ─── Signature verification (platform-specific) ──────────────────────────────
-
-async function verifySignature(
-  platform: string,
-  rawBody: string,
-  _c: Hono.Context,
-): Promise<boolean> {
-  switch (platform) {
-    case 'etsy': {
-      // Etsy uses HMAC-SHA256 with headers: webhook-id, webhook-timestamp, webhook-signature.
-      const signature = _c.req.header('webhook-signature');
-      const timestamp = _c.req.header('webhook-timestamp');
-
-      if (!signature || !timestamp) return false;
-
-      // Reject timestamps older than 300 seconds.
-      const ts = parseInt(timestamp, 10);
-      if (Date.now() - ts * 1000 > 300_000) return false;
-
-      // TODO: Verify HMAC-SHA256 signature using the endpoint's signing secret.
-      // const webhookId = _c.req.header('webhook-id');
-      // const signingSecret = await getEndpointSigningSecret(...);
-      // const signedContent = `${webhookId}.${timestamp}.${rawBody}`;
-      // return verifyHmacSHA256(signingSecret, signedContent, signature);
-
-      console.log(`[marketplace] Etsy webhook received (signature verified)`);
-      return true;
-    }
-
-    case 'ebay': {
-      // eBay Notification API — basic auth or bearer token in Authorization header.
-      const auth = _c.req.header('authorization');
-      if (!auth) return false;
-      console.log(`[marketplace] eBay notification received`);
-      return true;
-    }
-
-    case 'amazon': {
-      // Amazon SNS-style signatures in the body JSON.
-      // TODO: Verify certificate URL and signature from payload.
-      console.log(`[marketplace] Amazon webhook placeholder (no webhooks — polling only)`);
-      return false;
-    }
-
-    default:
-      return false;
-  }
-}
-
-// ─── Payload parsing ─────────────────────────────────────────────────────────
-
-function parsePayload(rawBody: string, platform: string): Record<string, unknown> {
-  try {
-    return JSON.parse(rawBody);
-  } catch {
-    return { raw: rawBody };
-  }
-}
-
-// ─── Event processing ────────────────────────────────────────────────────────
-
-async function processWebhookEvent(
-  platform: string,
-  payload: Record<string, unknown>,
-  rawPayload: string,
-): Promise<void> {
-  // Placeholder DB — real implementation gets db from Hono context in route handler.
-  // This is called async; store event for later processing.
-  console.log(`[marketplace] Event ${payload.event_type} for ${platform}`);
-
-  // Dispatch to platform-specific handler.
-  switch (platform) {
-    case 'etsy': {
-      await handleEtsyEvent(eventType, payload, storeId);
-      break;
-    }
-    case 'ebay': {
-      console.log(`[marketplace] eBay event ${eventType} — TODO`);
-      break;
-    }
-    case 'amazon': {
-      console.log(`[marketplace] Amazon event ${eventType} — TODO`);
-      break;
-    }
-  }
-}
-
-// ─── Etsy-specific event handlers ────────────────────────────────────────────
-
-async function handleEtsyEvent(
-  eventType: string,
-  payload: Record<string, unknown>,
-  storeId: string,
-): Promise<void> {
-  switch (eventType) {
-    case 'order.paid': {
-      console.log(`[marketplace] Etsy order paid — create internal order`);
-      break;
-    }
-    case 'order.shipped': {
-      console.log(`[marketplace] Etsy order shipped — update tracking`);
-      break;
-    }
-    case 'order.canceled': {
-      console.log(`[marketplace] Etsy order canceled — release reservation`);
-      break;
-    }
-    case 'inventory.out_of_stock': {
-      console.log(`[marketplace] Etsy inventory out of stock`);
-      break;
-    }
-    default: {
-      console.log(`[marketplace] Etsy event ${eventType} — handled (placeholder)`);
-    }
-  }
 }

@@ -28,19 +28,17 @@ const DESCRIPTIONS: Record<string, string> = {
   'api-error-patterns':
     'ApiError class and static helpers (notFound, unauthorized, invalidRequest, conflict…), Hono-to-JSON conversion, and frontend error-handling patterns.',
   'auth-patterns':
-    'Backend authMiddleware, RBAC guards (adminOnly, superAdminOnly, databaseAdminOnly…), and the frontend AuthenticationGuardWithPermission wrapper used to gate admin pages.',
-  'auth0-tenant-setup':
-    'Auth0 tenant deployment — auto-install script, resource-server scopes, RBAC roles, social connections, and the Auth0 Deploy CLI workflow.',
+    'Better Auth sessions with email verification, authMiddleware/customerAuthMiddleware, the adminOnly guard (ADMIN_EMAILS), API keys and OAuth tokens, and the frontend AuthenticationGuard/AdminGuard.',
   'checkout-and-ucp':
     'Checkout flow and the Universal Commerce Protocol (UCP) — Stripe Checkout integration, UCP sessions, browse/catalog endpoints consumed by AI shopping agents.',
   'cloudflare-worker-patterns':
     'Cloudflare Worker building blocks: Durable Objects with SQLite, KV, R2, Rate Limiter bindings, wrangler.jsonc layout, and CI secrets handling.',
   'conventions-and-anti-patterns':
-    'Fufuni coding conventions and forbidden patterns — naming rules, no c.req.json, no Drizzle, Zod-in-createRoute, plus AI-agent contributor guidelines.',
+    'Bengal Exchange coding conventions and forbidden patterns — naming rules, no c.req.json, no Drizzle, Zod-in-createRoute, plus AI-agent contributor guidelines.',
   'customer-account-patterns':
     'Customer account surface: /me routes, customerAuthMiddleware, address book, order history, and profile-update flows for logged-in shoppers.',
   'db-schema':
-    'Complete Durable Object SQL schema — every table, column, index and foreign key used by the Fufuni backend.',
+    'Complete Durable Object SQL schema — every table, column, index and foreign key used by the Bengal Exchange backend.',
   'discounts-and-pricing':
     'Discount codes and tiered pricing — lib/pricing.ts helpers, promotion endpoints, and the discount-application order for cart totals.',
   'e2e-testing':
@@ -48,7 +46,7 @@ const DESCRIPTIONS: Record<string, string> = {
   'email-templates':
     'Transactional email delivery via Mailgun — Handlebars templates (order confirmation, password reset, refund), sending helpers, and trigger points.',
   'framework-overview':
-    'High-level Fufuni architecture — stack (CF Workers + Durable Objects + React), monorepo layout, request lifecycle, and core conventions. Start here.',
+    'High-level Bengal Exchange architecture — stack (CF Workers + Durable Objects + React), monorepo layout, request lifecycle, and core conventions. Start here.',
   'frontend-react-patterns':
     'React 19 patterns on the merchant UI — React Query defaults, HeroUI v3 components, client routing, custom hooks, navbar wiring, and theme integration.',
   'how-to-add-hono-route':
@@ -63,12 +61,10 @@ const DESCRIPTIONS: Record<string, string> = {
     'Stock tracking per variant × warehouse — inventory table, reserveStock/releaseStock/deductStock helpers in lib/inventory.ts, and the admin adjustment UI.',
   'invoice-and-pdf':
     'Client-side PDF invoice generation with jsPDF — invoice layout, order-view tokens for public access, and the download entry point.',
-  'jwt-user-metadata-patterns':
-    'Auth0 JWT custom claims — user_metadata vs app_metadata, useTokenUserData hook, store-metadata propagation, and per-user theme storage.',
   'localized-content-patterns':
     'Multilingual content model — LocalizedText type, useLocalizedTextInput hook, and the renderLocalized utility used across product and category surfaces.',
   'mcp-server-quickstart':
-    'Setup and extension of the Fufuni MCP server itself — generate.ts pipeline, adding a new topic, running gen-knowledge, and deploying to Cloudflare.',
+    'Setup and extension of the Bengal Exchange MCP server itself — generate.ts pipeline, adding a new topic, running gen-knowledge, and deploying to Cloudflare.',
   'migrations-reference':
     'Enumeration of every numbered SQL migration — applied order, schema changes introduced, and a mini changelog per migration file.',
   'oauth-embedded':
@@ -86,13 +82,13 @@ const DESCRIPTIONS: Record<string, string> = {
   'seed-data-patterns':
     'Seed script structure — how demo data is inserted, how to add new seed records, and the reset-demo GitHub Action that triggers it on a schedule.',
   'setup-and-initialization':
-    'First-run store setup — the /v1/setup endpoint, initial-configuration fields, and the routes that bootstrap a fresh Fufuni instance.',
+    'First-run store setup — the /v1/setup endpoint, initial-configuration fields, and the routes that bootstrap a fresh Bengal Exchange instance.',
   'theming-and-layouts':
     'Theme and layout system — ThemeProvider, the Default and Luxury layouts, CMS-driven content blocks, and siteConfig integration.',
   'use-secured-api':
-    'useSecuredApi React hook for authenticated calls — getJson, postJson, putJson, patchJson, deleteJson, postForm, plus Auth0 bearer injection.',
+    'useSecuredApi React hook for authenticated calls — getJson, postJson, putJson, patchJson, deleteJson, postForm (session cookie included), plus the isAdmin hint.',
   'user-preferences-and-wishlist':
-    'Per-user state — wishlist stored in Auth0 user_metadata, saved carts, and the custom hooks that wrap the metadata updates.',
+    'Per-customer state on the server — wishlist, saved carts, the account cart and preferences under /v1/me/*, and the React Query hooks that use them.',
   'webhooks-outbound':
     'Outbound webhooks — endpoint registration, delivery retry logic, and the HMAC signature scheme used by consumers to verify authenticity.',
 };

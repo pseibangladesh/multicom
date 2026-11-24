@@ -1,30 +1,49 @@
 /**
- * Local (Better Auth) implementation of the AuthProvider interface.
+ * Better Auth implementation of the AuthProvider interface.
  *
- * Uses session cookies set by /api/auth/* endpoints on the backend.
- * No external SDK needed — just standard fetch with cookie-based sessions.
+ * Uses the session cookie set by the merchant worker's /api/auth/* endpoints;
+ * no SDK and no tokens on the client.
  */
 
 import { useEffect, useState, useCallback } from "react";
+
+import {
+  AuthProvider,
+  AuthUser,
+  EmailNotVerifiedError,
+  LogoutOptions,
+  LoginOptions,
+} from "./auth-provider";
+import { AuthApiError, authPost, authUrl } from "./better-auth-api";
+
 import { getBaseURL } from "@/utils/base-url";
-import { AuthProvider, AuthUser, TokenOptions, LogoutOptions, LoginOptions } from "./auth-provider";
 
 /**
- * Local provider that works with Better Auth session cookies.
+ * Where the emailed confirmation link lands: the login page, which then
+ * continues to `returnTo`. Absolute, and on the store's origin (a trusted
+ * origin on the server).
  */
+export function verifyCallbackURL(returnTo?: string): string {
+  const params = new URLSearchParams({ verified: "1" });
+
+  if (returnTo) params.set("returnTo", returnTo);
+
+  return `${window.location.origin}${getBaseURL()}/login?${params}`;
+}
+
 export const useLocalProvider = (): AuthProvider => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check session status on mount and after navigation
   const checkSession = useCallback(async () => {
     try {
-      const apiBase = getBaseURL() || "";
-      const resp = await fetch(`${apiBase}/api/auth/session`);
-      const data = await resp.json();
+      const resp = await fetch(authUrl("/session"), { credentials: "include" });
+      const data = resp.ok
+        ? ((await resp.json()) as { session?: { user?: AuthUser } | null })
+        : null;
 
-      if (data.session) {
+      if (data?.session?.user) {
         setUser(data.session.user);
         setIsAuthenticated(true);
       } else {
@@ -32,7 +51,7 @@ export const useLocalProvider = (): AuthProvider => {
         setIsAuthenticated(false);
       }
     } catch (err) {
-      console.error("[Local Auth] Session check failed:", err);
+      console.error("[Auth] Session check failed:", err);
       setUser(null);
       setIsAuthenticated(false);
     } finally {
@@ -44,57 +63,119 @@ export const useLocalProvider = (): AuthProvider => {
     checkSession();
   }, [checkSession]);
 
-  const login = async (_options?: LoginOptions): Promise<void> => {
-    // Redirect to the backend's /api/auth/signin/email or show a login form
-    window.location.href = `${getBaseURL() || ""}/login`;
+  const login = async (options?: LoginOptions): Promise<void> => {
+    const params = new URLSearchParams();
+
+    if (options?.returnTo) params.set("returnTo", options.returnTo);
+    if (options?.email) params.set("email", options.email);
+    if (options?.mode === "signup") params.set("mode", "signup");
+    const query = params.toString();
+
+    window.location.href = `${getBaseURL()}/login${query ? `?${query}` : ""}`;
   };
 
-  const logout = async (_options?: LogoutOptions): Promise<void> => {
+  const signInEmail = async (
+    email: string,
+    password: string,
+  ): Promise<void> => {
     try {
-      const apiBase = getBaseURL() || "";
-      await fetch(`${apiBase}/api/auth/signout`, { method: "POST" });
+      await authPost("/sign-in/email", {
+        email,
+        password,
+        // Used by the fresh confirmation link sent to unverified accounts.
+        callbackURL: verifyCallbackURL(),
+      });
     } catch (err) {
-      console.error("[Local Auth] Signout failed:", err);
+      if (err instanceof AuthApiError && err.code === "EMAIL_NOT_VERIFIED") {
+        throw new EmailNotVerifiedError();
+      }
+      throw err;
+    }
+    await checkSession();
+  };
+
+  const signUpEmail = async (
+    name: string,
+    email: string,
+    password: string,
+  ): Promise<void> => {
+    // No session yet: the account is usable once the emailed link is opened.
+    await authPost("/sign-up/email", {
+      name,
+      email,
+      password,
+      callbackURL: verifyCallbackURL(),
+    });
+  };
+
+  const resendVerification = async (email: string): Promise<void> => {
+    await authPost("/send-verification-email", {
+      email,
+      callbackURL: verifyCallbackURL(),
+    });
+  };
+
+  const logout = async (options?: LogoutOptions): Promise<void> => {
+    try {
+      await authPost("/sign-out", {});
+    } catch (err) {
+      console.error("[Auth] Sign-out failed:", err);
     }
     setUser(null);
     setIsAuthenticated(false);
 
-    const returnTo = _options?.logoutParams?.returnTo || window.location.origin;
-    window.location.href = returnTo;
+    // A full reload clears every per-user cache (queries, cart) in memory.
+    window.location.href =
+      options?.returnTo ||
+      new URL(getBaseURL() || "/", window.location.origin).toString();
   };
 
-  const getAccessToken = async (_options?: TokenOptions): Promise<string | null> => {
-    // Better Auth uses session cookies — no explicit access token needed
-    // Return a placeholder so existing code doesn't break
-    return "session";
-  };
-
-  const refreshAccessToken = async (_options?: TokenOptions): Promise<string | null> => {
-    await checkSession();
-    return "session";
-  };
-
-  const hasPermission = useCallback(async (_permission: string): Promise<boolean> => {
-    // Better Auth permissions are handled server-side via role checks
-    // For now, authenticated users have full access
-    return isAuthenticated;
-  }, [isAuthenticated]);
+  // Only ADMIN_EMAILS sessions have admin access server-side; is_admin mirrors
+  // that so customers aren't shown admin-only UI (AI, test mail…).
+  const isAdmin = isAuthenticated && user?.is_admin === true;
 
   // API helpers that automatically include session cookies
+  // "HTTP <status>" stays first (isConflictError matches on it); the API's
+  // own error message is appended so pages can show why a request failed.
+  const httpError = async (resp: Response): Promise<Error> => {
+    let detail = "";
+
+    try {
+      const body = (await resp.json()) as {
+        error?: { message?: string } | string;
+      };
+
+      detail =
+        typeof body.error === "string"
+          ? body.error
+          : (body.error?.message ?? "");
+    } catch {
+      // Not JSON: keep the status only.
+    }
+
+    return new Error(
+      detail ? `HTTP ${resp.status}: ${detail}` : `HTTP ${resp.status}`,
+    );
+  };
+
   const getJson = async (url: string): Promise<any> => {
     const resp = await fetch(url, { credentials: "include" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    if (!resp.ok) throw await httpError(resp);
+
     return resp.json();
   };
 
-  const postJson = async (url: string, data: any): Promise<any> => {
+  const postJson = async (url: string, data: unknown): Promise<any> => {
     const resp = await fetch(url, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    if (!resp.ok) throw await httpError(resp);
+
     return resp.json();
   };
 
@@ -104,7 +185,9 @@ export const useLocalProvider = (): AuthProvider => {
       credentials: "include",
       body: formData,
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    if (!resp.ok) throw await httpError(resp);
+
     return resp.json();
   };
 
@@ -113,29 +196,35 @@ export const useLocalProvider = (): AuthProvider => {
       method: "DELETE",
       credentials: "include",
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    if (!resp.ok) throw await httpError(resp);
+
     return resp.json();
   };
 
-  const putJson = async (url: string, data: any): Promise<any> => {
+  const putJson = async (url: string, data: unknown): Promise<any> => {
     const resp = await fetch(url, {
       method: "PUT",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    if (!resp.ok) throw await httpError(resp);
+
     return resp.json();
   };
 
-  const patchJson = async (url: string, data: any): Promise<any> => {
+  const patchJson = async (url: string, data: unknown): Promise<any> => {
     const resp = await fetch(url, {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    if (!resp.ok) throw await httpError(resp);
+
     return resp.json();
   };
 
@@ -145,9 +234,11 @@ export const useLocalProvider = (): AuthProvider => {
     user,
     login,
     logout,
-    getAccessToken,
-    refreshAccessToken,
-    hasPermission,
+    refreshSession: checkSession,
+    signInEmail,
+    signUpEmail,
+    resendVerification,
+    isAdmin,
     getJson,
     postJson,
     postForm,

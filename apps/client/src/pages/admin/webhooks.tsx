@@ -37,7 +37,6 @@ import clsx from "clsx";
 
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
-import DefaultLayout from "@/layouts/default";
 
 /**
  * Predefined events that can be subscribed to when creating or editing a
@@ -101,12 +100,12 @@ const WEBHOOK_EVENTS = [
 const EXAMPLE_HTTP_HEADERS: [string, string][] = [
   ["Content-Type", "application/json"],
   [
-    "X-Fufuni-Signature",
+    "X-Bengal-Exchange-Signature",
     "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
   ],
-  ["X-Fufuni-Timestamp", "1748000000"],
-  ["X-Fufuni-Delivery-Id", "550e8400-e29b-41d4-a716-446655440000"],
-  ["User-Agent", "Fufuni-Webhook/1.0"],
+  ["X-Bengal-Exchange-Timestamp", "1748000000"],
+  ["X-Bengal-Exchange-Delivery-Id", "550e8400-e29b-41d4-a716-446655440000"],
+  ["User-Agent", "Bengal-Exchange-Webhook/1.0"],
 ];
 
 const _BASE_ORDER = {
@@ -460,7 +459,7 @@ export default function WebhooksPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="px-4 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 h-9">
@@ -1111,6 +1110,6 @@ export default function WebhooksPage() {
           </Modal.Backdrop>
         </Modal>
       </div>
-    </DefaultLayout>
+    </>
   );
 }
