@@ -9,13 +9,12 @@
 import { useTranslation } from "react-i18next";
 
 import { CategoryAdmin } from "@/components/category-admin";
-import DefaultLayout from "@/layouts/default";
 
 export default function CategoriesPage() {
   const { t } = useTranslation();
 
   return (
-    <DefaultLayout>
+    <>
       <div className="min-h-screen  py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
@@ -29,6 +28,6 @@ export default function CategoriesPage() {
           <CategoryAdmin />
         </div>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

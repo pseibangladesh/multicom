@@ -59,7 +59,7 @@ REQUIRED FIRST TWO LINES: Before any Markdown heading, output exactly these two 
 <!--mcp-description: <one sentence ≤ 200 chars answering "when should an AI call this tool?">-->
 <!--mcp-tags: ["tag1","tag2","tag3"]-->
 Tags rules: 3–6 items, lowercase kebab-case, chosen ONLY from this approved vocabulary:
-  admin, ai, api, auth, auth0, backend, catalog, checkout, ci, cloudflare,
+  admin, ai, api, auth, backend, catalog, checkout, ci, cloudflare,
   commerce, crud, data, database, design, documents, durable-object, e2e,
   email, events, frontend, general, hono, i18n, images, integration, inventory,
   invoicing, localization, migrations, moderation, observability, orders,

@@ -21,7 +21,7 @@ const topic: Topic = {
   manualFacts: [
     'E2E tests live in e2e/tests/. Run them with: npm run e2e (from monorepo root). Requires the dev server to be running.',
     'Three auth states are pre-created by setup scripts: storage-state.json (anonymous), storage-state-user.json (authenticated user), storage-state-admin.json (admin user).',
-    'Setup scripts log in via the Auth0 Universal Login page (not the embedded modal). They use Playwright\'s page.fill() on the real Auth0 hosted pages.',
+    'Setup scripts sign in through the storefront /login page (Better Auth email + password). New accounts must confirm their email, so test users must be verified (ADMIN_EMAILS users are verified automatically).',
     'Test credentials come from E2E_USER_EMAIL, E2E_USER_PASSWORD, E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD in .env (root). These are NOT committed.',
     'Public tests (navigation.spec.ts): use anonymous storage state. No login required.',
     'Auth tests (checkout.spec.ts): use user storage state. Tests are independent — each starts from homepage.',

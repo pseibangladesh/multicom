@@ -16,7 +16,7 @@
 
 ## Purpose
 
-The embedded OAuth2 server provides machine-to-machine authentication for third-party integrations and merchant API access. It operates alongside Auth0, which handles primary user authentication. This server is designed for programmatic access to Bengal Exchange APIs by external applications, AI agents, or other services.
+The embedded OAuth2 server provides machine-to-machine authentication for third-party integrations and merchant API access. It operates alongside Better Auth, which handles how people sign in. This server is designed for programmatic access to Bengal Exchange APIs by external applications, AI agents, or other services.
 
 ## Client Registration
 
@@ -81,7 +81,7 @@ Successful response:
 
 The `oauthMiddleware` handles token validation for protected routes. Routes configured with this middleware accept either:
 
-1. Auth0-issued JWTs (for user contexts)
+1. Better Auth session cookies (for user contexts)
 2. OAuth2-issued access tokens (for machine contexts)
 
 Example middleware usage:

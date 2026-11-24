@@ -3,184 +3,92 @@
  * License: AGPL-3.0-or-later
  */
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { TextField, Label, Input, Card, Button } from "@heroui/react";
-import { X } from "lucide-react";
+import { Card } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
-
-const MIN_PASSWORD_LENGTH = 8; // matches emailAndPassword.minPasswordLength on the server
+import {
+  EmailAuthForm,
+  type AuthMode,
+} from "@/features/auth/components/email-auth-form";
+import { ContentLoading } from "@/shared/ui/feedback/content-loading";
 
 /**
- * Sign-in / sign-up page using Better Auth email + password.
- * POST /api/auth/sign-in/email and /api/auth/sign-up/email set an HttpOnly
- * session cookie on the merchant worker (see local-provider.tsx).
+ * Sign-in / create-account page (Better Auth email + password).
  *
- * Query params: ?mode=signup, ?email=<prefill>, ?returnTo=<path>.
+ * Query parameters:
+ * - `mode=signup` opens "create account";
+ * - `email` prefills the address;
+ * - `returnTo` is where to go once signed in (default: the account page);
+ * - `verified=1` / `error=…` are added when the emailed confirmation link
+ *   brings the user back here (signed in on success).
  */
 export default function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isAuthenticated, isLoading, signInEmail, signUpEmail } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  const isSignUp = searchParams.get("mode") === "signup";
+  const mode: AuthMode =
+    searchParams.get("mode") === "signup" ? "signup" : "signin";
   const returnTo = searchParams.get("returnTo") || "/account";
+  const linkFailed = !!searchParams.get("error");
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState(searchParams.get("email") || "");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Already signed in (or just signed in) → go where the user was headed.
+  // Signed in (already, after the form, or by the confirmation link) → continue.
   useEffect(() => {
     if (!isLoading && isAuthenticated) navigate(returnTo, { replace: true });
   }, [isLoading, isAuthenticated, navigate, returnTo]);
 
-  const switchMode = () => {
-    const next = new URLSearchParams(searchParams);
+  const setMode = (next: AuthMode) => {
+    const params = new URLSearchParams(searchParams);
 
-    if (isSignUp) next.delete("mode");
-    else next.set("mode", "signup");
-    setSearchParams(next, { replace: true });
-    setError(null);
+    if (next === "signup") params.set("mode", "signup");
+    else params.delete("mode");
+    params.delete("error");
+    setSearchParams(params, { replace: true });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Until the session is known, don't flash the form at a signed-in visitor.
+  if (isLoading || isAuthenticated) {
+    return (
+      <div className="min-h-dvh bg-bx-paper">
+        <ContentLoading />
+      </div>
+    );
+  }
 
-    if (!email) return setError(t("login-email-required"));
-    if (!password) return setError(t("login-password-required"));
-    if (isSignUp && password.length < MIN_PASSWORD_LENGTH) {
-      return setError(t("login-password-min", { count: MIN_PASSWORD_LENGTH }));
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      if (isSignUp) {
-        await signUpEmail(name.trim() || email.split("@")[0], email, password);
-      } else {
-        await signInEmail(email, password);
-      }
-      // The effect above navigates once the session is refreshed.
-    } catch (err) {
-      console.error("Auth error:", err);
-      setError(
-        err instanceof Error && err.message ? err.message : t("login-error"),
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const isSignUp = mode === "signup";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <Card.Header className="flex gap-3 flex-col justify-center">
+    <div className="flex min-h-dvh items-center justify-center bg-bx-paper p-4 text-bx-ink">
+      <Card className="w-full max-w-md border border-bx-line bg-bx-surface-raised shadow-none">
+        <Card.Header className="flex flex-col justify-center gap-3">
           <div className="text-center">
-            <h1 className="text-3xl font-bold">
+            <h1 className="font-display text-3xl text-bx-ink">
               {isSignUp ? t("login-signup-title") : t("login-title")}
             </h1>
-            <p className="text-gray-500 mt-2">
+            <p className="mt-2 text-bx-stone">
               {isSignUp ? t("login-signup-subtitle") : t("login-subtitle")}
             </p>
           </div>
         </Card.Header>
 
         <Card.Content className="gap-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
-              <TextField name="name" className="w-full">
-                <Label>{t("login-name")}</Label>
-                <Input
-                  autoComplete="name"
-                  placeholder={t("login-enter-name")}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={loading}
-                  fullWidth
-                />
-              </TextField>
-            )}
-
-            <TextField
-              name="email"
-              type="email"
-              isRequired
-              isInvalid={!!error}
-              className="w-full"
+          {linkFailed && (
+            <p
+              className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+              role="alert"
             >
-              <Label>{t("login-email")}</Label>
-              <div className="flex items-center">
-                <Input
-                  autoComplete="email"
-                  placeholder={t("login-enter-email")}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                  fullWidth
-                />
-                {email && (
-                  <button
-                    type="button"
-                    onClick={() => setEmail("")}
-                    className="ml-2 p-1 text-gray-400 hover:text-gray-600"
-                    aria-label="Clear email"
-                  >
-                    <X size={18} />
-                  </button>
-                )}
-              </div>
-            </TextField>
-
-            <TextField
-              name="password"
-              type="password"
-              isRequired
-              className="w-full"
-            >
-              <Label>{t("login-password")}</Label>
-              <Input
-                autoComplete={isSignUp ? "new-password" : "current-password"}
-                placeholder={t("login-enter-password")}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-                fullWidth
-              />
-            </TextField>
-
-            {error && (
-              <div
-                className="bg-red-50 border border-red-200 rounded-lg p-3 dark:bg-red-950/40 dark:border-red-900"
-                role="alert"
-              >
-                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full font-semibold"
-              isDisabled={loading || !email || !password}
-              isPending={loading}
-            >
-              {isSignUp ? t("login-create-account-button") : t("login-sign-in")}
-            </Button>
-          </form>
-
-          <div className="pt-4 border-t text-center text-sm">
-            <p className="text-gray-600 mb-2">
-              {isSignUp ? t("login-have-account") : t("login-new-customer")}
+              {t("login-verify-failed")}
             </p>
-            <Button variant="tertiary" onPress={switchMode} className="w-full">
-              {isSignUp ? t("login-sign-in") : t("login-signup")}
-            </Button>
-          </div>
+          )}
+          <EmailAuthForm
+            initialEmail={searchParams.get("email") || ""}
+            mode={mode}
+            onModeChange={setMode}
+          />
         </Card.Content>
       </Card>
     </div>

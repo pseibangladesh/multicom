@@ -92,21 +92,13 @@ if (process.env.NODE_ENV === "development") {
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || "/",
   define: {
-    // Get the authentication provider type from environment variables
-    "import.meta.env.AUTHENTICATION_PROVIDER_TYPE": JSON.stringify(
-      process.env.AUTHENTICATION_PROVIDER_TYPE || "local",
-    ),
     "import.meta.env.API_BASE_URL": JSON.stringify(process.env.API_BASE_URL),
     "import.meta.env.MERCHANT_PK": JSON.stringify(process.env.MERCHANT_PK || "merchant_pk_placeholder"),
     // No fallback: it must match the backend's STORE_URL, and main.tsx shows an
     // "Environment Variables Missing" screen when it (or API_BASE_URL) is unset.
     "import.meta.env.STORE_URL": JSON.stringify(process.env.STORE_URL),
     "import.meta.env.STORE_NAME": JSON.stringify(process.env.STORE_NAME || "Bengal Exchange Store"),
-    "import.meta.env.BENGAL_EXCHANGE_THEME": JSON.stringify(process.env.BENGAL_EXCHANGE_THEME ?? "heroui_standard"),
-    // Permissions
-    "import.meta.env.DATABASE_PERMISSION": JSON.stringify(process.env.DATABASE_PERMISSION || "admin:database"),
-    "import.meta.env.AI_PERMISSION": JSON.stringify(process.env.AI_PERMISSION || "ai:api"),
-    "import.meta.env.MAIL_PERMISSION": JSON.stringify(process.env.MAIL_PERMISSION || "mail:api"),
+    "import.meta.env.BENGAL_EXCHANGE_THEME": JSON.stringify(process.env.BENGAL_EXCHANGE_THEME ?? process.env.FUFUNI_THEME ?? "bengal"),
     // Variable for disabling the Cloudfare AI Gateway and using direct API calls instead, for testing and fallback purposes
     "import.meta.env.DISABLE_CLOUDFLARE_AIG": JSON.stringify(process.env.DISABLE_CLOUDFLARE_AIG === "true"),
   },

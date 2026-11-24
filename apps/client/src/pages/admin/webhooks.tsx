@@ -37,7 +37,6 @@ import clsx from "clsx";
 
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
-import DefaultLayout from "@/layouts/default";
 
 /**
  * Predefined events that can be subscribed to when creating or editing a
@@ -460,7 +459,7 @@ export default function WebhooksPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="px-4 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 h-9">
@@ -1111,6 +1110,6 @@ export default function WebhooksPage() {
           </Modal.Backdrop>
         </Modal>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

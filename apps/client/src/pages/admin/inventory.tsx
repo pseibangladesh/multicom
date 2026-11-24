@@ -30,7 +30,6 @@ import { Tooltip } from "@heroui/react";
 import { Chip } from "@heroui/react";
 import clsx from "clsx";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { resolveTitle } from "@/utils/description";
@@ -321,7 +320,7 @@ export default function InventoryPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">{t("admin-inventory-title")}</h1>
@@ -828,6 +827,6 @@ export default function InventoryPage() {
           </Modal.Backdrop>
         </Modal>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

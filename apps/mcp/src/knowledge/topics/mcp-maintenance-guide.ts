@@ -38,7 +38,7 @@ const topic: Topic = {
     'CHECKLIST — When you rename or move a source file: update all sources[] arrays in every topic that references that path. The generator will fail silently (source missing) if a path is wrong.',
     'CHECKLIST — When you change a naming convention or add a global constraint: add it to the manualFacts[] of the most relevant topic AND to apps/mcp/src/knowledge/base.ts BASE_SYSTEM if it applies to all topics.',
     'CHECKLIST — When you add a new DB migration: update the migrations-reference topic sources[] to include the new SQL file. Run mcp:auto:flash after.',
-    'CHECKLIST — When you add an Auth0 action, rule, or flow change: update auth-patterns.ts and/or jwt-user-metadata-patterns.ts manualFacts[].',
+    'CHECKLIST — When you change sign-in, verification or the auth middleware: update auth-patterns.ts manualFacts[].',
     'You can manually override description or tags before running generation. The LLM will re-patch them on the next --force regeneration, so manual overrides are only stable when using --auto-refresh (which skips unchanged topics).',
 
     // ── Regeneration commands ────────────────────────────────────────────────

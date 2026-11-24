@@ -26,7 +26,7 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { getDb } from '../db';
-import { authMiddleware, adminOnly, databaseAdminOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, now, type HonoEnv } from '../types';
 import { isAdminEmail } from '../lib/session';
 import { SetupStripeBody, OkResponse, ErrorResponse, ConfigListResponse } from '../schemas';
@@ -163,7 +163,7 @@ const getConfig = createRoute({
   summary: 'Get config values',
   description: 'Return all key/value pairs stored in the config table.',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: ConfigListResponse } }, description: 'Config values' },
   },
@@ -185,7 +185,7 @@ const resetDatabase = createRoute({
   summary: 'Wipe and reset the database',
   description: 'Clears all data so init/seed can be rerun. Requires database admin role (JWT only).',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: OkResponse } }, description: 'Database reset' },
   },
@@ -395,7 +395,7 @@ const listMigrations = createRoute({
   summary: 'List applied migrations',
   description: 'Returns rows from the migrations table.',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: MigrationListResponse } }, description: 'Applied migrations' },
   },
@@ -416,7 +416,7 @@ const cleanMigrations = createRoute({
   summary: 'Clean migrations table',
   description: 'Deletes all rows from the migrations table.',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: OkResponse } }, description: 'Migrations cleared' },
   },
@@ -435,7 +435,7 @@ const runMigrations = createRoute({
   summary: 'Run pending migrations',
   description: 'Ensures schema migrations are applied by triggering the migration helper.',
   security: [{ bearerAuth: ["admin:database"] }],
-  middleware: [authMiddleware, databaseAdminOnly] as const,
+  middleware: [authMiddleware, adminOnly] as const,
   responses: {
     200: { content: { 'application/json': { schema: OkResponse } }, description: 'Migrations executed' },
   },

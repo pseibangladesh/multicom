@@ -23,7 +23,7 @@ const topic: Topic = {
     'Read-only queries use db.query<T>(); mutations use db.run(). Both return Promises.',
     'The KV cache is automatically invalidated for /v1/categories/* and /v1/products/* — no manual action required after a mutation on those resources.',
     'Public routes are registered BEFORE authMiddleware in index.ts. Admin routes are registered after.',
-    'Public API keys (pk_) are accepted on public routes; secret keys (sk_) and Auth0 JWTs are accepted on admin routes after authMiddleware.',
+    'Public API keys (pk_) are accepted on public routes; secret keys (sk_) and ADMIN_EMAILS sessions are accepted on admin routes after authMiddleware + adminOnly.',
     'Available RBAC guards to import from ../middleware/auth: adminOnly, superAdminOnly, databaseAdminOnly, aiAccessOnly, mailAccessOnly, validJwtAuthOnly.',
   ],
   buildPrompt: (src) => appendFacts(`

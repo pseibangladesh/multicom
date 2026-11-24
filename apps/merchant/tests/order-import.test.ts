@@ -147,13 +147,16 @@ describe('importOrders', () => {
 
   it('merges into an existing customer by email', async () => {
     const { merchant, db } = setup();
-    merchant.run(`INSERT INTO customers (id, email, name, order_count, total_spent_cents) VALUES ('c1', 'ann@example.com', 'Ann (web)', 2, 1000)`);
+    merchant.run(`INSERT INTO customers (id, email, name) VALUES ('c1', 'ann@example.com', 'Ann (web)')`);
+    // An earlier web order: totals are recalculated from real orders (lib/customers.ts).
+    merchant.run(`INSERT INTO orders (id, number, status, customer_id, customer_email, subtotal_cents, tax_cents, total_cents)
+                  VALUES ('o-web', 'ORD-WEB', 'paid', 'c1', 'ann@example.com', 1000, 0, 1000)`);
     await importOrders(db, fakeClient(ebayOrder({ buyer: { buyerRegistrationAddress: { email: 'ANN@example.com' } } })), 'ch1');
 
     expect(merchant.query<any>(`SELECT id, name, order_count, total_spent_cents FROM customers`)).toEqual([
-      { id: 'c1', name: 'Ann (web)', order_count: 3, total_spent_cents: 5768 },
+      { id: 'c1', name: 'Ann (web)', order_count: 2, total_spent_cents: 5768 },
     ]);
-    expect(merchant.query<any>(`SELECT customer_id FROM orders`)[0].customer_id).toBe('c1');
+    expect(merchant.query<any>(`SELECT DISTINCT customer_id FROM orders`)).toEqual([{ customer_id: 'c1' }]);
   });
 
   it('skips unpaid and cancelled orders without recording them, so a paid one imports later', async () => {

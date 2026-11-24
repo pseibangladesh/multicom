@@ -101,21 +101,21 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header Section */}
-      <div className="bg-linear-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+      <div className="rounded-md border border-bx-line bg-bx-surface-raised p-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Avatar
-              className="border-2 border-blue-400"
+              className="border-2 border-bx-primary"
               color="default"
               size="lg"
             >
               {displayName.charAt(0).toUpperCase()}
             </Avatar>
             <div>
-              <h1 className="text-3xl font-bold text-default-900">
+              <h1 className="font-display text-3xl text-bx-ink">
                 {t("account-welcome")}, {displayName}
               </h1>
-              <p className="text-default-500 mt-1">{profile.email}</p>
+              <p className="mt-1 break-all text-bx-stone">{profile.email}</p>
             </div>
           </div>
           <Link to="/account/preferences">
@@ -129,14 +129,14 @@ export default function Dashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Orders */}
-        <Card className="bg-linear-to-br from-blue-500/10 to-blue-600/10 border border-blue-200">
+        <Card className="border border-bx-line bg-bx-surface-raised">
           <Card.Content className="pb-4">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm text-default-500 font-medium">
+                <p className="text-sm font-medium text-bx-stone">
                   {t("account-total-orders")}
                 </p>
-                <p className="text-4xl font-bold text-blue-600 mt-2">
+                <p className="mt-2 font-display text-4xl text-bx-primary">
                   {profile.order_count}
                 </p>
                 <Chip
@@ -153,14 +153,14 @@ export default function Dashboard() {
         </Card>
 
         {/* Total Spent */}
-        <Card className="bg-linear-to-br from-green-500/10 to-green-600/10 border border-green-200">
+        <Card className="border border-bx-line bg-bx-surface-raised">
           <Card.Content className="pb-4">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm text-default-500 font-medium">
+                <p className="text-sm font-medium text-bx-stone">
                   {t("account-total-spent")}
                 </p>
-                <p className="text-3xl font-bold text-green-600 mt-2">
+                <p className="mt-2 font-display text-3xl text-bx-primary">
                   {formatMoney(profile ? profile.total_spent_cents : 0, "")}
                 </p>
               </div>
@@ -178,16 +178,16 @@ export default function Dashboard() {
 
         {/* Saved Carts */}
         <Card
-          className="bg-linear-to-br from-purple-500/10 to-purple-600/10 border border-purple-200 cursor-pointer hover:border-purple-400 transition-colors"
+          className="cursor-pointer border border-bx-line bg-bx-surface-raised transition-colors hover:border-bx-primary"
           onClick={() => setSelectedTab("saved-carts")}
         >
           <Card.Content className="pb-4">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm text-default-500 font-medium">
+                <p className="text-sm font-medium text-bx-stone">
                   {t("account-saved-carts", { count: savedCartsCount })}
                 </p>
-                <p className="text-4xl font-bold text-purple-600 mt-2">
+                <p className="mt-2 font-display text-4xl text-bx-primary">
                   {savedCartsCount}
                 </p>
                 <Chip
@@ -205,16 +205,16 @@ export default function Dashboard() {
 
         {/* Wishlist */}
         <Card
-          className="bg-linear-to-br from-pink-500/10 to-pink-600/10 border border-pink-200 cursor-pointer hover:border-pink-400 transition-colors"
+          className="cursor-pointer border border-bx-line bg-bx-surface-raised transition-colors hover:border-bx-primary"
           onClick={() => setSelectedTab("wishlist")}
         >
           <Card.Content className="pb-4">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm text-default-500 font-medium">
+                <p className="text-sm font-medium text-bx-stone">
                   {t("account-wishlist", { count: wishlist.length })}
                 </p>
-                <p className="text-4xl font-bold text-pink-600 mt-2">
+                <p className="mt-2 font-display text-4xl text-bx-accent">
                   {wishlist.length}
                 </p>
                 <Chip
@@ -415,11 +415,14 @@ export default function Dashboard() {
       </Card>
 
       {/* Bottom Info */}
-      <Card className="bg-default-50 border border-default-200">
+      <Card className="border border-bx-line bg-bx-surface">
         <Card.Content className="py-4">
-          <p className="text-sm text-default-500 text-center">
+          <p className="text-center text-sm text-bx-stone">
             {t("account-help-text")} &nbsp;
-            <HeroUILink className="font-semibold text-blue-600" href="#">
+            <HeroUILink
+              className="font-semibold text-bx-primary"
+              href="/pages/contact"
+            >
               {t("help-center")}
             </HeroUILink>
           </p>

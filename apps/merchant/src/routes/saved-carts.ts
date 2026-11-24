@@ -26,6 +26,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { getDb } from '../db';
+import { resolveCustomer } from '../lib/customers';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { CartItem, CartTotals, CartResponse } from '../schemas';
 
@@ -58,7 +59,18 @@ const savedCartSchema = z.object({
   updated_at: z.string(),
 });
 
-const savedCartsListSchema = z.array(savedCartSchema);
+/** A saved cart as the account pages show it (items and totals at save time). */
+const savedCartSnapshotSchema = z.object({
+  id: z.string(),
+  items: z.array(z.object({ sku: z.string(), title: z.string(), qty: z.number(), unit_price_cents: z.number() })),
+  totals: z.record(z.string(), z.number()),
+  currency: z.string(),
+  customer_email: z.string(),
+  status: z.string(),
+  expires_at: z.string(),
+  saved_at: z.string(),
+});
+const savedCartsListSchema = z.object({ saved_carts: z.array(savedCartSnapshotSchema) });
 
 /**
  * Create a SavedCartSnapshot from a full CartResponse
@@ -128,15 +140,15 @@ adminApp.openapi(getSavedCartsRoute, async (c) => {
   if (!userId) throw ApiError.unauthorized('Invalid token');
 
   const db = getDb(c.var.db);
-  const savedCarts = await db.query<any>(
-    `SELECT id, user_id, cart_id, created_at, updated_at 
-     FROM saved_carts 
-     WHERE user_id = ? 
-     ORDER BY updated_at DESC`,
-    [userId]
+  const customer = await resolveCustomer(db, userId);
+  // Newest first. The snapshots live on the customer record, so they are the
+  // same on every device the customer signs in on.
+  const savedCarts = readSavedCartsFromMetadata(customer.metadata).sort((a, b) =>
+    String(b.saved_at).localeCompare(String(a.saved_at)),
   );
 
-  return c.json(savedCarts, 200);
+  // Snapshot items come from stored JSON; the schema above documents them.
+  return c.json({ saved_carts: savedCarts } as never, 200);
 });
 
 /**
@@ -186,7 +198,16 @@ adminApp.openapi(savecartRoute, async (c) => {
   // Fetch full cart data
   const [cart] = await db.query<any>(`SELECT * FROM carts WHERE id = ?`, [cartId]);
 
-  if (!cart) throw ApiError.notFound('Cart not found');
+  // Only your own cart: carts belong to the email they were created with.
+  // Same 404 as a missing cart, so this can't be used to probe cart ids.
+  const [owner] = await db.query<{ email: string }>(`SELECT email FROM "user" WHERE id = ?`, [userId]);
+  if (
+    !cart ||
+    !owner ||
+    String(cart.customer_email).trim().toLowerCase() !== owner.email.trim().toLowerCase()
+  ) {
+    throw ApiError.notFound('Cart not found');
+  }
 
   // Fetch cart items
   const items = await db.query<any>(`SELECT * FROM cart_items WHERE cart_id = ?`, [cartId]);
@@ -228,11 +249,8 @@ adminApp.openapi(savecartRoute, async (c) => {
     [userId, cartId]
   );
 
-  // Update customers.metadata with full snapshot (D1 storage instead of Auth0 user_metadata)
-  const [customer] = await db.query<any>(
-    `SELECT metadata FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
+  // Update customers.metadata with full snapshot 
+  const customer = await resolveCustomer(db, userId);
 
   if (customer) {
     const savedCartsMetadata = readSavedCartsFromMetadata(customer.metadata);
@@ -311,10 +329,7 @@ adminApp.openapi(deleteSavedCartRoute, async (c) => {
   );
 
   // Update customers.metadata — remove this cart from saved carts
-  const [customer] = await db.query<any>(
-    `SELECT metadata FROM customers WHERE email IN (SELECT email FROM "user" WHERE id = ?) LIMIT 1`,
-    [userId]
-  );
+  const customer = await resolveCustomer(db, userId);
 
   if (customer) {
     const savedCartsMetadata = readSavedCartsFromMetadata(customer.metadata);

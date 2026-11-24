@@ -17,7 +17,7 @@
 
 ## Framework Overview
 
-Bengal Exchange is an open-source, AI-native e-commerce framework designed to run entirely within free tiers of Cloudflare Workers, Auth0, Stripe, and Mailgun. It provides a complete solution for online stores with features including product catalog management, shopping cart, checkout, order processing, and customer management.
+Bengal Exchange is an open-source, AI-native e-commerce framework designed to run entirely within free tiers of Cloudflare Workers, Stripe, and Mailgun. It provides a complete solution for online stores with features including product catalog management, shopping cart, checkout, order processing, and customer management.
 
 ## Stack
 
@@ -27,7 +27,7 @@ Bengal Exchange is an open-source, AI-native e-commerce framework designed to ru
 | Backend | Cloudflare Workers, Hono, Zod-OpenAPI | Edge functions with OpenAPI docs |
 | Database | Durable Objects with SQLite | Embedded, no connection pools |
 | Storage | Cloudflare R2 | Product images and assets |
-| Auth | Auth0 | Passwordless and social login |
+| Auth | Better Auth (in the Durable Object) | Email + password with email verification; admins = ADMIN_EMAILS |
 | Payments | Stripe | Checkout and webhooks |
 | Email | Mailgun | Transactional emails |
 | Deployment | GitHub Pages (frontend), Cloudflare Workers (backend) | Fully automated CI/CD |
@@ -48,7 +48,7 @@ Key directories:
 ## Request Lifecycle
 
 1. Client request → Cloudflare Worker (Hono app)
-2. Authentication via API key (`pk_`/`sk_`) or Auth0 JWT
+2. Authentication via Better Auth session cookie, API key (`pk_`/`sk_`) or OAuth token
 3. Worker → Durable Object stub (single SQLite instance)
 4. Durable Object executes request against embedded SQLite
 5. Response flows back: DO → Worker → Client
@@ -64,15 +64,15 @@ app.get('/v1/products/:id', async (c) => {
 
 ## Key Conventions
 
-- **API Keys**: `pk_` prefix for public, `sk_` prefix for admin/secret (legacy, prefer Auth0 JWT)
-- **Authentication**: Auth0-only with RBAC via JWT permissions (e.g., `admin:store`, `ai:api`)
+- **API Keys**: `pk_` prefix for the public storefront, `sk_` prefix for server-to-server admin access
+- **Authentication**: Better Auth sessions; admins are the emails in `ADMIN_EMAILS`, everyone else is a customer
 - **Database Schema**: Changes require updates in 3 places:
   - `SCHEMA` constant in `do.ts`
   - `ensureInitialized()` function in `do.ts`
   - New numbered SQL file in `apps/merchant/migrations/`
 - **Navigation**: Configured in `siteConfig()` with permission-based visibility
 - **Error Handling**: Global error handler returns structured responses
-- **Free Tier**: Designed for 100% free operation using Cloudflare Workers (100k req/day), R2 (10GB), KV (100k reads), Auth0 (7.5k MAU), GitHub Pages, and Mailgun (3k emails/month)
+- **Free Tier**: Designed for 100% free operation using Cloudflare Workers (100k req/day), R2 (10GB), KV (100k reads), GitHub Pages, and Mailgun (3k emails/month)
 - **Deployment**: Three GitHub Actions workflows for backend, frontend, and demo reset
 - **UCP Endpoints**: Exposed at `/.well-known/ucp` and `/ucp/v1/*` for AI shopping agents
 

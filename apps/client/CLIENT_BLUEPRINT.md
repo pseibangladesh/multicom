@@ -239,10 +239,10 @@ Then import the variant in your layout or page instead of the default.
 
 Controls:
 - **Site name & description** — pulled from i18n translations
-- **Navigation items** — array of `{ label, href, permissions }` objects
+- **Navigation items** — array of `{ label, href, adminOnly }` objects
 - **Social links** — GitHub, Twitter/X, Discord, Sponsor
 
-To customize per-client, modify the `navItems` and `navMenuItems` arrays. Each item supports a `permissions` array for role-based visibility.
+To customize per-client, modify the `navItems` and `navMenuItems` arrays. Items with `adminOnly: true` are shown only to admin sessions (`user.is_admin`, i.e. emails in `ADMIN_EMAILS`).
 
 ### 6.2 Environment Variables (Vite)
 
@@ -253,7 +253,6 @@ Defined in `vite.config.ts` under `define`. Override per-client via `.env` files
 | `STORE_URL` | Backend API base URL |
 | `STORE_NAME` | Display name for the store |
 | `BENGAL_EXCHANGE_THEME` | Default theme slug (`default`, `luxury`, custom) |
-| `ADMIN_AUTH0_PERMISSION` | Legacy permission (still used in guards) |
 
 ### 6.3 i18n / Translations
 

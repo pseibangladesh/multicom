@@ -18,10 +18,10 @@ import {
 } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
-import { availableLanguages } from "@/i18n";
+import { useOfferedLanguages } from "@/lib/storefront-languages";
 import { getApiBase } from "@/lib/api-base";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
-import { AVAILABLE_THEMES, useStoreTheme } from "@/providers/theme-provider";
+import { useTheme } from "@/hooks/use-theme";
 
 interface Profile {
   id: string;
@@ -37,8 +37,9 @@ interface Profile {
  */
 export default function Preferences() {
   const { t } = useTranslation();
+  const offeredLanguages = useOfferedLanguages();
   const auth = useAuth() as any;
-  const { theme: currentTheme, setTheme } = useStoreTheme();
+  const { isDark, setLightTheme, setDarkTheme } = useTheme();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -47,6 +48,8 @@ export default function Preferences() {
   });
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // Required-field errors show only after the field is edited or a save is tried.
+  const [touched, setTouched] = useState({ name: false, phone: false });
   const apiBase = getApiBase();
 
   useEffect(() => {
@@ -71,6 +74,7 @@ export default function Preferences() {
 
   const handleSave = async () => {
     setFormError(null);
+    setTouched({ name: true, phone: true });
     if (!formData.name?.trim()) {
       setFormError(t("account-field-required"));
 
@@ -146,7 +150,7 @@ export default function Preferences() {
 
           <TextField
             isRequired
-            isInvalid={formData.name?.trim() === "" || formData.name === null}
+            isInvalid={touched.name && !formData.name?.trim()}
           >
             <Label>{t("account-name")}</Label>
             <Input
@@ -155,12 +159,13 @@ export default function Preferences() {
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
+              onBlur={() => setTouched((v) => ({ ...v, name: true }))}
             />
           </TextField>
 
           <TextField
             isRequired
-            isInvalid={formData.phone?.trim() === "" || formData.phone === null}
+            isInvalid={touched.phone && !formData.phone?.trim()}
           >
             <Label>{t("account-phone")}</Label>
             <Input
@@ -170,6 +175,7 @@ export default function Preferences() {
               onChange={(e) =>
                 setFormData({ ...formData, phone: e.target.value })
               }
+              onBlur={() => setTouched((v) => ({ ...v, phone: true }))}
             />
           </TextField>
 
@@ -190,7 +196,7 @@ export default function Preferences() {
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                {availableLanguages.map((locale) => (
+                {offeredLanguages.map((locale) => (
                   <ListBox.Item
                     key={locale.code}
                     id={locale.code}
@@ -217,7 +223,7 @@ export default function Preferences() {
         <Card.Content className="gap-4">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-bx-stone">
                 {t(
                   "account-marketing-emails-desc",
                   "Receive updates about new products and special offers",
@@ -251,30 +257,30 @@ export default function Preferences() {
         </Card.Header>
         <Separator />
         <Card.Content className="gap-4">
-          <Select
-            value={currentTheme ?? "default"}
-            onChange={(value) => setTheme((value as string) || null)}
+          <div
+            aria-label={t("account-mode")}
+            className="inline-flex self-start rounded-full border border-separator p-1"
+            role="group"
           >
-            <Label>{t("account-theme")}</Label>
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                {AVAILABLE_THEMES.map((slug) => (
-                  <ListBox.Item
-                    key={slug}
-                    id={slug}
-                    textValue={t(`account-theme-${slug}`)}
-                  >
-                    {t(`account-theme-${slug}`)}
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Select.Popover>
-          </Select>
+            <Button
+              aria-pressed={!isDark}
+              className="rounded-full"
+              size="sm"
+              variant={isDark ? "ghost" : "primary"}
+              onPress={setLightTheme}
+            >
+              {t("mode-light")}
+            </Button>
+            <Button
+              aria-pressed={isDark}
+              className="rounded-full"
+              size="sm"
+              variant={isDark ? "primary" : "ghost"}
+              onPress={setDarkTheme}
+            >
+              {t("mode-dark")}
+            </Button>
+          </div>
         </Card.Content>
       </Card>
 

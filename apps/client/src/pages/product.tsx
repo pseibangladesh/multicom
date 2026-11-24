@@ -26,9 +26,8 @@ import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card, Breadcrumbs, Spinner } from "@heroui/react";
-import { getBaseURL } from "@/utils/base-url";
 
-import DefaultLayout from "@/layouts/default";
+import { getBaseURL } from "@/utils/base-url";
 import { getProduct, StoreProduct } from "@/lib/store-api";
 import { ProductCardFull } from "@/components/product-card-full";
 import { useCategories } from "@/hooks/use-categories";
@@ -53,6 +52,7 @@ export default function ProductPage() {
     queryKey: ["product", id],
     queryFn: () => {
       if (!id) throw new Error("Product ID not provided");
+
       return getProduct(id);
     },
     enabled: !!id,
@@ -61,28 +61,30 @@ export default function ProductPage() {
   // Fetch category flat list so we can resolve the category name for breadcrumbs
   const { data: categories } = useCategories();
   const categoryName = fromCategory
-    ? categories?.find((c) => c.handle === fromCategory)?.name ?? fromCategory
+    ? (categories?.find((c) => c.handle === fromCategory)?.name ?? fromCategory)
     : "";
 
-  const displayTitle = product ? resolveTitle(product.title, i18n.language) : "";
+  const displayTitle = product
+    ? resolveTitle(product.title, i18n.language)
+    : "";
 
   // Lowest-price variant for SEO structured data
-  const lowestVariant = product?.variants?.slice().sort(
-    (a, b) => (a.price_cents ?? 0) - (b.price_cents ?? 0)
-  )[0];
+  const lowestVariant = product?.variants
+    ?.slice()
+    .sort((a, b) => (a.price_cents ?? 0) - (b.price_cents ?? 0))[0];
 
   useSeoMeta({
-    title: displayTitle || 'Product',
-    description: product?.description?.replace(/<[^>]+>/g, '').slice(0, 160),
+    title: displayTitle || "Product",
+    description: product?.description?.replace(/<[^>]+>/g, "").slice(0, 160),
     imageUrl: product?.image_url ?? undefined,
-    type: 'product',
+    type: "product",
     priceCents: lowestVariant?.price_cents,
     currency: lowestVariant?.currency ?? undefined,
   });
 
   return (
-    <DefaultLayout>
-      <div className="max-w-4xl mx-auto px-4 py-6">
+    <>
+      <div className="py-2">
         {/* Breadcrumbs */}
         <Breadcrumbs className="mb-4">
           <Breadcrumbs.Item
@@ -115,9 +117,7 @@ export default function ProductPage() {
               {t("shop-products-title")}
             </Breadcrumbs.Item>
           )}
-          {displayTitle && (
-            <Breadcrumbs.Item>{displayTitle}</Breadcrumbs.Item>
-          )}
+          {displayTitle && <Breadcrumbs.Item>{displayTitle}</Breadcrumbs.Item>}
         </Breadcrumbs>
 
         {isLoading && (
@@ -138,9 +138,7 @@ export default function ProductPage() {
           </Card>
         )}
 
-        {product && (
-          <ProductCardFull product={product} />
-        )}
+        {product && <ProductCardFull product={product} />}
 
         {!isLoading && !product && !isError && (
           <Card>
@@ -150,6 +148,6 @@ export default function ProductPage() {
           </Card>
         )}
       </div>
-    </DefaultLayout>
+    </>
   );
 }

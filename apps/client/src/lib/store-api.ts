@@ -151,6 +151,11 @@ export interface StoreVariant {
   tax_rate_percentage?: number | null;
   tax_inclusive?: boolean;
   tax_display_name?: string | null;
+  /** Options set in Admin → Products (migration 040). */
+  color?: string | null;
+  size?: string | null;
+  /** out_of_stock: can't be added to the cart; preorder: shown as "Pre-order". */
+  availability?: "in_stock" | "out_of_stock" | "preorder";
 }
 
 /**
@@ -163,6 +168,8 @@ export interface StoreProduct {
   status?: string;
   variants: StoreVariant[];
   image_url?: string;
+  /** Photos in display order; the first is the cover. alt may be per-locale JSON. */
+  images?: { url: string; alt: string }[];
   vendor?: string | null;
   tags?: string[] | null;
   handle?: string | null;
@@ -215,6 +222,34 @@ export async function getProductsPage(
     ),
     pagination: resp.pagination,
   };
+}
+
+/** A home page section (Admin → Page builder), in display order. */
+export interface PublicHomeSection {
+  id: string;
+  type: "banner" | "catalogue" | "showcase";
+  /** Plain text or per-locale JSON; showcase sections only. */
+  title: string | null;
+  /** Showcase sections only: the category's products, in category order. */
+  products?: StoreProduct[];
+}
+
+/** Active home page sections. Empty showcase rows are already left out. */
+export async function getHomeSections(): Promise<PublicHomeSection[]> {
+  const data = await request<{ sections: PublicHomeSection[] }>(
+    `/v1/storefront/home`,
+  );
+
+  return data.sections ?? [];
+}
+
+/** Best-selling active products, most units sold first (may be empty). */
+export async function getBestSellers(limit = 12): Promise<StoreProduct[]> {
+  const data = await request<{ items: StoreProduct[] }>(
+    `/v1/storefront/best-sellers?limit=${limit}`,
+  );
+
+  return (data.items ?? []).filter((p) => p.variants && p.variants.length > 0);
 }
 
 /**
@@ -317,15 +352,22 @@ export interface CheckoutResponse {
  *
  * @param email - Customer email.
  * @param locale - Optional locale string.
+ * @param source - "buy_now" for the one-product Buy now checkout; omitted
+ *   (the server's default "cart") for the shopping cart.
  * @returns Promise resolving to CartResponse.
  */
 export async function createCart(
   email: string,
   locale?: string,
+  source: "cart" | "buy_now" = "cart",
 ): Promise<CartResponse> {
   return request<CartResponse>(`/v1/carts`, {
     method: "POST",
-    body: JSON.stringify({ customer_email: email, locale }),
+    body: JSON.stringify({
+      customer_email: email,
+      locale,
+      ...(source === "buy_now" ? { source } : {}),
+    }),
   });
 }
 
@@ -392,7 +434,9 @@ export async function getPaymentMethods(): Promise<PaymentMethodsResponse> {
 }
 
 /** Enabled method ids, in display order (Stripe first). */
-export function enabledPaymentMethods(m: PaymentMethodsResponse): PaymentMethodId[] {
+export function enabledPaymentMethods(
+  m: PaymentMethodsResponse,
+): PaymentMethodId[] {
   const ids: PaymentMethodId[] = [];
 
   if (m.stripe.enabled) ids.push("stripe");

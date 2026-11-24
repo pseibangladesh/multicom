@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   key_hash TEXT NOT NULL UNIQUE,
   key_prefix TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('public', 'admin')),
+  name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -226,6 +227,7 @@ CREATE TABLE IF NOT EXISTS products (
   title TEXT NOT NULL,
   description TEXT DEFAULT '',
   image_url TEXT,
+  images TEXT,
   shipping_class_id TEXT REFERENCES shipping_classes(id),
   vendor TEXT,
   tags TEXT,
@@ -253,6 +255,9 @@ CREATE TABLE IF NOT EXISTS variants (
   thumbnail_url TEXT,
   shipping_class_id TEXT REFERENCES shipping_classes(id),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'draft')),
+  color TEXT,
+  size TEXT,
+  availability TEXT NOT NULL DEFAULT 'in_stock' CHECK (availability IN ('in_stock', 'out_of_stock', 'preorder')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -309,6 +314,8 @@ CREATE TABLE IF NOT EXISTS carts (
   shipping_country TEXT,
   billing_same_as_shipping INTEGER DEFAULT 1,
   taxes_json TEXT,
+  -- 'buy_now': created by the Buy now page (one item, never the shopper's cart)
+  source TEXT NOT NULL DEFAULT 'cart' CHECK (source IN ('cart', 'buy_now')),
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -520,6 +527,47 @@ CREATE TABLE IF NOT EXISTS config (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- A signed-in customer's shopping cart (items JSON), so it follows them to
+-- any device. Signed-out shoppers keep theirs in the browser.
+CREATE TABLE IF NOT EXISTS customer_carts (
+  customer_id TEXT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+  items       TEXT NOT NULL DEFAULT '[]',
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Home page sections, in order (Admin → Page builder). The two built-in rows
+-- are seeded by migration 042_home_sections_seed.
+CREATE TABLE IF NOT EXISTS home_sections (
+  id            TEXT PRIMARY KEY,
+  type          TEXT NOT NULL CHECK (type IN ('banner', 'catalogue', 'showcase')),
+  title         TEXT,
+  category_id   TEXT REFERENCES categories(id) ON DELETE CASCADE,
+  product_limit INTEGER NOT NULL DEFAULT 12,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden')),
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_home_sections_status_sort ON home_sections (status, sort_order);
+
+CREATE TABLE IF NOT EXISTS banners (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  image_url TEXT,
+  image_alt TEXT NOT NULL DEFAULT '',
+  cta_primary_label TEXT,
+  cta_primary_href TEXT,
+  cta_secondary_label TEXT,
+  cta_secondary_href TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('active', 'draft')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_banners_status_sort ON banners (status, sort_order);
+
 CREATE TABLE IF NOT EXISTS ucp_checkout_sessions (
   id TEXT PRIMARY KEY,
   status TEXT NOT NULL DEFAULT 'incomplete',
@@ -634,8 +682,7 @@ CREATE INDEX IF NOT EXISTS idx_product_reviews_customer
 
 -- ============================================================
 -- SAVED CARTS (migration 026, column renamed in 038)
--- Original column was 'auth0_user_id' (Auth0 JWT sub claim).
--- Renamed to 'user_id' via migration 038 for Better Auth compatibility.
+-- 'user_id' is the Better Auth user id (the column was renamed in migration 038).
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS saved_carts (
@@ -664,6 +711,8 @@ CREATE TABLE IF NOT EXISTS categories (
   thumbnail_url TEXT,
   position      INTEGER NOT NULL DEFAULT 0,
   status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  -- 'showcase': only used by page-builder sections, never shown to shoppers as a category
+  visibility    TEXT NOT NULL DEFAULT 'listed' CHECK (visibility IN ('listed', 'showcase')),
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -847,6 +896,29 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
   private initialized = false;
   private keysInitialized = false;
   private auth: BetterAuthInstance | null = null;
+
+  /**
+   * Builds Better Auth once per DO instance. Sign-in requires a verified email
+   * (lib/auth.ts); store admins (ADMIN_EMAILS) are marked verified here so a
+   * deploy that turns verification on never locks them out.
+   */
+  private createAuthInstance(): BetterAuthInstance {
+    const admins = (this.env.ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    if (admins.length > 0) {
+      try {
+        this.sql.exec(
+          `UPDATE "user" SET email_verified = 1 WHERE email_verified = 0 AND lower(email) IN (${admins.map(() => '?').join(',')})`,
+          ...admins,
+        );
+      } catch (err) {
+        console.warn('[Auth] Could not mark admin accounts verified:', err);
+      }
+    }
+    return createAuth(this.env, this.ctx.storage);
+  }
 
   constructor(ctx: DurableObjectState, env: MerchantEnv) {
     super(ctx, env);
@@ -1705,6 +1777,56 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
           name: '039_marketplace_order_lines_inventory_deducted',
           sql: `ALTER TABLE marketplace_order_lines ADD COLUMN inventory_deducted INTEGER NOT NULL DEFAULT 0;`,
         },
+        // ── Migration 040 ── Admin modules: banners, variant options, API key names
+        { name: '040_banners', sql: `CREATE TABLE IF NOT EXISTS banners (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  image_url TEXT,
+  image_alt TEXT NOT NULL DEFAULT '',
+  cta_primary_label TEXT,
+  cta_primary_href TEXT,
+  cta_secondary_label TEXT,
+  cta_secondary_href TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('active', 'draft')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)` },
+        { name: '040_banners_idx_status_sort', sql: 'CREATE INDEX IF NOT EXISTS idx_banners_status_sort ON banners (status, sort_order)' },
+        { name: '040_variants_add_color', sql: 'ALTER TABLE variants ADD COLUMN color TEXT' },
+        { name: '040_variants_add_size', sql: 'ALTER TABLE variants ADD COLUMN size TEXT' },
+        {
+          name: '040_variants_add_availability',
+          sql: `ALTER TABLE variants ADD COLUMN availability TEXT NOT NULL DEFAULT 'in_stock'
+                CHECK (availability IN ('in_stock', 'out_of_stock', 'preorder'))`,
+        },
+        { name: '040_api_keys_add_name', sql: 'ALTER TABLE api_keys ADD COLUMN name TEXT' },
+        // Product image gallery (JSON array of {url, alt}; first is the cover).
+        { name: '041_products_add_images', sql: 'ALTER TABLE products ADD COLUMN images TEXT' },
+        // Buy now, page builder and showcase sections (spec 2026-11-23-buy-now-page-builder-design).
+        { name: '042_carts_add_source', sql: "ALTER TABLE carts ADD COLUMN source TEXT NOT NULL DEFAULT 'cart' CHECK (source IN ('cart', 'buy_now'))" },
+        { name: '042_categories_add_visibility', sql: "ALTER TABLE categories ADD COLUMN visibility TEXT NOT NULL DEFAULT 'listed' CHECK (visibility IN ('listed', 'showcase'))" },
+        { name: '042_home_sections', sql: `CREATE TABLE IF NOT EXISTS home_sections (
+  id            TEXT PRIMARY KEY,
+  type          TEXT NOT NULL CHECK (type IN ('banner', 'catalogue', 'showcase')),
+  title         TEXT,
+  category_id   TEXT REFERENCES categories(id) ON DELETE CASCADE,
+  product_limit INTEGER NOT NULL DEFAULT 12,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden')),
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+)` },
+        { name: '042_home_sections_idx', sql: 'CREATE INDEX IF NOT EXISTS idx_home_sections_status_sort ON home_sections (status, sort_order)' },
+        { name: '042_home_sections_seed', sql: `INSERT OR IGNORE INTO home_sections (id, type, sort_order, status) VALUES
+  ('builtin-banner', 'banner', 0, 'active'),
+  ('builtin-catalogue', 'catalogue', 100, 'active')` },
+        { name: '043_customer_carts', sql: `CREATE TABLE IF NOT EXISTS customer_carts (
+  customer_id TEXT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+  items       TEXT NOT NULL DEFAULT '[]',
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+)` },
       ];
 
       for (const migration of migrations) {
@@ -1815,10 +1937,15 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
    * cookie's signature and expiry are still fully checked.
    */
   async getSessionForCookie(cookieHeader: string): Promise<VerifiedSession | null> {
-    this.auth ??= createAuth(this.env, this.ctx.storage);
+    this.auth ??= this.createAuthInstance();
     const result = await this.auth.api.getSession({ headers: new Headers({ cookie: cookieHeader }) });
     if (!result?.user?.id || !result.user.email) return null;
-    return { userId: result.user.id, email: result.user.email, name: result.user.name ?? null };
+    return {
+      userId: result.user.id,
+      email: result.user.email,
+      name: result.user.name ?? null,
+      emailVerified: result.user.emailVerified === true,
+    };
   }
 
   /**
@@ -1834,7 +1961,7 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
     name: string;
     resetPassword: boolean;
   }): Promise<{ status: 'created' | 'password_reset' | 'exists'; userId: string }> {
-    this.auth ??= createAuth(this.env, this.ctx.storage);
+    this.auth ??= this.createAuthInstance();
     const ctx = await this.auth.$context;
     const email = input.email.trim().toLowerCase();
 
@@ -1845,6 +1972,10 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
 
     const existing = await ctx.internalAdapter.findUserByEmail(email, { includeAccounts: true });
     if (existing) {
+      // Created by an admin: the address is trusted (sign-in requires it).
+      if (!existing.user.emailVerified) {
+        await ctx.internalAdapter.updateUser(existing.user.id, { emailVerified: true });
+      }
       if (!input.resetPassword) return { status: 'exists', userId: existing.user.id };
       const hash = await ctx.password.hash(input.password);
       if (existing.accounts.some((a) => a.providerId === 'credential')) {
@@ -1874,7 +2005,7 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
   }
 
   private async handleAuth(request: Request, url: URL): Promise<Response> {
-    this.auth ??= createAuth(this.env, this.ctx.storage);
+    this.auth ??= this.createAuthInstance();
 
     // Compatibility endpoint used by the client: { session: null | {...} }
     if (url.pathname === '/api/auth/session' && request.method === 'GET') {

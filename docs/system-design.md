@@ -1,6 +1,6 @@
 # Bengal Exchange — System Design
 
-**Version:** 3.0 | **Updated:** 2026-11-22 | **Status:** Active
+**Version:** 3.1 | **Updated:** 2026-11-23 | **Status:** Active
 
 Bengal Exchange (repository `multicom`, npm package `bengal-exchange`) is a headless e-commerce platform that runs entirely on Cloudflare. This document describes how it is built today. For setup see [run-instructions.md](./run-instructions.md); for a step-by-step walk through login and sessions see [authentication.md](./authentication.md).
 
@@ -42,7 +42,7 @@ Bengal Exchange (repository `multicom`, npm package `bengal-exchange`) is a head
 | Digital goods | Downloadable files (R2, signed links) and AI token packages |
 | Marketplaces | Etsy, eBay and Amazon SP-API: connect, push listings/price/stock, import orders, send tracking |
 | AI | UCP endpoints for AI shopping agents; AI translation and review-moderation help; an MCP knowledge server |
-| Storefront + admin | One React 19 SPA with themes and 6 languages (RTL supported) |
+| Storefront + admin | One React 19 SPA with the Bengal theme (light/dark) and 7 languages (RTL supported) |
 
 All store data lives in **one Durable Object's SQLite database**. There is no D1 or external database.
 
@@ -464,11 +464,13 @@ Merchants register URLs and event filters in **Admin → Webhooks**.
 
 `apps/client` is one Vite SPA for the storefront and the admin dashboard.
 
-- **Storefront pages:** home (classic and luxury layouts), product, cart/checkout, success, order view, account (profile, orders, addresses, wishlist, saved carts), CMS pages, blog, API docs.
+- **Storefront pages:** home, product, cart/checkout, success, order view, account (profile, orders, addresses, wishlist, saved carts), CMS pages, blog, API docs.
 - **Admin (`/admin`):** products, categories, inventory, warehouses, orders, customers, reviews, analytics, regions, countries, currencies, shipping rates and classes, tax rates, email templates, webhooks, payment gateways, marketplaces, users and permissions.
 - **Auth:** a Better Auth session cookie (`credentials: 'include'`); the admin dashboard is shown only when `/v1/me` reports the admin role.
-- **Themes:** `classic` and `luxury`, set as `data-theme` on `<html>`. A signed-in user's choice is saved with `PATCH /v1/me/preferences`; a guest's choice is kept in `localStorage`. Theme definitions live in the `store_themes` table. The luxury theme uses `radius="none"`.
-- **i18n:** `src/locales` (en-US, fr-FR, es-ES, zh-CN, ar-SA, he-IL). Arabic and Hebrew switch to right-to-left. A unit test checks that every locale has the same keys.
+- **Theme:** a single Bengal theme (`data-theme="bengal"`, set before first paint by `index.html`) with light and dark modes. Tokens are in `src/styles/themes/bengal.css`, mapped onto HeroUI v3's CSS variables. Older slugs (`classic`, `luxury`, `luxury-dark`, `default`, `heroui_standard`), whether stored in user preferences, browser storage, `store_themes` rows or the `BENGAL_EXCHANGE_THEME`/`FUFUNI_THEME` env value, all resolve to `bengal`. The client no longer reads or writes a theme slug; the `store_themes` table and the `theme` field of `/v1/me/preferences` are kept but unused.
+- **Light/dark:** the `.dark` class on `<html>`, managed by `hooks/use-theme.ts`. The mode is saved in browser storage (`theme`) only after the visitor picks Light or Dark in the side menu or account preferences; until then it follows the system setting, including later changes.
+- **Shell:** the storefront header, side menu (profile, log in/out, language, light/dark, About/Blog/Contact) and footer are in `src/components/shell/`. Footer and menu links come from `src/config/navigation.ts` and only point at existing routes or CMS pages. Payment badges show only enabled gateways. Fonts are system stacks; there are no web fonts.
+- **i18n:** `src/locales` (en-US, fr-FR, es-ES, zh-CN, ar-SA, he-IL, bn-BD). The language list is in `src/lib/languages.ts`. Arabic and Hebrew switch `<html dir>` to right-to-left on every language change. A unit test checks that every locale has exactly the en-US keys (language-specific plural forms allowed) and keeps every `{{placeholder}}`.
 - **Conventions:** HeroUI components use `onPress`, not `onClick`.
 - **Hosting:** built with `npm run build:client:env` and published to GitHub Pages or any static host.
 

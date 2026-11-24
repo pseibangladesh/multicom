@@ -15,46 +15,85 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
- 
+
 /* Declare layer order before all imports — required when importing theme files into a named layer */
 @layer theme, base, components, utilities;
 
 @import "tailwindcss";
 @import "@heroui/styles";
 
-/* Luxury theme — activated via data-theme="luxury" on <html> */
-@import "./themes/luxury.css" layer(theme);
+/* Bengal theme (the only theme) — data-theme="bengal" on <html>, set in index.html */
+@import "./themes/bengal.css" layer(theme);
+@import "./shell.css";
+
+/*
+ * Dark mode follows the .dark class only (set by hooks/use-theme.ts and the
+ * pre-paint script). HeroUI's variant also matches prefers-color-scheme, which
+ * would turn dark: utilities on for a user who chose Light on a dark-mode OS.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Fonts — generate `font-serif` / `font-sans` utility classes */
-  --font-serif: "Playfair Display", Georgia, serif;
-  --font-sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* System font stacks only (no blocking web fonts). Bangla fallbacks included. */
+  --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", system-ui, -apple-system,
+    "Noto Sans Bengali", "Kohinoor Bangla", "Nirmala UI", sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
+    Georgia, serif;
 
-  /* Brand colour scale — warm neutral inspired by Waww.fr */
-  --color-brand-50: #f9f9f9;
-  --color-brand-100: #f3f3f3;
-  --color-brand-200: #e5e5e5;
-  --color-brand-300: #d4d4d4;
-  --color-brand-400: #a3a3a3;
-  --color-brand-500: #737373;
-  --color-brand-600: #525252;
-  --color-brand-700: #404040;
-  --color-brand-800: #262626;
-  --color-brand-900: #171717;
-  --color-brand: #171717;
+  --background-image-gradient-border-violet: linear-gradient(hsl(var(--heroui-background)), hsl(var(--heroui-background))), linear-gradient(83.87deg, #F54180, #9353D3);
 }
 
-/* Base HTML element styles */
+/* bg-bx-paper, text-bx-stone, border-bx-line … follow the active mode. */
+@theme inline {
+  --color-bx-paper: var(--bx-paper);
+  --color-bx-surface: var(--bx-surface);
+  --color-bx-surface-raised: var(--bx-surface-raised);
+  --color-bx-ink: var(--bx-ink);
+  --color-bx-ink-soft: var(--bx-ink-soft);
+  --color-bx-stone: var(--bx-stone);
+  --color-bx-line: var(--bx-line);
+  --color-bx-field-line: var(--bx-field-line);
+  --color-bx-primary: var(--bx-primary);
+  --color-bx-on-primary: var(--bx-on-primary);
+  --color-bx-indigo-tint: var(--bx-indigo-tint);
+  --color-bx-accent: var(--bx-accent);
+  --color-bx-accent-soft: var(--bx-accent-soft);
+}
+
 @layer base {
-  body {
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
+  html {
+    -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
+  }
+  body {
+    background: var(--bx-paper);
+    color: var(--bx-ink);
+    font: 400 1rem/1.6 var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--bx-accent);
+    outline-offset: 3px;
+  }
+  /* System serifs have no Bangla glyphs: Bangla headings use the sans stack. */
+  html[lang="bn-BD"] .font-display {
+    font-family: var(--font-sans);
   }
 }
 
-/* Custom utilities */
 @layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.015em;
+  }
+  /* Page container from the mock: 1240px max, fluid gutter. */
+  .bx-wrap {
+    max-width: var(--bx-max);
+    margin-inline: auto;
+    padding-inline: var(--bx-gutter);
+    width: 100%;
+  }
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -64,15 +103,17 @@
   }
 }
 
-/* Override component defaults in luxury theme */
-@layer components {
-  [data-theme="luxury"] .button,
-  [data-theme="luxury-dark"] .button {
-    @apply rounded-none;
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
-} 
-@theme {
-  --background-image-gradient-border-violet: linear-gradient(hsl(var(--heroui-background)), hsl(var(--heroui-background))), linear-gradient(83.87deg, #F54180, #9353D3);
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 /*

@@ -23,6 +23,7 @@
  * SOFTWARE.
  */
 
+import { saleBlockReason } from '../lib/storefront-settings';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import Stripe from 'stripe';
@@ -99,6 +100,7 @@ adminApp.openapi(getCart, async (c) => {
     region_id: cart.region_id,
     customer_email: cart.customer_email,
     locale: cart.locale,
+    source: cart.source ?? 'cart',
     items: items.map((i) => ({
       sku: i.sku,
       title: i.title,
@@ -136,7 +138,7 @@ const createCart = createRoute({
 });
 
 adminApp.openapi(createCart, async (c) => {
-  const { customer_email, region_id, locale } = c.req.valid('json');
+  const { customer_email, region_id, locale, source = 'cart' } = c.req.valid('json');
 
   if (!isValidEmail(customer_email)) {
     throw ApiError.invalidRequest('A valid customer_email is required');
@@ -173,13 +175,14 @@ adminApp.openapi(createCart, async (c) => {
   }
 
   await db.run(
-    `INSERT INTO carts (id, customer_email, currency, region_id, locale, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
-    [id, customer_email, currency, resolvedRegionId, locale || 'en-US', expiresAt]
+    `INSERT INTO carts (id, customer_email, currency, region_id, locale, expires_at, source) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, customer_email, currency, resolvedRegionId, locale || 'en-US', expiresAt, source]
   );
 
   return c.json({
     id,
     status: 'open' as const,
+    source,
     currency,
     region_id: resolvedRegionId,
     customer_email,
@@ -243,6 +246,9 @@ adminApp.openapi(addCartItems, async (c) => {
     const [variant] = await db.query<any>(`SELECT * FROM variants WHERE sku = ?`, [sku]);
     if (!variant) throw ApiError.notFound(`SKU not found: ${sku}`);
     if (variant.status !== 'active') throw ApiError.invalidRequest(`SKU not active: ${sku}`);
+    if (saleBlockReason(variant) === 'out_of_stock') {
+      throw ApiError.invalidRequest(`SKU out of stock: ${sku}`);
+    }
 
     if (variant.variant_type === 'physical') {
       const available = await getAvailableQty(db, sku);

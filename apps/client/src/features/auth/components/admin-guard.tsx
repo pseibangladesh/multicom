@@ -5,7 +5,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { adminAccess, loginRedirect } from "../admin-access";
 import { useAuth } from "../providers/use-auth";
 
-import { SiteLoading } from "@/shared/ui/feedback/site-loading";
+import { ContentLoading } from "@/shared/ui/feedback/content-loading";
 
 /**
  * Protects admin routes:
@@ -20,7 +20,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 
   switch (adminAccess({ isLoading, isAuthenticated, user })) {
     case "loading":
-      return <SiteLoading />;
+      return <ContentLoading />;
     case "login":
       return (
         <Navigate

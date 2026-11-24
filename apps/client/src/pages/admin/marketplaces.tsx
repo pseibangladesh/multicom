@@ -17,7 +17,6 @@ import {
   TextField,
 } from "@heroui/react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { getBaseURL } from "@/utils/base-url";
@@ -479,7 +478,7 @@ export default function MarketplacesPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="max-w-6xl mx-auto py-12 px-4 space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -852,6 +851,6 @@ export default function MarketplacesPage() {
           </Modal.Backdrop>
         </Modal>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

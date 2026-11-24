@@ -260,23 +260,19 @@ export type HonoEnv = {
 
 /**
  * Authentication role assigned to a request by the auth middleware.
- * - `'public'`  — unauthenticated or public-key request
- * - `'admin'`   — Admin API key or Auth0 token with `admin:store` permission
- * - `'oauth'`   — OAuth API key with specific scopes
- * - `'authadmin'`     — token with `admin:auth0` permission
- * - `'databaseadmin'` — token with `admin:database` permission
- * - `'aiadmin'`       — token with AI permission
- * - `'mail'`          — token with `mail:api` permission
- * - `'customer'`      — Auth0 token with no specific admin permission
+ * - `'public'`   — storefront `pk_` key
+ * - `'admin'`    — `sk_` key, or a session whose email is in ADMIN_EMAILS
+ * - `'oauth'`    — OAuth token with scopes (AI agents)
+ * - `'customer'` — a signed-in customer's session (customerAuthMiddleware)
  */
-export type AuthRole = 'public' | 'admin' | 'oauth' | 'authadmin' | 'databaseadmin' | 'aiadmin' | 'mail' | 'customer';
+export type AuthRole = 'public' | 'admin' | 'oauth' | 'customer';
 
 /**
  * Parsed authentication context stored as `c.var.auth` after the auth
  * middleware has successfully validated the incoming request.
  */
 export type AuthContext = {
-  role: AuthRole | AuthRole[];
+  role: AuthRole;
   stripeSecretKey: string | null;
   stripeWebhookSecret: string | null;
   oauthScopes?: string[];

@@ -4,8 +4,9 @@ import { drizzle } from 'drizzle-orm/durable-sqlite';
 import * as schema from '../db/schema';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { allowedOrigins, isAdminEmail } from './session';
+import { sendAuthEmail, type AuthEmailEnv } from './auth-email';
 
-export interface AuthEnv {
+export interface AuthEnv extends AuthEmailEnv {
   BETTER_AUTH_SECRET: string;
   ADMIN_EMAILS?: string;
   API_BASE_URL?: string;
@@ -50,10 +51,24 @@ export function createAuth(env: AuthEnv, storage: DurableObjectStorage) {
     database: drizzleAdapter(db, { provider: 'sqlite', schema }),
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false,
+      // Account data (orders, addresses, spend) is matched to customers by
+      // email, including orders placed as a guest. Without proof that the
+      // email is theirs, anyone could register someone else's address and
+      // read that person's history, so signing in needs a verified email.
+      requireEmailVerification: true,
       minPasswordLength: 8,
       sendResetPassword: async ({ user, url }) => {
-        console.log(`[Auth] Password reset requested for user ${user.email}, url=${url}`);
+        await sendAuthEmail(env, 'reset-password', user.email, url);
+      },
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      // An unverified sign-in is refused (403 EMAIL_NOT_VERIFIED) and gets a fresh link.
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
+      expiresIn: 60 * 60 * 24, // 24 hours
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendAuthEmail(env, 'verify-email', user.email, url);
       },
     },
     hooks: {

@@ -31,7 +31,6 @@ import {
   Tooltip,
 } from "@heroui/react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
@@ -209,7 +208,7 @@ export default function CurrenciesPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <AdminCrudLayout
         addLabel={t("admin-currencies-add")}
         filterPlaceholder={t("admin-currencies-filter-placeholder")}
@@ -436,6 +435,6 @@ export default function CurrenciesPage() {
           </Modal.Backdrop>
         </Modal>
       </AdminCrudLayout>
-    </DefaultLayout>
+    </>
   );
 }

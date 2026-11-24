@@ -64,31 +64,12 @@ E2E_ADMIN_PASSWORD=adminpassword
 
 ## Authentication Setup
 
-Setup scripts (`setup/user.setup.ts` and `setup/admin.setup.ts`) validate storage state fixtures. These fixtures are created by:
+The setup projects (`tests/setup/user.setup.ts`, `tests/setup/admin.setup.ts`) produce the session (Better Auth cookie) the authenticated projects run with:
 
-1. Manually logging into Auth0 Universal Login page with test credentials
-2. Exporting the storage state using Playwright's `context.storageState()`
-3. Saving to `e2e/fixtures/` as JSON files
+- With `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` (and `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD`) set, they sign in through the storefront `/login` page and save `e2e/fixtures/storage-state-{user,admin}.json`.
+- Otherwise an existing fixture file is reused.
 
-Example setup validation:
-```typescript
-// e2e/tests/setup/user.setup.ts
-import { test as setup, expect } from "@playwright/test";
-import * as fs from "fs";
-import * as path from "path";
-
-const FIXTURE_PATH = path.join(__dirname, "../../fixtures/storage-state-user.json");
-
-setup("validate user storage state exists", async () => {
-  const exists = fs.existsSync(FIXTURE_PATH);
-  expect(exists).toBe(true);
-  const raw = fs.readFileSync(FIXTURE_PATH, "utf-8");
-  const state = JSON.parse(raw);
-  expect(state.origins[0].localStorage.some(
-    (e: { name: string }) => e.name.startsWith("@@auth0spajs@@")
-  )).toBe(true);
-});
-```
+The accounts must have a confirmed email (sign-in is refused otherwise). The admin email must be in `ADMIN_EMAILS`; those are confirmed automatically. Fixture files hold live session cookies and are git-ignored.
 
 ## Writing New Specs
 

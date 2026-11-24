@@ -42,7 +42,7 @@ import { ucp } from './routes/ucp';
 import { adminMe } from './routes/me';
 import { adminUserPreferencesRouter } from './routes/user-preferences';
 import { adminSavedCartsRouter } from './routes/saved-carts';
-import { publicCategories, adminCategories } from './routes/categories';
+import { publicCategories, adminCategories, adminCategoryList } from './routes/categories';
 import { adminAnalytics } from './routes/analytics';
 import { reviews, adminReviews } from './routes/reviews';
 import { adminRegions } from './routes/regions';
@@ -60,6 +60,10 @@ import { customerOrderDownloads, publicDownloads } from './routes/downloads';
 import { customerAiTokensRouter, proxyAiTokensRouter, adminAiTokensRouter } from './routes/ai-tokens';
 import { sslcommerzCheckoutApp, sslcommerzIpnApp } from './routes/sslcommerz-ipn';
 import { adminSettings } from './routes/admin-settings';
+import { publicBanners, adminBanners } from './routes/banners';
+import { publicHome, adminHomeSections } from './routes/home-sections';
+import { adminApiKeys } from './routes/api-keys';
+import { publicStorefrontSettings, adminStorefrontSettings } from './routes/storefront-settings';
 import { publicPaymentMethods } from './routes/payment-methods';
 import { marketplaceRoutes } from './routes/marketplace';
 import { adminMarketplaceChannelRoutes } from './routes/marketplace/channels';
@@ -128,10 +132,13 @@ app.use('/.well-known/ucp', kvCacheMiddleware);
 app.use('/ucp/v1/products', kvCacheMiddleware);
 app.use('/ucp/v1/products/*', kvCacheMiddleware);
 app.use('/ucp/v1/categories', kvCacheMiddleware);
+app.use('/v1/storefront/home', kvCacheMiddleware);
 app.use('/v1/categories', kvInvalidateMiddleware);
 app.use('/v1/categories/*', kvInvalidateMiddleware);
 app.use('/v1/products', kvInvalidateMiddleware);
 app.use('/v1/products/*', kvInvalidateMiddleware);
+app.use('/v1/admin/home-sections', kvInvalidateMiddleware);
+app.use('/v1/admin/home-sections/*', kvInvalidateMiddleware);
 // demo-reset deletes products/categories outside those prefixes
 app.use('/v1/setup/demo-reset', kvInvalidateMiddleware);
 
@@ -140,8 +147,18 @@ app.route('/', sitemapRouter);         // /sitemap.xml — no auth
 app.route('/v1/orders', publicOrders);
 app.route('/v1/categories', publicCategories);
 app.route('/v1/payment-methods', publicPaymentMethods); // storefront: which gateways are on
+app.route('/v1/banners', publicBanners);                 // storefront: home-page banners
+app.route('/v1/storefront', publicStorefrontSettings);    // storefront: enabled languages
+app.route('/v1/storefront', publicHome);                  // storefront: home page sections
 // Admin settings
 app.route('/v1/admin', adminSettings);
+// Mounted here, before the '/v1' routers whose use('*', customerAuthMiddleware)
+// would otherwise reject admin API keys for every later /v1 route.
+app.route('/v1/admin/settings', adminStorefrontSettings); // languages, UCP switch, AI status
+app.route('/v1/admin/banners', adminBanners);
+app.route('/v1/admin/home-sections', adminHomeSections); // page builder
+app.route('/v1/admin/categories', adminCategoryList); // all categories incl. showcase-only (public lists hide them)
+app.route('/v1/admin/api-keys', adminApiKeys);
 
 // SSLCommerz Checkout (under carts)
 app.route('/v1/carts', sslcommerzCheckoutApp);

@@ -1,7 +1,8 @@
 // apps/merchant/src/routes/sslcommerz-ipn.ts
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { HonoEnv, ApiError, uuid, now } from '../types';
-import { getDb } from '../db';
+import { getDb, type Database } from '../db';
+import { linkOrderToCustomer } from '../lib/customers';
 import { dispatchWebhooks } from '../lib/webhooks';
 import { commitSale, reserveInventory, releaseReservation } from '../lib/inventory';
 import {
@@ -217,22 +218,85 @@ export const sslcommerzIpnApp = new OpenAPIHono<HonoEnv>();
  * server-side validation, never here. The target is always STORE_URL, so this
  * can't be used as an open redirect.
  */
-export function sslcommerzReturnLocation(storeUrl: string, result: string, tranId: string | null): string {
+export function sslcommerzReturnLocation(
+  storeUrl: string,
+  result: string,
+  tranId: string | null,
+  /** A Buy now payment: its item, or 'buy_now' when the item can't be found. */
+  buyNow: BuyNowReturn | 'buy_now' | null = null,
+): string {
   const base = storeUrl.replace(/\/+$/, '');
   if (result === 'success') {
-    return `${base}/success?gateway=sslcommerz${tranId ? `&tran_id=${encodeURIComponent(tranId)}` : ''}`;
+    return `${base}/success?gateway=sslcommerz${tranId ? `&tran_id=${encodeURIComponent(tranId)}` : ''}${buyNow ? '&source=buy_now' : ''}`;
   }
-  return `${base}/cart?payment=${result === 'cancel' ? 'cancelled' : 'failed'}`;
+  const payment = result === 'cancel' ? 'cancelled' : 'failed';
+  if (buyNow && buyNow !== 'buy_now') {
+    const q = new URLSearchParams({ product: buyNow.productId, sku: buyNow.sku, qty: String(buyNow.qty), payment });
+    return `${base}/buy-now?${q.toString()}`;
+  }
+  return `${base}/cart?payment=${payment}`;
+}
+
+/** The one product of a Buy now checkout, so the shopper can go back to it. */
+export interface BuyNowReturn {
+  productId: string;
+  sku: string;
+  qty: number;
+}
+
+/**
+ * Was this payment a Buy now checkout? The order (found by tran_id, which is
+ * never cleared) gives the item; its cart is the one that stored the tran_id,
+ * or, once a FAILED IPN has reopened that cart and cleared it, the value_a cart
+ * id SSLCommerz posts back. That cart only counts when it is a buy_now cart of
+ * the same shopper. Navigation only: nothing here changes an order or a cart.
+ */
+async function findBuyNowReturn(db: Database, tranId: string | null, valueA: string | null): Promise<BuyNowReturn | 'buy_now' | null> {
+  if (!tranId) return null;
+  const [order] = await db.query<{ id: string; customer_email: string }>(
+    `SELECT id, customer_email FROM orders WHERE sslcommerz_tran_id = ? AND payment_gateway = 'sslcommerz'`,
+    [tranId],
+  );
+  if (!order) return null;
+  const [cart] = await db.query<{ source: string; customer_email: string }>(
+    `SELECT source, customer_email FROM carts
+     WHERE stripe_checkout_session_id = ? OR id = ?
+     ORDER BY (stripe_checkout_session_id = ?) DESC LIMIT 1`,
+    [tranId, valueA ?? '', tranId],
+  );
+  if (!cart || cart.source !== 'buy_now' || cart.customer_email !== order.customer_email) return null;
+  // From here on it is a Buy now payment, item or not: the success page must keep the cart.
+  try {
+    const [item] = await db.query<{ sku: string; qty: number; product_id: string | null }>(
+      `SELECT oi.sku, oi.qty, v.product_id FROM order_items oi
+       LEFT JOIN variants v ON v.sku = oi.sku
+       WHERE oi.order_id = ? ORDER BY oi.rowid LIMIT 1`,
+      [order.id],
+    );
+    return item?.product_id ? { productId: item.product_id, sku: item.sku, qty: item.qty } : 'buy_now';
+  } catch (err) {
+    console.error('SSLCommerz return: Buy now item lookup failed', err);
+    return 'buy_now';
+  }
 }
 
 sslcommerzIpnApp.on(['GET', 'POST'], '/return/:result', async (c) => {
   let tranId = c.req.query('tran_id') ?? null;
+  let valueA = c.req.query('value_a') ?? null;
   if (c.req.method === 'POST') {
     const form = new URLSearchParams(await c.req.text());
     tranId = form.get('tran_id') ?? tranId;
+    valueA = form.get('value_a') ?? valueA;
   }
   const storeUrl = c.env.STORE_URL || 'http://localhost:5173';
-  return c.redirect(sslcommerzReturnLocation(storeUrl, c.req.param('result'), tranId), 303);
+  let buyNow: BuyNowReturn | 'buy_now' | null = null;
+  try {
+    buyNow = await findBuyNowReturn(getDb(c.var.db), tranId, valueA);
+  } catch (err) {
+    // Never block the shopper's way back over this lookup.
+    console.error('SSLCommerz return: Buy now lookup failed', err);
+  }
+  return c.redirect(sslcommerzReturnLocation(storeUrl, c.req.param('result'), tranId, buyNow), 303);
 });
 
 const ipnRoute = createRoute({
@@ -341,13 +405,9 @@ sslcommerzIpnApp.openapi(ipnRoute, async (c) => {
       }
     }
 
-    if (order.customer_id) {
-      await db.run(
-        `UPDATE customers SET order_count = order_count + 1, total_spent_cents = total_spent_cents + ?,
-         last_order_at = ?, updated_at = ? WHERE id = ?`,
-        [order.total_cents, now(), now(), order.customer_id]
-      );
-    }
+    // Link to the customer (created if this is their first order) and
+    // recalculate their order count and money spent from their orders.
+    await linkOrderToCustomer(db, order.id, { name: order.shipping_name ?? null });
 
     // Same as the Stripe webhook: keep the cart from being treated as abandoned.
     await db.run(
