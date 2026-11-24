@@ -24,7 +24,7 @@ const topic: Topic = {
     'Routes mounted at /v1/webhooks (admin-only, bearerAuth). POST / creates; GET / lists; GET /:id gets detail + last 20 deliveries; PATCH /:id updates url/events/status; DELETE /:id deletes; POST /:id/rotate-secret rotates secret; GET /:id/deliveries/:deliveryId gets one delivery; POST /:id/deliveries/:deliveryId/retry retries.',
     'Secret format: "whsec_" + 64 hex chars (32 random bytes via generateWebhookSecret()). Returned only at creation and rotation — never exposed again.',
     'Payload envelope: { id: string (delivery UUID), type: WebhookEventType, created_at: ISO8601, data: Record<string, unknown> }.',
-    'Delivery HTTP headers: Content-Type: application/json, X-Fufuni-Signature (HMAC-SHA256 hex of raw JSON body), X-Fufuni-Timestamp (Unix seconds integer), X-Fufuni-Delivery-Id (delivery UUID), User-Agent: Fufuni-Webhook/1.0.',
+    'Delivery HTTP headers: Content-Type: application/json, X-Bengal-Exchange-Signature (HMAC-SHA256 hex of raw JSON body), X-Bengal-Exchange-Timestamp (Unix seconds integer), X-Bengal-Exchange-Delivery-Id (delivery UUID), User-Agent: Bengal-Exchange-Webhook/1.0.',
     'HMAC uses Web Crypto (crypto.subtle) — no Node.js dependency. Works in Cloudflare Workers. Signature is over the full JSON-serialised payload string.',
     'Retry: MAX_ATTEMPTS=3. Back-off delay between retries: Math.pow(2, attempt) * 1000ms → 2s then 4s. 4xx responses (except 429) fail permanently without retry. 5xx / network errors trigger retry.',
     'ai_tokens.key_created payload data: { customer_id, order_id, api_key (fufkey_[40 chars]), credited_units, balance_units }. Fired on first AI token purchase when a new fufkey_ key is auto-generated.',

@@ -14,7 +14,6 @@ import {
 } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
-import DefaultLayout from "@/layouts/default";
 import { getBaseURL } from "@/utils/base-url";
 
 /**
@@ -61,7 +60,7 @@ export default function AccountLayout() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar Navigation */}
         <aside className="w-full lg:w-64">
@@ -138,10 +137,10 @@ export default function AccountLayout() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0">
           <Outlet />
-        </main>
+        </div>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

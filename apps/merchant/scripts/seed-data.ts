@@ -291,67 +291,57 @@ export interface CurrencyCountryMaps {
   countryMap: Record<string, string>;
 }
 
+const BASE_CURRENCIES = [
+  { code: 'EUR', display_name: 'Euro', symbol: '€', decimal_places: 2 },
+  { code: 'GBP', display_name: 'British Pound', symbol: '£', decimal_places: 2 },
+  { code: 'USD', display_name: 'US Dollar', symbol: '$', decimal_places: 2 },
+];
+
 /**
- * Creates currencies and countries via the API
- * Returns maps of code/currency_id and code/country_id for use in region creation
+ * Creates currencies and countries via the API. Idempotent: existing rows are
+ * matched by code (both columns are UNIQUE) and only the missing ones are
+ * created, so a run that failed halfway can simply be started again.
+ * Returns maps of code/currency_id and code/country_id for use in region creation.
  */
 export async function seedCurrenciesAndCountries(api: ApiFunction): Promise<CurrencyCountryMaps> {
-  console.log('💱 Creating currencies...');
-  const currencies = await Promise.all([
-    api('/v1/regions/currencies', {
-      code: 'EUR',
-      display_name: 'Euro',
-      symbol: '€',
-      decimal_places: 2,
-    }),
-    api('/v1/regions/currencies', {
-      code: 'GBP',
-      display_name: 'British Pound',
-      symbol: '£',
-      decimal_places: 2,
-    }),
-    api('/v1/regions/currencies', {
-      code: 'USD',
-      display_name: 'US Dollar',
-      symbol: '$',
-      decimal_places: 2,
-    }),
-  ]);
+  console.log('💱 Currencies...');
+  const { items: existingCurrencies } = await api('/v1/regions/currencies?limit=500');
+  const currencyMap: Record<string, string> = {};
+  for (const c of existingCurrencies as Array<{ code: string; id: string }>) currencyMap[c.code] = c.id;
 
-  const currencyMap = {
-    EUR: currencies[0].id,
-    GBP: currencies[1].id,
-    USD: currencies[2].id,
-  };
+  for (const currency of BASE_CURRENCIES) {
+    if (currencyMap[currency.code]) {
+      console.log(`   ↩  ${currency.code} already exists`);
+      continue;
+    }
+    const created = await api('/v1/regions/currencies', currency);
+    currencyMap[currency.code] = created.id;
+    console.log(`   ✅ ${currency.code} created`);
+  }
 
-  console.log('🌍 Creating countries (batch)...');
+  console.log('🌍 Countries...');
   const allCountries = [...EUROPEAN_COUNTRIES, ...UK_COUNTRIES, ...US_COUNTRIES, ...OTHER_COUNTRIES];
-
-  console.log(`   Total countries from lists: ${allCountries.length}`);
 
   // Deduplicate by country code (keep first occurrence)
   const seenCodes = new Set<string>();
   const uniqueCountries = allCountries.filter((country) => {
-    if (seenCodes.has(country.code)) {
-      return false;
-    }
+    if (seenCodes.has(country.code)) return false;
     seenCodes.add(country.code);
     return true;
   });
 
-  console.log(`   Unique countries after deduplication: ${uniqueCountries.length}`);
-
-  // Create all countries in one batch request
-  const batchResponse = await api('/v1/regions/countries/batch', {
-    countries: uniqueCountries,
-  });
-
   const countryMap: Record<string, string> = {};
-  for (const country of batchResponse.items) {
-    countryMap[country.code] = country.id;
-  }
+  const { items: existingCountries } = await api('/v1/regions/countries/batch');
+  for (const c of existingCountries as Array<{ code: string; id: string }>) countryMap[c.code] = c.id;
 
-  console.log(`   ✅ Created ${batchResponse.items.length} countries in one batch`);
+  const missing = uniqueCountries.filter((c) => !countryMap[c.code]);
+  if (missing.length > 0) {
+    const batchResponse = await api('/v1/regions/countries/batch', { countries: missing });
+    for (const country of batchResponse.items) countryMap[country.code] = country.id;
+  }
+  console.log(
+    `   ✅ ${missing.length} created, ${uniqueCountries.length - missing.length} already existed`
+  );
 
   return { currencyMap, countryMap };
 }

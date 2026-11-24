@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 
 import { OpenAPI } from "@/components/openapi";
-import DefaultLayout from "@/layouts/default";
 
 export function SwaggerPage() {
   const { t } = useTranslation();
@@ -17,7 +16,7 @@ export function SwaggerPage() {
   const description = t("api-server");
 
   return (
-    <DefaultLayout>
+    <>
       <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
         <OpenAPI
           dataServers={dataServers}
@@ -25,6 +24,6 @@ export function SwaggerPage() {
           source={source}
         />
       </section>
-    </DefaultLayout>
+    </>
   );
 }

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ronan LE MEILLAT - SCTG Development
  * License: AGPL-3.0-or-later
  *
- * base.ts — Shared types, constants and helpers for the Fufuni MCP knowledge-base generator.
+ * base.ts — Shared types, constants and helpers for the Bengal Exchange MCP knowledge-base generator.
  * Imported by individual topic files and by generate.ts.
  */
 
@@ -39,8 +39,8 @@ export type Topic = {
 
 // ── Shared system prompt fragment reused across topics ──────────────────────
 
-export const BASE_SYSTEM = `You are a senior TypeScript developer documenting the Fufuni e-commerce framework.
-Fufuni runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod-OpenAPI),
+export const BASE_SYSTEM = `You are a senior TypeScript developer documenting the Bengal Exchange e-commerce framework.
+Bengal Exchange runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod-OpenAPI),
 and React 19 + Vite + HeroUI v3 for the frontend.
 
 WRITING RULES:
@@ -59,14 +59,14 @@ REQUIRED FIRST TWO LINES: Before any Markdown heading, output exactly these two 
 <!--mcp-description: <one sentence ≤ 200 chars answering "when should an AI call this tool?">-->
 <!--mcp-tags: ["tag1","tag2","tag3"]-->
 Tags rules: 3–6 items, lowercase kebab-case, chosen ONLY from this approved vocabulary:
-  admin, ai, api, auth, auth0, backend, catalog, checkout, ci, cloudflare,
+  admin, ai, api, auth, backend, catalog, checkout, ci, cloudflare,
   commerce, crud, data, database, design, documents, durable-object, e2e,
   email, events, frontend, general, hono, i18n, images, integration, inventory,
   invoicing, localization, migrations, moderation, observability, orders,
   payments, products, react, reviews, schema, security, setup, storage, stripe,
   testing, theming, ucp, ui, user, webhooks
 Example:
-<!--mcp-description: Call this when adding a Hono route, middleware, or sub-router to the Fufuni backend.-->
+<!--mcp-description: Call this when adding a Hono route, middleware, or sub-router to the Bengal Exchange backend.-->
 <!--mcp-tags: ["backend","api","hono"]-->`;
 
 // ── Helper ────────────────────────────────────────────────────────────────────

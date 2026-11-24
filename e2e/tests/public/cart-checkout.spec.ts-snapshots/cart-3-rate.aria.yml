@@ -1,0 +1,30 @@
+- main:
+  - heading "Shopping Cart" [level=1]
+  - img "Pack of Golf Tees"
+  - paragraph: Pack of Golf Tees
+  - paragraph: /€\d+\.\d+/
+  - button "Decrease quantity": –
+  - text: "2"
+  - button "Increase quantity": +
+  - button "Remove"
+  - paragraph: /€\d+\.\d+/
+  - img "Tennis Racket Cover"
+  - paragraph: Tennis Racket Cover
+  - paragraph: /€\d+\.\d+/
+  - button "Decrease quantity": –
+  - text: "1"
+  - button "Increase quantity": +
+  - button "Remove"
+  - paragraph: /€\d+\.\d+/
+  - heading "Shipping Method" [level=2]
+  - radiogroup:
+    - paragraph: Standard Shipping
+    - paragraph: Standard international shipping
+    - paragraph: "/Delivery: 5–\\d+ business days/"
+    - paragraph: /€\d+\.\d+/
+  - button "Previous"
+  - button "Continue to Payment"
+  - button "Back to Cart"
+  - complementary:
+    - heading "Order summary" [level=2]
+    - text: /Subtotal €\d+\.\d+ Incl\. VAT €\d+\.\d+ Total €\d+\.\d+/

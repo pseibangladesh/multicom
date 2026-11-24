@@ -19,21 +19,48 @@
       "new_sqlite_classes": ["MerchantDO"]
     }
   ],
-
   "r2_buckets": [
     {
-      "binding": "IMAGES"
+      "binding": "IMAGES",
+      "bucket_name": "multicom-images"
     },
     {
-      "binding": "DIGITAL_ASSETS_BUCKET"
+      "binding": "DIGITAL_ASSETS_BUCKET",
+      "bucket_name": "multicom-digital-assets"
     }
   ],
 	"kv_namespaces": [
 		{
 			"binding": "KV_CACHE",
-			"id": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+			"id": "2fb78ccfe6354987b5dafd81907586da"
 		}
 	],
+  // Marketplace sync jobs. The API produces (POST /v1/marketplace/:id/sync/*)
+  // and this same Worker consumes (the `queue` export in src/index.ts).
+  // Create both queues once per account:
+  //   npx wrangler queues create multicom-marketplace-sync
+  //   npx wrangler queues create multicom-marketplace-sync-dlq
+  "queues": {
+    "producers": [
+      {
+        "binding": "MARKETPLACE_SYNC_QUEUE",
+        "queue": "multicom-marketplace-sync"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "multicom-marketplace-sync",
+        // One message at a time: jobs share each marketplace's API rate limit.
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_concurrency": 1,
+        // Keep in step with MAX_ATTEMPTS in src/lib/marketplace/sync-jobs.ts.
+        "max_retries": 5,
+        "dead_letter_queue": "multicom-marketplace-sync-dlq"
+      }
+    ]
+  },
+
   "vars": {
     "IMAGES_URL": ""
   },

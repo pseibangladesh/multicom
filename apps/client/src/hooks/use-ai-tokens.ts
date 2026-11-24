@@ -31,6 +31,7 @@ export function useAiTokens() {
     setError(null);
     try {
       const data = await auth.getJson(`${apiBase}/v1/me/ai-tokens/balance`);
+
       setBalance(data);
     } catch {
       setError("load-failed");
@@ -47,8 +48,11 @@ export function useAiTokens() {
     async (apiKey: string): Promise<boolean> => {
       if (!auth?.postJson) return false;
       try {
-        await auth.postJson(`${apiBase}/v1/me/ai-tokens/link`, { api_key: apiKey });
+        await auth.postJson(`${apiBase}/v1/me/ai-tokens/link`, {
+          api_key: apiKey,
+        });
         await fetchBalance();
+
         return true;
       } catch {
         return false;
@@ -60,13 +64,23 @@ export function useAiTokens() {
   const unlinkApiKey = useCallback(async (): Promise<boolean> => {
     if (!auth?.patchJson) return false;
     try {
-      await auth.patchJson(`${apiBase}/v1/me/profile`, { ai_proxy_api_key: null });
+      await auth.patchJson(`${apiBase}/v1/me/profile`, {
+        ai_proxy_api_key: null,
+      });
       await fetchBalance();
+
       return true;
     } catch {
       return false;
     }
   }, [auth, apiBase, fetchBalance]);
 
-  return { balance, loading, error, linkApiKey, unlinkApiKey, refetch: fetchBalance };
+  return {
+    balance,
+    loading,
+    error,
+    linkApiKey,
+    unlinkApiKey,
+    refetch: fetchBalance,
+  };
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@fufuni/e2e",
+  "name": "@bengal-exchange/e2e",
   "private": true,
   "scripts": {
     "postinstall": "npx playwright install --with-deps chromium firefox",
@@ -12,7 +12,7 @@
     "test:dev:public": "PLAYWRIGHT_ENV=local playwright test --project=public-chromium",
     "test:dev:auth": "PLAYWRIGHT_ENV=local playwright test --project=auth-user",
     "test:dev:admin": "PLAYWRIGHT_ENV=local playwright test --project=auth-admin",
-    "test:demo": "PLAYWRIGHT_BASE_URL=https://sctg-development.github.io/fufuni/ playwright test",
+    "test:demo": "PLAYWRIGHT_BASE_URL=https://pseibangladesh.github.io/multicom/ playwright test",
     "test:url": "playwright test",
     "report": "playwright show-report ../playwright-report",
     "codegen": "playwright codegen",

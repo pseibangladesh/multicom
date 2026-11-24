@@ -31,7 +31,6 @@ import {
   Tooltip,
 } from "@heroui/react";
 
-import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
@@ -225,7 +224,7 @@ export default function CountriesPage() {
   };
 
   return (
-    <DefaultLayout>
+    <>
       <AdminCrudLayout
         addLabel={t("admin-countries-add")}
         filterPlaceholder={t("admin-common-search")}
@@ -462,6 +461,6 @@ export default function CountriesPage() {
           </Modal.Backdrop>
         </Modal>
       </AdminCrudLayout>
-    </DefaultLayout>
+    </>
   );
 }

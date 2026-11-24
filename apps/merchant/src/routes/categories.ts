@@ -32,6 +32,8 @@ import { z } from 'zod';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { getDb } from '../db';
 import { authMiddleware, adminOnly } from '../middleware/auth';
+import { parseProductImages } from '../lib/product-images';
+import { checkCategoryNesting, listedCategorySql, type CategoryVisibility } from '../lib/category-visibility';
 import {
   CategoryResponse,
   CategoryListResponse,
@@ -76,8 +78,8 @@ publicApp.openapi(listCategoriesRoute, async (c) => {
   const db = getDb(c.var.db);
   try {
     const rows = await db.query<any>(
-      `SELECT id, handle, name, description, parent_id, position, image_url, status, created_at, updated_at
-       FROM categories WHERE status = 'active'
+      `SELECT id, handle, name, description, parent_id, position, image_url, status, visibility, created_at, updated_at
+       FROM categories WHERE status = 'active' AND ${listedCategorySql()}
        ORDER BY position ASC, name ASC`
     );
     return c.json({ items: rows }, 200);
@@ -113,7 +115,7 @@ publicApp.openapi(getCategoryByHandleRoute, async (c) => {
   const db = getDb(c.var.db);
   try {
     const [category] = await db.query<any>(
-      `SELECT * FROM categories WHERE handle = ? AND status = 'active'`,
+      `SELECT * FROM categories WHERE handle = ? AND status = 'active' AND ${listedCategorySql()}`,
       [handle]
     );
     if (!category) throw ApiError.notFound(`Category with handle "${handle}" not found`);
@@ -159,7 +161,7 @@ publicApp.openapi(getCategoryProductsRoute, async (c) => {
     const limit = Math.min(parseInt(l ?? '20'), 100);
 
     const [category] = await db.query<{ id: string }>(
-      `SELECT id FROM categories WHERE handle = ? AND status = 'active'`,
+      `SELECT id FROM categories WHERE handle = ? AND status = 'active' AND ${listedCategorySql()}`,
       [handle]
     );
     if (!category) throw ApiError.notFound(`Category "${handle}" not found`);
@@ -214,38 +216,48 @@ publicApp.openapi(getCategoryProductsRoute, async (c) => {
     // Build response items with variants array
     const items = products.map((p: any) => {
       const variants = (variantsByProduct[p.id] || []).map((v: any) => {
-        const code = (v.tax_code as string | null) ?? null;
-        const taxRate = code ? taxRateByCode[code] : null;
-        const resolved = taxRate || defaultTaxRate;
-        return {
-          id: v.id,
-          sku: v.sku,
-          title: v.title,
-          price_cents: v.price_cents,
-          currency: v.currency ?? 'USD',
-          image_url: null,
-          thumbnail_url: v.thumbnail_url ?? null,
-          weight_g: v.weight_g ?? 0,
-          requires_shipping: v.requires_shipping !== 0,
-          barcode: v.barcode ?? null,
-          compare_at_price_cents: v.compare_at_price_cents ?? null,
-          tax_code: v.tax_code ?? null,
-          tax_rate_percentage: resolved?.rate_percentage ?? 0,
-          tax_display_name: resolved?.display_name ?? null,
-          tax_inclusive: (v.tax_inclusive as boolean | undefined) ?? defaultTaxInclusive,
-        };
-      });
+  const code = (v.tax_code as string | null) ?? null;
+  const taxRate = code ? taxRateByCode[code] : null;
+  const resolved = taxRate || defaultTaxRate;
+  return {
+    id: v.id,
+    sku: v.sku,
+    title: v.title,
+    price_cents: v.price_cents,
+    currency: v.currency ?? 'USD',
+    image_url: null,
+    thumbnail_url: v.thumbnail_url ?? null,
+    weight_g: v.weight_g ?? 0,
+    requires_shipping: v.requires_shipping !== 0,
+    barcode: v.barcode ?? null,
+    compare_at_price_cents: v.compare_at_price_cents ?? null,
+    tax_code: v.tax_code ?? null,
+    tax_rate_percentage: resolved?.rate_percentage ?? 0,
+    tax_display_name: resolved?.display_name ?? null,
+    tax_inclusive: (v.tax_inclusive as boolean | undefined) ?? defaultTaxInclusive,
+    // Add these three lines:
+    variant_type: v.variant_type ?? 'physical',
+    ai_token_units: v.ai_token_units ?? null,
+    dims_cm: v.dims_cm ?? null,
+    color: (v.color ?? null) as string | null,
+    size: (v.size ?? null) as string | null,
+    availability: (v.availability ?? 'in_stock') as 'in_stock' | 'out_of_stock' | 'preorder',
+  };
+});
+      const images = parseProductImages(p.images, p.image_url);
       return {
         id: p.id,
         title: p.title,
         handle: p.handle ?? null,
         status: p.status,
-        image_url: p.image_url ?? null,
+        image_url: images[0]?.url ?? null,
+        images,
         vendor: p.vendor ?? null,
         tags: p.tags ?? null,
         description: p.description ?? null,
         review_count: p.review_count ?? 0,
         average_rating: p.average_rating ?? 0,
+        created_at: p.created_at,
         variants,
       };
     });
@@ -322,11 +334,13 @@ adminApp.openapi(createCategoryRoute, async (c) => {
         throw ApiError.badRequest('Parent category does not exist');
       }
     }
+    const visibility: CategoryVisibility = body.visibility ?? 'listed';
+    await checkCategoryNesting(db, { visibility, parentId: body.parent_id ?? null });
 
     const id = uuid();
     await db.run(
-      `INSERT INTO categories (id, handle, name, description, parent_id, image_url, thumbnail_url, position, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO categories (id, handle, name, description, parent_id, image_url, thumbnail_url, position, status, visibility, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         body.handle,
@@ -337,6 +351,7 @@ adminApp.openapi(createCategoryRoute, async (c) => {
         body.thumbnail_url ?? null,
         body.position ?? 0,
         'active',
+        visibility,
         now(),
         now(),
       ]
@@ -394,8 +409,8 @@ adminApp.openapi(updateCategoryRoute, async (c) => {
   const db = getDb(c.var.db);
 
   try {
-    const [category] = await db.query<{ id: string }>(
-      `SELECT id FROM categories WHERE id = ?`,
+    const [category] = await db.query<{ id: string; parent_id: string | null; visibility: CategoryVisibility }>(
+      `SELECT id, parent_id, visibility FROM categories WHERE id = ?`,
       [id]
     );
     if (!category) throw ApiError.notFound('Category not found');
@@ -418,6 +433,14 @@ adminApp.openapi(updateCategoryRoute, async (c) => {
       if (!parent) {
         throw ApiError.badRequest('Parent category does not exist');
       }
+    }
+
+    if (body.visibility !== undefined || body.parent_id !== undefined) {
+      await checkCategoryNesting(db, {
+        id,
+        visibility: body.visibility ?? category.visibility,
+        parentId: body.parent_id !== undefined ? body.parent_id : category.parent_id,
+      });
     }
 
     const updates: string[] = [];
@@ -454,6 +477,10 @@ adminApp.openapi(updateCategoryRoute, async (c) => {
     if (body.status) {
       updates.push('status = ?');
       values.push(body.status);
+    }
+    if (body.visibility) {
+      updates.push('visibility = ?');
+      values.push(body.visibility);
     }
 
     updates.push('updated_at = ?');
@@ -511,6 +538,9 @@ adminApp.openapi(deleteCategoryRoute, async (c) => {
     );
     if (!category) throw ApiError.notFound('Category not found');
 
+    // Its page-builder sections go with it (also ON DELETE CASCADE; explicit in
+    // case foreign keys are off).
+    await db.run('DELETE FROM home_sections WHERE category_id = ?', [id]);
     await db.run('DELETE FROM categories WHERE id = ?', [id]);
     return c.json({ ok: true }, 200);
   } catch (error) {
@@ -617,4 +647,48 @@ adminApp.openapi(removeProductFromCategoryRoute, async (c) => {
   }
 });
 
-export { publicApp as publicCategories, adminApp as adminCategories };
+// ============================================================================
+// ADMIN LIST (GET /v1/admin/categories): every category, including
+// showcase-only and inactive ones. Public lists hide showcase-only categories
+// for everyone (their responses are cached and shared), so admin screens read
+// this instead.
+// ============================================================================
+
+const adminListApp = new OpenAPIHono<HonoEnv>();
+adminListApp.use('*', authMiddleware);
+
+const adminListRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Categories'],
+  summary: 'List all categories (admin)',
+  description:
+    'Every category, including showcase-only and inactive ones. With product_id, only the categories that product belongs to.',
+  security: [{ bearerAuth: ['legacy sk_', 'admin:store'] }],
+  middleware: [adminOnly] as const,
+  request: {
+    query: z.object({
+      product_id: z.string().uuid().optional(),
+    }),
+  },
+  responses: {
+    200: { content: { 'application/json': { schema: CategoryListResponse } }, description: 'Categories' },
+  },
+});
+
+adminListApp.openapi(adminListRoute, async (c) => {
+  const { product_id } = c.req.valid('query');
+  const db = getDb(c.var.db);
+  const rows = product_id
+    ? await db.query<any>(
+        `SELECT c.* FROM categories c
+         JOIN product_categories pc ON pc.category_id = c.id
+         WHERE pc.product_id = ?
+         ORDER BY c.position ASC, c.name ASC`,
+        [product_id],
+      )
+    : await db.query<any>(`SELECT * FROM categories ORDER BY position ASC, name ASC`);
+  return c.json({ items: rows }, 200);
+});
+
+export { publicApp as publicCategories, adminApp as adminCategories, adminListApp as adminCategoryList };

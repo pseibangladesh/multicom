@@ -26,7 +26,7 @@ export function useSeoMeta({
   currency,
 }: SeoMeta): void {
   useEffect(() => {
-    document.title = `${title} | Fufuni`;
+    document.title = `${title} | Bengal Exchange`;
     upsertMeta("name", "description", description ?? "");
     upsertMeta("property", "og:title", title);
     upsertMeta("property", "og:description", description ?? "");
@@ -38,7 +38,7 @@ export function useSeoMeta({
     }
 
     return () => {
-      document.title = "Fufuni";
+      document.title = "Bengal Exchange";
     };
   }, [title, description, imageUrl, type, priceCents, currency]);
 }

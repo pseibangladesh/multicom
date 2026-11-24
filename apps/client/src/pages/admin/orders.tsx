@@ -53,7 +53,6 @@ import {
 import { formatMoney } from "@/utils/currency";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
-import DefaultLayout from "@/layouts/default";
 
 // --- typings -------------------------------------------------------------
 /**
@@ -307,7 +306,7 @@ export default function OrdersPage() {
     formatMoney(cents, currency);
 
   return (
-    <DefaultLayout>
+    <>
       <div className="px-4 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 h-9">
@@ -837,6 +836,6 @@ export default function OrdersPage() {
           </Modal.Backdrop>
         </Modal>
       </div>
-    </DefaultLayout>
+    </>
   );
 }

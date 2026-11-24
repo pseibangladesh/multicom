@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Ronan LE MEILLAT
 // License: AGPL-3.0-or-later
 //
-// KV cache helpers for the Fufuni MCP Worker.
+// KV cache helpers for the Bengal Exchange MCP Worker.
 // Uses Cloudflare KV (KV_CACHE binding) to cache tool responses.
 //
 // Key format: `v{VERSION}:{MANIFEST_COMMIT}:{tool}:{fnv32a(params_json)}`

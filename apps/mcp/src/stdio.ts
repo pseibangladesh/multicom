@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Ronan LE MEILLAT
 // License: AGPL-3.0-or-later
 //
-// Local stdio entry point for the Fufuni MCP server.
+// Local stdio entry point for the Bengal Exchange MCP server.
 // Allows Claude for VS Code (and other stdio-only MCP clients) to run
 // this server as a local subprocess instead of connecting over HTTP.
 //
@@ -17,7 +17,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { KNOWLEDGE } from "./knowledge.js";
 import { MANIFEST } from "./manifest.js";
-import { registerFufuniTools } from "./tools.js";
+import { registerBengalExchangeTools } from "./tools.js";
 import process from "node:process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -84,11 +84,11 @@ class LoggingStdioServerTransport {
 }
 
 const server = new McpServer({
-  name: "Fufuni Knowledge Base",
+  name: "Bengal Exchange Knowledge Base",
   version: "2.0.0",
 });
 
-registerFufuniTools(server, { manifest: MANIFEST, knowledge: KNOWLEDGE, aiEncJson: aiJsonEnc, env: process.env as any as Env });
+registerBengalExchangeTools(server, { manifest: MANIFEST, knowledge: KNOWLEDGE, aiEncJson: aiJsonEnc, env: process.env as any as Env });
 
 const transport = new LoggingStdioServerTransport();
 await server.connect(transport);

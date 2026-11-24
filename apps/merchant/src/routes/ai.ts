@@ -25,7 +25,7 @@
 // apps/merchant/src/routes/ai.ts
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
-import { authMiddleware, databaseAdminOnly, aiAccessOnly } from '../middleware/auth';
+import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, type HonoEnv } from '../types';
 import { decryptAiConfig, selectModels, type AiConfig } from '../lib/ai-enc';
 
@@ -33,7 +33,7 @@ import { decryptAiConfig, selectModels, type AiConfig } from '../lib/ai-enc';
 // Never written to KV or disk — lives only in memory.
 let _configCache: AiConfig | null = null;
 
-async function loadConfig(env: HonoEnv['Bindings']): Promise<AiConfig | null> {
+export async function loadConfig(env: HonoEnv['Bindings']): Promise<AiConfig | null> {
   if (_configCache) return _configCache;
   const enc = await env.KV_CACHE.get('ai:config');
   if (!enc || !env.CRYPTOKEN) return null;
@@ -85,7 +85,7 @@ const aiParamsRoute = createRoute({
     'Selects a non-expired key randomly from the highest-priority model. ' +
     'Defaults to capability=chat and optionally filters by provider using the ?provider=<key> query parameter.',
   security: [{ bearerAuth: ['ai:api'] }],
-  middleware: [aiAccessOnly] as const,
+  middleware: [adminOnly] as const,
   request: { query: AiParamsQuery },
   responses: {
     200: {
@@ -198,7 +198,7 @@ const aiUploadRoute = createRoute({
   description:
     'Stores the raw ai.json.enc payload under the KV key "ai:config" so the worker can decrypt it at runtime.',
   security: [{ bearerAuth: ['admin:database'] }],
-  middleware: [databaseAdminOnly] as const,
+  middleware: [adminOnly] as const,
   request: {
     body: {
       content: {

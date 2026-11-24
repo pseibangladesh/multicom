@@ -6,6 +6,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+import { useSecuredApi } from "@/authentication";
+
 /**
  * Represents a product category as returned by the store API.
  */
@@ -18,6 +20,8 @@ export interface Category {
   image_url: string | null;
   thumbnail_url: string | null;
   status: "active" | "inactive";
+  /** "showcase": only for page-builder sections; shoppers never see it. */
+  visibility?: "listed" | "showcase";
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -92,6 +96,26 @@ export const useCategories = () => {
     },
     staleTime: 60 * 60 * 1000, // 1 hour
     gcTime: 24 * 60 * 60 * 1000, // 24 hours (formerly cacheTime)
+  });
+};
+
+/**
+ * Every category, for admin screens: including showcase-only and inactive
+ * ones, which the public list leaves out. Shares the "categories" query key
+ * prefix, so invalidating ["categories"] refreshes it too.
+ */
+export const useAdminCategories = () => {
+  const { getJson } = useSecuredApi();
+
+  return useQuery<Category[], Error>({
+    queryKey: ["categories", "admin"],
+    queryFn: async () => {
+      const data = await getJson(
+        `${import.meta.env.API_BASE_URL}/v1/admin/categories`,
+      );
+
+      return data.items || [];
+    },
   });
 };
 

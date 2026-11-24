@@ -24,6 +24,7 @@
  */
 
 import { type MerchantDO } from './do';
+import type { MarketplaceSyncMessage } from './lib/marketplace/sync-jobs';
 
 export type Env = {
   MERCHANT: DurableObjectNamespace<MerchantDO>;
@@ -60,6 +61,15 @@ export type Env = {
    * Base URL for the Better Auth instance (used for cookie callbacks).
    */
   API_BASE_URL?: string;
+
+  /**
+   * Comma-separated emails whose Better Auth sessions get the admin role.
+   * Any other session is treated as a customer.
+   */
+  ADMIN_EMAILS?: string;
+
+  /** Comma-separated browser origins allowed to send the session cookie. Falls back to STORE_URL. */
+  CORS_ORIGIN?: string;
 
   /** Database permission string. Defaults to `admin:database`. */
   DATABASE_PERMISSION?: string;
@@ -163,6 +173,61 @@ export type Env = {
     * Cloudflare AI Gateway bearer token. When set, adds the cf-aig-authorization header to AI requests.
     */
   CLOUDFLARE_AIG_TOKEN?: string;
+
+
+  /** Etsy app keystring (OAuth client_id). */
+  ETSY_CLIENT_ID?: string;
+  /** Etsy app shared secret; sent as x-api-key "keystring:shared_secret". */
+  ETSY_SHARED_SECRET?: string;
+  /** Registered Etsy callback URL. Default: API_BASE_URL + /v1/marketplace/connect/etsy/callback. */
+  ETSY_REDIRECT_URI?: string;
+  EBAY_CLIENT_ID?: string;
+  EBAY_CLIENT_SECRET?: string;
+  EBAY_RU_NAME?: string;
+  /** 'sandbox' targets api.sandbox.ebay.com / auth.sandbox.ebay.com. Default: production. */
+  EBAY_ENVIRONMENT?: string;
+  /**
+   * Notification API verification token (32–80 chars of [A-Za-z0-9_-]), the
+   * same value entered in the eBay developer portal. Secret.
+   */
+  EBAY_VERIFICATION_TOKEN?: string;
+  /** URL registered with eBay. Default: API_BASE_URL + /v1/marketplace/webhook/ebay. */
+  EBAY_NOTIFICATION_ENDPOINT?: string;
+  /** LWA client identifier of the SP-API app (amzn1.application-oa2-client.…). */
+  AMAZON_LWA_CLIENT_ID?: string;
+  /** LWA client secret. Secret. */
+  AMAZON_LWA_CLIENT_SECRET?: string;
+  /** Older names for the two above, still accepted. */
+  AMAZON_LWA_APP_ID?: string;
+  AMAZON_LWA_APP_SECRET?: string;
+  /** SP-API application ID (amzn1.sp.solution.…), used in the seller consent URL. */
+  AMAZON_SP_APP_ID?: string;
+  /** Amazon SP-API region: NA | EU | FE. Default NA. */
+  AMAZON_REGION?: string;
+  /** Marketplace to sell in when the seller has several. Default: US / UK / JP by region. */
+  AMAZON_MARKETPLACE_ID?: string;
+  /** "sandbox" uses the SP-API sandbox hosts. Default production. */
+  AMAZON_ENVIRONMENT?: string;
+  /** Registered OAuth redirect URI. Default: API_BASE_URL + /v1/marketplace/connect/amazon/callback. */
+  AMAZON_REDIRECT_URI?: string;
+  /** Seller Central origin for the consent page, if not the region default. */
+  AMAZON_SELLER_CENTRAL_URL?: string;
+  /** "true" while the app is a draft (adds version=beta to the consent URL). */
+  AMAZON_APP_DRAFT?: string;
+
+  /**
+   * Producer binding for marketplace sync jobs (wrangler.jsonc "queues").
+   * The same Worker consumes the queue (src/workers/marketplace-consumer.ts).
+   * Optional so that routes can answer 503 instead of crashing when unbound.
+   */
+  MARKETPLACE_SYNC_QUEUE?: Queue<MarketplaceSyncMessage>;
+
+  /**
+   * Bootstrap API keys. MerchantDO's /init handler stores their hashes on first
+   * run (scripts/init-remote.ts). Secrets; set with `wrangler secret put`.
+   */
+  MERCHANT_SK?: string;
+  MERCHANT_PK?: string;
 };
 
 /**
@@ -170,8 +235,8 @@ export type Env = {
  * Hono application layer via `getDb()`.  Matches the actual DO stub API.
  */
 export type DOStub = {
-  query: <T = unknown>(sql: string, params: unknown[]) => Promise<T[]>;
-  run: (sql: string, params: unknown[]) => Promise<{ changes: number }>;
+  query: <T = unknown>(sql: string, params?: unknown[]) => Promise<T[]>; 
+  run: (sql: string, params?: unknown[]) => Promise<{ changes: number }>; 
   broadcast: (event: { type: string; data: unknown; timestamp: string }) => void;
 };
 
@@ -195,23 +260,19 @@ export type HonoEnv = {
 
 /**
  * Authentication role assigned to a request by the auth middleware.
- * - `'public'`  — unauthenticated or public-key request
- * - `'admin'`   — Admin API key or Auth0 token with `admin:store` permission
- * - `'oauth'`   — OAuth API key with specific scopes
- * - `'authadmin'`     — token with `admin:auth0` permission
- * - `'databaseadmin'` — token with `admin:database` permission
- * - `'aiadmin'`       — token with AI permission
- * - `'mail'`          — token with `mail:api` permission
- * - `'customer'`      — Auth0 token with no specific admin permission
+ * - `'public'`   — storefront `pk_` key
+ * - `'admin'`    — `sk_` key, or a session whose email is in ADMIN_EMAILS
+ * - `'oauth'`    — OAuth token with scopes (AI agents)
+ * - `'customer'` — a signed-in customer's session (customerAuthMiddleware)
  */
-export type AuthRole = 'public' | 'admin' | 'oauth' | 'authadmin' | 'databaseadmin' | 'aiadmin' | 'mail' | 'customer';
+export type AuthRole = 'public' | 'admin' | 'oauth' | 'customer';
 
 /**
  * Parsed authentication context stored as `c.var.auth` after the auth
  * middleware has successfully validated the incoming request.
  */
 export type AuthContext = {
-  role: AuthRole | AuthRole[];
+  role: AuthRole;
   stripeSecretKey: string | null;
   stripeWebhookSecret: string | null;
   oauthScopes?: string[];

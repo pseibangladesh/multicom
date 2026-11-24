@@ -24,56 +24,56 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   // ─────────────────────────── ABOUT ──────────────────────────────────────
   about: {
     "en-US": {
-      title: "About Fufuni",
-      lead: "Fufuni is an open-source e-commerce platform built on Cloudflare's global edge network, designed to help merchants launch fast, scalable online stores without infrastructure headaches.",
+      title: "About Bengal Exchange",
+      lead: "Bengal Exchange is an open-source e-commerce platform built on Cloudflare's global edge network, designed to help merchants launch fast, scalable online stores without infrastructure headaches.",
       sections: [
         {
           heading: "Our Story",
-          body: "Fufuni was born from a simple frustration: existing e-commerce solutions were either too expensive, too complex, or too slow. We set out to build something different — a platform that leverages Cloudflare Workers and Durable Objects to deliver sub-millisecond response times at the edge, anywhere in the world.",
+          body: "Bengal Exchange was born from a simple frustration: existing e-commerce solutions were either too expensive, too complex, or too slow. We set out to build something different — a platform that leverages Cloudflare Workers and Durable Objects to deliver sub-millisecond response times at the edge, anywhere in the world.",
         },
         {
           heading: "Our Mission",
-          body: "Our mission is to democratize e-commerce by providing enterprise-grade infrastructure to every merchant, regardless of size. From a solo artisan to a rapidly growing brand, Fufuni scales with you — with no server management, no uptime worries, and no surprise bills.",
+          body: "Our mission is to democratize e-commerce by providing enterprise-grade infrastructure to every merchant, regardless of size. From a solo artisan to a rapidly growing brand, Bengal Exchange scales with you — with no server management, no uptime worries, and no surprise bills.",
         },
         {
           heading: "Our Values",
-          body: "We believe in open source, transparency, and developer empowerment. Every line of Fufuni's code is available on GitHub, and we actively welcome contributions. Privacy and security are core to our design — not afterthoughts.",
+          body: "We believe in open source, transparency, and developer empowerment. Every line of Bengal Exchange's code is available on GitHub, and we actively welcome contributions. Privacy and security are core to our design — not afterthoughts.",
         },
       ],
     },
     "fr-FR": {
-      title: "À propos de Fufuni",
-      lead: "Fufuni est une plateforme e-commerce open source construite sur le réseau mondial de Cloudflare, conçue pour aider les marchands à lancer des boutiques en ligne rapides et évolutives sans se soucier de l'infrastructure.",
+      title: "À propos de Bengal Exchange",
+      lead: "Bengal Exchange est une plateforme e-commerce open source construite sur le réseau mondial de Cloudflare, conçue pour aider les marchands à lancer des boutiques en ligne rapides et évolutives sans se soucier de l'infrastructure.",
       sections: [
         {
           heading: "Notre histoire",
-          body: "Fufuni est né d'une frustration simple : les solutions e-commerce existantes étaient soit trop coûteuses, soit trop complexes, soit trop lentes. Nous avons décidé de construire quelque chose de différent, une plateforme qui exploite la puissance des Cloudflare Workers et des Durable Objects.",
+          body: "Bengal Exchange est né d'une frustration simple : les solutions e-commerce existantes étaient soit trop coûteuses, soit trop complexes, soit trop lentes. Nous avons décidé de construire quelque chose de différent, une plateforme qui exploite la puissance des Cloudflare Workers et des Durable Objects.",
         },
         {
           heading: "Notre mission",
-          body: "Notre mission est de démocratiser le commerce en ligne en fournissant une infrastructure de niveau entreprise à chaque marchand, quelle que soit sa taille. De l'artisan indépendant à la marque en pleine croissance, Fufuni évolue avec vous sans gestion de serveurs ni mauvaises surprises.",
+          body: "Notre mission est de démocratiser le commerce en ligne en fournissant une infrastructure de niveau entreprise à chaque marchand, quelle que soit sa taille. De l'artisan indépendant à la marque en pleine croissance, Bengal Exchange évolue avec vous sans gestion de serveurs ni mauvaises surprises.",
         },
         {
           heading: "Nos valeurs",
-          body: "Nous croyons en l'open source, la transparence et l'autonomisation des développeurs. Chaque ligne de code de Fufuni est disponible sur GitHub. La confidentialité et la sécurité sont au cœur de notre conception, pas une réflexion après coup.",
+          body: "Nous croyons en l'open source, la transparence et l'autonomisation des développeurs. Chaque ligne de code de Bengal Exchange est disponible sur GitHub. La confidentialité et la sécurité sont au cœur de notre conception, pas une réflexion après coup.",
         },
       ],
     },
     "es-ES": {
-      title: "Acerca de Fufuni",
-      lead: "Fufuni es una plataforma de comercio electrónico de código abierto construida sobre la red global de Cloudflare, diseñada para ayudar a los comerciantes a lanzar tiendas en línea rápidas y escalables.",
+      title: "Acerca de Bengal Exchange",
+      lead: "Bengal Exchange es una plataforma de comercio electrónico de código abierto construida sobre la red global de Cloudflare, diseñada para ayudar a los comerciantes a lanzar tiendas en línea rápidas y escalables.",
       sections: [
         {
           heading: "Nuestra historia",
-          body: "Fufuni nació de una frustración simple: las soluciones de e-commerce existentes eran demasiado costosas, complejas o lentas. Decidimos construir algo diferente aprovechando el poder de Cloudflare Workers y Durable Objects para ofrecer tiempos de respuesta ultrarrápidos.",
+          body: "Bengal Exchange nació de una frustración simple: las soluciones de e-commerce existentes eran demasiado costosas, complejas o lentas. Decidimos construir algo diferente aprovechando el poder de Cloudflare Workers y Durable Objects para ofrecer tiempos de respuesta ultrarrápidos.",
         },
         {
           heading: "Nuestra misión",
-          body: "Nuestra misión es democratizar el comercio electrónico proporcionando infraestructura de nivel empresarial a cada comerciante, independientemente de su tamaño. Fufuni escala contigo sin gestión de servidores ni sorpresas en la factura.",
+          body: "Nuestra misión es democratizar el comercio electrónico proporcionando infraestructura de nivel empresarial a cada comerciante, independientemente de su tamaño. Bengal Exchange escala contigo sin gestión de servidores ni sorpresas en la factura.",
         },
         {
           heading: "Nuestros valores",
-          body: "Creemos en el código abierto, la transparencia y el empoderamiento de los desarrolladores. Todo el código de Fufuni está disponible en GitHub. La privacidad y la seguridad son fundamentales en nuestro diseño.",
+          body: "Creemos en el código abierto, la transparencia y el empoderamiento de los desarrolladores. Todo el código de Bengal Exchange está disponible en GitHub. La privacidad y la seguridad son fundamentales en nuestro diseño.",
         },
       ],
     },
@@ -96,38 +96,38 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "zh-CN": {
-      title: "关于 Fufuni",
-      lead: "Fufuni 是一个基于 Cloudflare 全球边缘网络的开源电商平台，旨在帮助商家无需担心基础设施即可快速搭建高性能、可扩展的在线商店。",
+      title: "关于 Bengal Exchange",
+      lead: "Bengal Exchange 是一个基于 Cloudflare 全球边缘网络的开源电商平台，旨在帮助商家无需担心基础设施即可快速搭建高性能、可扩展的在线商店。",
       sections: [
         {
           heading: "我们的故事",
-          body: "Fufuni 诞生于对现有电商解决方案的不满——它们要么太贵、要么太复杂、要么太慢。我们决定利用 Cloudflare Workers 和 Durable Objects 构建一个全新的解决方案，在全球任何地方实现毫秒级响应时间。",
+          body: "Bengal Exchange 诞生于对现有电商解决方案的不满——它们要么太贵、要么太复杂、要么太慢。我们决定利用 Cloudflare Workers 和 Durable Objects 构建一个全新的解决方案，在全球任何地方实现毫秒级响应时间。",
         },
         {
           heading: "我们的使命",
-          body: "我们的使命是让每一位商家都能享受企业级基础设施，无论规模大小。Fufuni 与您共同成长，无需管理服务器，无需担心停机时间，无隐藏费用。",
+          body: "我们的使命是让每一位商家都能享受企业级基础设施，无论规模大小。Bengal Exchange 与您共同成长，无需管理服务器，无需担心停机时间，无隐藏费用。",
         },
         {
           heading: "我们的价值观",
-          body: "我们相信开源、透明和开发者赋能。Fufuni 的每一行代码都在 GitHub 上公开。隐私和安全是我们设计的核心，而非事后的补充。",
+          body: "我们相信开源、透明和开发者赋能。Bengal Exchange 的每一行代码都在 GitHub 上公开。隐私和安全是我们设计的核心，而非事后的补充。",
         },
       ],
     },
     "he-IL": {
-      title: "אודות Fufuni",
-      lead: "Fufuni היא פלטפורמת מסחר אלקטרוני קוד פתוח הבנויה על רשת Cloudflare הגלובלית, המיועדת לסייע לסוחרים להשיק חנויות מקוונות מהירות וניתנות להתרחבות ללא כאב ראש תשתיתי.",
+      title: "אודות Bengal Exchange",
+      lead: "Bengal Exchange היא פלטפורמת מסחר אלקטרוני קוד פתוח הבנויה על רשת Cloudflare הגלובלית, המיועדת לסייע לסוחרים להשיק חנויות מקוונות מהירות וניתנות להתרחבות ללא כאב ראש תשתיתי.",
       sections: [
         {
           heading: "הסיפור שלנו",
-          body: "Fufuni נולדה מתסכול פשוט: פתרונות המסחר האלקטרוני הקיימים היו יקרים, מורכבים או איטיים מדי. החלטנו לבנות משהו שונה תוך ניצול עוצמת Cloudflare Workers ו-Durable Objects למתן זמני תגובה מהירים מהאור.",
+          body: "Bengal Exchange נולדה מתסכול פשוט: פתרונות המסחר האלקטרוני הקיימים היו יקרים, מורכבים או איטיים מדי. החלטנו לבנות משהו שונה תוך ניצול עוצמת Cloudflare Workers ו-Durable Objects למתן זמני תגובה מהירים מהאור.",
         },
         {
           heading: "המשימה שלנו",
-          body: "המשימה שלנו היא לדמוקרטיזציה של המסחר האלקטרוני על ידי מתן תשתית ברמת ארגונים לכל סוחר, ללא קשר לגודלו. Fufuni גדלה איתך ללא ניהול שרתים וללא הפתעות בחשבון.",
+          body: "המשימה שלנו היא לדמוקרטיזציה של המסחר האלקטרוני על ידי מתן תשתית ברמת ארגונים לכל סוחר, ללא קשר לגודלו. Bengal Exchange גדלה איתך ללא ניהול שרתים וללא הפתעות בחשבון.",
         },
         {
           heading: "הערכים שלנו",
-          body: "אנו מאמינים בקוד פתוח, שקיפות והעצמת מפתחים. כל שורת קוד של Fufuni זמינה ב-GitHub. פרטיות ואבטחה הן ליבת העיצוב שלנו ולא מחשבה שנייה.",
+          body: "אנו מאמינים בקוד פתוח, שקיפות והעצמת מפתחים. כל שורת קוד של Bengal Exchange זמינה ב-GitHub. פרטיות ואבטחה הן ליבת העיצוב שלנו ולא מחשבה שנייה.",
         },
       ],
     },
@@ -136,8 +136,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   // ─────────────────────────── BLOG ───────────────────────────────────────
   blog: {
     "en-US": {
-      title: "Fufuni Blog",
-      lead: "Discover insights on e-commerce, platform updates, merchant success stories, and technical deep-dives from the Fufuni team.",
+      title: "Bengal Exchange Blog",
+      lead: "Discover insights on e-commerce, platform updates, merchant success stories, and technical deep-dives from the Bengal Exchange team.",
       sections: [
         {
           heading: "Coming Soon",
@@ -145,7 +145,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "What to Expect",
-          body: "From tutorials on Cloudflare Workers and Durable Objects, to case studies of merchants who scaled their business with Fufuni — our blog will cover topics that matter to developers and shop owners alike.",
+          body: "From tutorials on Cloudflare Workers and Durable Objects, to case studies of merchants who scaled their business with Bengal Exchange — our blog will cover topics that matter to developers and shop owners alike.",
         },
         {
           heading: "Stay in the Loop",
@@ -154,8 +154,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "fr-FR": {
-      title: "Blog Fufuni",
-      lead: "Découvrez des articles sur le e-commerce, les mises à jour de la plateforme, les success stories de marchands et les analyses techniques de l'équipe Fufuni.",
+      title: "Blog Bengal Exchange",
+      lead: "Découvrez des articles sur le e-commerce, les mises à jour de la plateforme, les success stories de marchands et les analyses techniques de l'équipe Bengal Exchange.",
       sections: [
         {
           heading: "Bientôt disponible",
@@ -163,7 +163,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Ce qui vous attend",
-          body: "Des tutoriels sur Cloudflare Workers et Durable Objects aux études de cas de marchands ayant développé leur activité avec Fufuni — notre blog abordera des sujets qui comptent pour les développeurs comme pour les propriétaires de boutiques.",
+          body: "Des tutoriels sur Cloudflare Workers et Durable Objects aux études de cas de marchands ayant développé leur activité avec Bengal Exchange — notre blog abordera des sujets qui comptent pour les développeurs comme pour les propriétaires de boutiques.",
         },
         {
           heading: "Restez informé",
@@ -172,8 +172,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "es-ES": {
-      title: "Blog de Fufuni",
-      lead: "Descubre artículos sobre e-commerce, actualizaciones de la plataforma, historias de éxito de comerciantes y análisis técnicos del equipo de Fufuni.",
+      title: "Blog de Bengal Exchange",
+      lead: "Descubre artículos sobre e-commerce, actualizaciones de la plataforma, historias de éxito de comerciantes y análisis técnicos del equipo de Bengal Exchange.",
       sections: [
         {
           heading: "Próximamente",
@@ -181,7 +181,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Qué esperar",
-          body: "Desde tutoriales sobre Cloudflare Workers hasta casos de estudio de comerciantes que escalaron su negocio con Fufuni — nuestro blog cubrirá temas que importan tanto a desarrolladores como a propietarios de tiendas.",
+          body: "Desde tutoriales sobre Cloudflare Workers hasta casos de estudio de comerciantes que escalaron su negocio con Bengal Exchange — nuestro blog cubrirá temas que importan tanto a desarrolladores como a propietarios de tiendas.",
         },
         {
           heading: "Mantente informado",
@@ -208,8 +208,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "zh-CN": {
-      title: "Fufuni 博客",
-      lead: "探索关于电商、平台更新、商家成功案例以及 Fufuni 团队技术深度分析的精彩文章。",
+      title: "Bengal Exchange 博客",
+      lead: "探索关于电商、平台更新、商家成功案例以及 Bengal Exchange 团队技术深度分析的精彩文章。",
       sections: [
         {
           heading: "即将推出",
@@ -217,7 +217,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "博客内容预览",
-          body: "从 Cloudflare Workers 教程到使用 Fufuni 扩展业务的商家案例研究——我们的博客将涵盖对开发者和店主都有价值的主题。",
+          body: "从 Cloudflare Workers 教程到使用 Bengal Exchange 扩展业务的商家案例研究——我们的博客将涵盖对开发者和店主都有价值的主题。",
         },
         {
           heading: "保持关注",
@@ -226,8 +226,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "he-IL": {
-      title: "הבלוג של Fufuni",
-      lead: "גלה תובנות על מסחר אלקטרוני, עדכוני פלטפורמה, סיפורי הצלחה של סוחרים וניתוחים טכניים מצוות Fufuni.",
+      title: "הבלוג של Bengal Exchange",
+      lead: "גלה תובנות על מסחר אלקטרוני, עדכוני פלטפורמה, סיפורי הצלחה של סוחרים וניתוחים טכניים מצוות Bengal Exchange.",
       sections: [
         {
           heading: "בקרוב",
@@ -235,7 +235,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "מה לצפות",
-          body: "ממדריכים על Cloudflare Workers ועד מחקרי מקרה של סוחרים שהצליחו עם Fufuni — הבלוג שלנו יכסה נושאים שחשובים למפתחים ולבעלי חנויות כאחד.",
+          body: "ממדריכים על Cloudflare Workers ועד מחקרי מקרה של סוחרים שהצליחו עם Bengal Exchange — הבלוג שלנו יכסה נושאים שחשובים למפתחים ולבעלי חנויות כאחד.",
         },
         {
           heading: "הישארו מעודכנים",
@@ -248,7 +248,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   // ─────────────────────────── CAREERS ────────────────────────────────────
   careers: {
     "en-US": {
-      title: "Careers at Fufuni",
+      title: "Careers at Bengal Exchange",
       lead: "Help us build the future of edge-native e-commerce. We're a small, focused team that values craftsmanship, autonomy, and impact.",
       sections: [
         {
@@ -257,7 +257,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Open Positions",
-          body: "We don't currently have any open positions, but we're always interested in meeting exceptional engineers, designers, and product thinkers. If you're passionate about edge computing, open source, or e-commerce, feel free to reach out at careers@fufuni.io.",
+          body: "We don't currently have any open positions, but we're always interested in meeting exceptional engineers, designers, and product thinkers. If you're passionate about edge computing, open source, or e-commerce, feel free to reach out at careers@bengal-exchange.io.",
         },
         {
           heading: "What We Offer",
@@ -266,7 +266,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "fr-FR": {
-      title: "Carrières chez Fufuni",
+      title: "Carrières chez Bengal Exchange",
       lead: "Aidez-nous à construire l'avenir du e-commerce natif en bordure de réseau. Nous sommes une équipe restreinte et concentrée qui valorise l'artisanat, l'autonomie et l'impact.",
       sections: [
         {
@@ -275,7 +275,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Postes ouverts",
-          body: "Nous n'avons actuellement aucun poste ouvert, mais nous sommes toujours intéressés par des ingénieurs, designers et product thinkers exceptionnels. Si vous êtes passionné par le edge computing, l'open source ou le e-commerce, contactez-nous à careers@fufuni.io.",
+          body: "Nous n'avons actuellement aucun poste ouvert, mais nous sommes toujours intéressés par des ingénieurs, designers et product thinkers exceptionnels. Si vous êtes passionné par le edge computing, l'open source ou le e-commerce, contactez-nous à careers@bengal-exchange.io.",
         },
         {
           heading: "Ce que nous offrons",
@@ -284,7 +284,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "es-ES": {
-      title: "Carreras en Fufuni",
+      title: "Carreras en Bengal Exchange",
       lead: "Ayúdanos a construir el futuro del e-commerce nativo en el edge. Somos un equipo pequeño y enfocado que valora el artesanado, la autonomía y el impacto.",
       sections: [
         {
@@ -293,7 +293,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Posiciones abiertas",
-          body: "Actualmente no tenemos posiciones abiertas, pero siempre estamos interesados en conocer ingenieros, diseñadores y pensadores de producto excepcionales. Si te apasiona la computación en el edge, el código abierto o el e-commerce, contáctanos en careers@fufuni.io.",
+          body: "Actualmente no tenemos posiciones abiertas, pero siempre estamos interesados en conocer ingenieros, diseñadores y pensadores de producto excepcionales. Si te apasiona la computación en el edge, el código abierto o el e-commerce, contáctanos en careers@bengal-exchange.io.",
         },
         {
           heading: "Lo que ofrecemos",
@@ -311,7 +311,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "المناصب المفتوحة",
-          body: "ليس لدينا حالياً أي مناصب مفتوحة، لكننا دائماً مهتمون بمقابلة مهندسين ومصممين ومفكري منتجات استثنائيين. إذا كنت متحمساً للحوسبة على الحافة أو المصدر المفتوح أو التجارة الإلكترونية، تواصل معنا على careers@fufuni.io.",
+          body: "ليس لدينا حالياً أي مناصب مفتوحة، لكننا دائماً مهتمون بمقابلة مهندسين ومصممين ومفكري منتجات استثنائيين. إذا كنت متحمساً للحوسبة على الحافة أو المصدر المفتوح أو التجارة الإلكترونية، تواصل معنا على careers@bengal-exchange.io.",
         },
         {
           heading: "ما نقدمه",
@@ -320,7 +320,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "zh-CN": {
-      title: "加入 Fufuni",
+      title: "加入 Bengal Exchange",
       lead: "帮助我们构建边缘原生电商的未来。我们是一个小而专注的团队，重视精工品质、自主性和影响力。",
       sections: [
         {
@@ -329,7 +329,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "开放职位",
-          body: "目前我们没有开放的职位，但我们随时欢迎优秀的工程师、设计师和产品思考者联系我们。如果您对边缘计算、开源或电商充满热情，请发邮件至 careers@fufuni.io。",
+          body: "目前我们没有开放的职位，但我们随时欢迎优秀的工程师、设计师和产品思考者联系我们。如果您对边缘计算、开源或电商充满热情，请发邮件至 careers@bengal-exchange.io。",
         },
         {
           heading: "我们提供什么",
@@ -338,7 +338,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "he-IL": {
-      title: "קריירה ב-Fufuni",
+      title: "קריירה ב-Bengal-Exchange",
       lead: "עזרו לנו לבנות את עתיד המסחר האלקטרוני המקורי בקצה הרשת. אנחנו צוות קטן וממוקד שמעריך מלאכותיות, אוטונומיה והשפעה.",
       sections: [
         {
@@ -347,7 +347,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "משרות פתוחות",
-          body: "כרגע אין לנו משרות פתוחות, אבל אנחנו תמיד מעוניינים לפגוש מהנדסים, מעצבים וחושבי מוצר יוצאי דופן. אם אתם נלהבים ממחשוב בקצה, קוד פתוח או מסחר אלקטרוני, פנו אלינו ב-careers@fufuni.io.",
+          body: "כרגע אין לנו משרות פתוחות, אבל אנחנו תמיד מעוניינים לפגוש מהנדסים, מעצבים וחושבי מוצר יוצאי דופן. אם אתם נלהבים ממחשוב בקצה, קוד פתוח או מסחר אלקטרוני, פנו אלינו ב-careers@bengal-exchange.io.",
         },
         {
           heading: "מה אנחנו מציעים",
@@ -361,55 +361,55 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   press: {
     "en-US": {
       title: "Press & Media",
-      lead: "Find the information you need to write about Fufuni — our story, brand assets, and press contacts all in one place.",
+      lead: "Find the information you need to write about Bengal Exchange — our story, brand assets, and press contacts all in one place.",
       sections: [
         {
-          heading: "About Fufuni",
-          body: "Fufuni is a next-generation open-source e-commerce platform based on Cloudflare Workers and Durable Objects. Founded in 2024, it enables merchants to deploy globally distributed stores with zero infrastructure management. The platform supports multi-language, multi-currency, and multi-region operations out of the box.",
+          heading: "About Bengal Exchange",
+          body: "Bengal Exchange is a next-generation open-source e-commerce platform based on Cloudflare Workers and Durable Objects. Founded in 2024, it enables merchants to deploy globally distributed stores with zero infrastructure management. The platform supports multi-language, multi-currency, and multi-region operations out of the box.",
         },
         {
           heading: "Press Kit",
-          body: "Our press kit includes high-resolution logos, product screenshots, founder bios, and key company facts. Download the press kit at press@fufuni.io or visit our GitHub repository. All assets are freely available for editorial use with attribution.",
+          body: "Our press kit includes high-resolution logos, product screenshots, founder bios, and key company facts. Download the press kit at press@bengal-exchange.io or visit our GitHub repository. All assets are freely available for editorial use with attribution.",
         },
         {
           heading: "Press Contact",
-          body: "For press inquiries, interview requests, and partnership announcements, please contact our communications team at press@fufuni.io. We typically respond within one business day.",
+          body: "For press inquiries, interview requests, and partnership announcements, please contact our communications team at press@bengal-exchange.io. We typically respond within one business day.",
         },
       ],
     },
     "fr-FR": {
       title: "Presse & Médias",
-      lead: "Trouvez toutes les informations nécessaires pour écrire sur Fufuni — notre histoire, nos ressources de marque et nos contacts presse en un seul endroit.",
+      lead: "Trouvez toutes les informations nécessaires pour écrire sur Bengal Exchange — notre histoire, nos ressources de marque et nos contacts presse en un seul endroit.",
       sections: [
         {
-          heading: "À propos de Fufuni",
-          body: "Fufuni est une plateforme e-commerce open source de nouvelle génération basée sur Cloudflare Workers et Durable Objects. Fondée en 2024, elle permet aux marchands de déployer des boutiques distribuées globalement sans aucune gestion d'infrastructure. La plateforme prend en charge les opérations multilingues, multi-devises et multirégions nativement.",
+          heading: "À propos de Bengal Exchange",
+          body: "Bengal Exchange est une plateforme e-commerce open source de nouvelle génération basée sur Cloudflare Workers et Durable Objects. Fondée en 2024, elle permet aux marchands de déployer des boutiques distribuées globalement sans aucune gestion d'infrastructure. La plateforme prend en charge les opérations multilingues, multi-devises et multirégions nativement.",
         },
         {
           heading: "Kit presse",
-          body: "Notre kit presse comprend des logos haute résolution, des captures d'écran du produit, des biographies des fondateurs et des faits clés sur l'entreprise. Téléchargez le kit presse depuis press@fufuni.io ou visitez notre dépôt GitHub.",
+          body: "Notre kit presse comprend des logos haute résolution, des captures d'écran du produit, des biographies des fondateurs et des faits clés sur l'entreprise. Téléchargez le kit presse depuis press@bengal-exchange.io ou visitez notre dépôt GitHub.",
         },
         {
           heading: "Contact presse",
-          body: "Pour les demandes presse, les interviews et les annonces de partenariats, veuillez contacter notre équipe de communication à press@fufuni.io. Nous répondons généralement dans un délai d'un jour ouvrable.",
+          body: "Pour les demandes presse, les interviews et les annonces de partenariats, veuillez contacter notre équipe de communication à press@bengal-exchange.io. Nous répondons généralement dans un délai d'un jour ouvrable.",
         },
       ],
     },
     "es-ES": {
       title: "Prensa y Medios",
-      lead: "Encuentra toda la información que necesitas para escribir sobre Fufuni — nuestra historia, recursos de marca y contactos de prensa en un solo lugar.",
+      lead: "Encuentra toda la información que necesitas para escribir sobre Bengal Exchange — nuestra historia, recursos de marca y contactos de prensa en un solo lugar.",
       sections: [
         {
-          heading: "Acerca de Fufuni",
-          body: "Fufuni es una plataforma de e-commerce open source de nueva generación basada en Cloudflare Workers y Durable Objects. Fundada en 2024, permite a los comerciantes desplegar tiendas distribuidas globalmente sin ninguna gestión de infraestructura.",
+          heading: "Acerca de Bengal Exchange",
+          body: "Bengal Exchange es una plataforma de e-commerce open source de nueva generación basada en Cloudflare Workers y Durable Objects. Fundada en 2024, permite a los comerciantes desplegar tiendas distribuidas globalmente sin ninguna gestión de infraestructura.",
         },
         {
           heading: "Kit de prensa",
-          body: "Nuestro kit de prensa incluye logotipos en alta resolución, capturas de pantalla del producto, biografías de los fundadores y datos clave de la empresa. Descarga el kit de prensa desde press@fufuni.io o visita nuestro repositorio de GitHub.",
+          body: "Nuestro kit de prensa incluye logotipos en alta resolución, capturas de pantalla del producto, biografías de los fundadores y datos clave de la empresa. Descarga el kit de prensa desde press@bengal-exchange.io o visita nuestro repositorio de GitHub.",
         },
         {
           heading: "Contacto de prensa",
-          body: "Para consultas de prensa, solicitudes de entrevistas y anuncios de asociaciones, contacta a nuestro equipo de comunicaciones en press@fufuni.io. Normalmente respondemos en un día hábil.",
+          body: "Para consultas de prensa, solicitudes de entrevistas y anuncios de asociaciones, contacta a nuestro equipo de comunicaciones en press@bengal-exchange.io. Normalmente respondemos en un día hábil.",
         },
       ],
     },
@@ -423,47 +423,47 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "حقيبة الصحافة",
-          body: "تتضمن حقيبتنا الصحفية شعارات عالية الدقة ولقطات شاشة للمنتج وسير ذاتية للمؤسسين وحقائق رئيسية عن الشركة. قم بتنزيل حقيبة الصحافة من press@fufuni.io أو قم بزيارة مستودع GitHub الخاص بنا.",
+          body: "تتضمن حقيبتنا الصحفية شعارات عالية الدقة ولقطات شاشة للمنتج وسير ذاتية للمؤسسين وحقائق رئيسية عن الشركة. قم بتنزيل حقيبة الصحافة من press@bengal-exchange.io أو قم بزيارة مستودع GitHub الخاص بنا.",
         },
         {
           heading: "التواصل الصحفي",
-          body: "لاستفسارات الصحافة وطلبات المقابلات وإعلانات الشراكة، يرجى التواصل مع فريق الاتصالات لدينا على press@fufuni.io. نحن عادةً نرد خلال يوم عمل واحد.",
+          body: "لاستفسارات الصحافة وطلبات المقابلات وإعلانات الشراكة، يرجى التواصل مع فريق الاتصالات لدينا على press@bengal-exchange.io. نحن عادةً نرد خلال يوم عمل واحد.",
         },
       ],
     },
     "zh-CN": {
       title: "新闻与媒体",
-      lead: "在这里找到撰写 Fufuni 报道所需的一切——我们的故事、品牌资产和新闻联系方式。",
+      lead: "在这里找到撰写 Bengal Exchange 报道所需的一切——我们的故事、品牌资产和新闻联系方式。",
       sections: [
         {
-          heading: "关于 Fufuni",
-          body: "Fufuni 是基于 Cloudflare Workers 和 Durable Objects 的新一代开源电商平台。成立于2024年，它使商家能够在无需任何基础设施管理的情况下部署全球分布式商店。平台原生支持多语言、多货币和多地区运营。",
+          heading: "关于 Bengal Exchange",
+          body: "Bengal Exchange 是基于 Cloudflare Workers 和 Durable Objects 的新一代开源电商平台。成立于2024年，它使商家能够在无需任何基础设施管理的情况下部署全球分布式商店。平台原生支持多语言、多货币和多地区运营。",
         },
         {
           heading: "新闻资料包",
-          body: "我们的新闻资料包包含高分辨率标志、产品截图、创始人简介和公司关键数据。请从 press@fufuni.io 下载新闻资料包或访问我们的 GitHub 仓库。",
+          body: "我们的新闻资料包包含高分辨率标志、产品截图、创始人简介和公司关键数据。请从 press@bengal-exchange.io 下载新闻资料包或访问我们的 GitHub 仓库。",
         },
         {
           heading: "新闻联系",
-          body: "如有新闻咨询、采访请求和合作公告，请联系我们的传播团队 press@fufuni.io。我们通常在一个工作日内回复。",
+          body: "如有新闻咨询、采访请求和合作公告，请联系我们的传播团队 press@bengal-exchange.io。我们通常在一个工作日内回复。",
         },
       ],
     },
     "he-IL": {
       title: "עיתונות ומדיה",
-      lead: "מצאו את כל המידע שאתם צריכים לכתיבה על Fufuni — הסיפור שלנו, נכסי המותג ואנשי קשר לעיתונות במקום אחד.",
+      lead: "מצאו את כל המידע שאתם צריכים לכתיבה על Bengal Exchange — הסיפור שלנו, נכסי המותג ואנשי קשר לעיתונות במקום אחד.",
       sections: [
         {
-          heading: "על Fufuni",
-          body: "Fufuni היא פלטפורמת מסחר אלקטרוני קוד פתוח מהדור הבא המבוססת על Cloudflare Workers ו-Durable Objects. נוסדה ב-2024, היא מאפשרת לסוחרים לפרוס חנויות מבוזרות גלובלית ללא ניהול תשתיות.",
+          heading: "על Bengal Exchange",
+          body: "Bengal Exchange היא פלטפורמת מסחר אלקטרוני קוד פתוח מהדור הבא המבוססת על Cloudflare Workers ו-Durable Objects. נוסדה ב-2024, היא מאפשרת לסוחרים לפרוס חנויות מבוזרות גלובלית ללא ניהול תשתיות.",
         },
         {
           heading: "ערכת עיתונות",
-          body: "ערכת העיתונות שלנו כוללת לוגואים ברזולוציה גבוהה, צילומי מסך של המוצר, ביוגרפיות של המייסדים ועובדות מפתח על החברה. הורידו את ערכת העיתונות מ-press@fufuni.io או בקרו במאגר ה-GitHub שלנו.",
+          body: "ערכת העיתונות שלנו כוללת לוגואים ברזולוציה גבוהה, צילומי מסך של המוצר, ביוגרפיות של המייסדים ועובדות מפתח על החברה. הורידו את ערכת העיתונות מ-press@bengal-exchange.io או בקרו במאגר ה-GitHub שלנו.",
         },
         {
           heading: "יצירת קשר עיתונאי",
-          body: "לפניות עיתונאיות, בקשות לראיונות והכרזות על שותפויות, אנא פנו לצוות התקשורת שלנו בכתובת press@fufuni.io. אנחנו בדרך כלל מגיבים תוך יום עסקים אחד.",
+          body: "לפניות עיתונאיות, בקשות לראיונות והכרזות על שותפויות, אנא פנו לצוות התקשורת שלנו בכתובת press@bengal-exchange.io. אנחנו בדרך כלל מגיבים תוך יום עסקים אחד.",
         },
       ],
     },
@@ -477,11 +477,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       sections: [
         {
           heading: "Customer Support",
-          body: "For order-related questions, shipping inquiries, and returns, reach out to our support team at support@fufuni.io. We aim to respond to all inquiries within 24 hours on business days.",
+          body: "For order-related questions, shipping inquiries, and returns, reach out to our support team at support@bengal-exchange.io. We aim to respond to all inquiries within 24 hours on business days.",
         },
         {
           heading: "Business Inquiries",
-          body: "For partnerships, integrations, and enterprise inquiries, please contact us at hello@fufuni.io. We're always open to interesting collaborations with other platforms and merchants.",
+          body: "For partnerships, integrations, and enterprise inquiries, please contact us at hello@bengal-exchange.io. We're always open to interesting collaborations with other platforms and merchants.",
         },
         {
           heading: "Support Hours",
@@ -495,11 +495,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       sections: [
         {
           heading: "Support client",
-          body: "Pour les questions relatives aux commandes, aux expéditions et aux retours, contactez notre équipe de support à support@fufuni.io. Nous nous engageons à répondre à toutes les demandes dans les 24 heures les jours ouvrables.",
+          body: "Pour les questions relatives aux commandes, aux expéditions et aux retours, contactez notre équipe de support à support@bengal-exchange.io. Nous nous engageons à répondre à toutes les demandes dans les 24 heures les jours ouvrables.",
         },
         {
           heading: "Demandes commerciales",
-          body: "Pour les partenariats, intégrations et demandes entreprises, veuillez nous contacter à hello@fufuni.io. Nous sommes toujours ouverts à des collaborations intéressantes avec d'autres plateformes et marchands.",
+          body: "Pour les partenariats, intégrations et demandes entreprises, veuillez nous contacter à hello@bengal-exchange.io. Nous sommes toujours ouverts à des collaborations intéressantes avec d'autres plateformes et marchands.",
         },
         {
           heading: "Horaires du support",
@@ -513,11 +513,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       sections: [
         {
           heading: "Soporte al cliente",
-          body: "Para preguntas relacionadas con pedidos, envíos y devoluciones, contacta a nuestro equipo de soporte en support@fufuni.io. Nos comprometemos a responder todas las consultas en 24 horas en días hábiles.",
+          body: "Para preguntas relacionadas con pedidos, envíos y devoluciones, contacta a nuestro equipo de soporte en support@bengal-exchange.io. Nos comprometemos a responder todas las consultas en 24 horas en días hábiles.",
         },
         {
           heading: "Consultas de negocio",
-          body: "Para asociaciones, integraciones y consultas empresariales, contáctanos en hello@fufuni.io. Siempre estamos abiertos a colaboraciones interesantes con otras plataformas y comerciantes.",
+          body: "Para asociaciones, integraciones y consultas empresariales, contáctanos en hello@bengal-exchange.io. Siempre estamos abiertos a colaboraciones interesantes con otras plataformas y comerciantes.",
         },
         {
           heading: "Horario de soporte",
@@ -531,11 +531,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       sections: [
         {
           heading: "دعم العملاء",
-          body: "للأسئلة المتعلقة بالطلبات والشحن والإرجاع، تواصل مع فريق الدعم لدينا على support@fufuni.io. نهدف للرد على جميع الاستفسارات خلال 24 ساعة في أيام العمل.",
+          body: "للأسئلة المتعلقة بالطلبات والشحن والإرجاع، تواصل مع فريق الدعم لدينا على support@bengal-exchange.io. نهدف للرد على جميع الاستفسارات خلال 24 ساعة في أيام العمل.",
         },
         {
           heading: "استفسارات الأعمال",
-          body: "للشراكات والتكاملات والاستفسارات المؤسسية، يرجى التواصل معنا على hello@fufuni.io. نحن دائماً منفتحون على التعاون المثير مع منصات وتجار آخرين.",
+          body: "للشراكات والتكاملات والاستفسارات المؤسسية، يرجى التواصل معنا على hello@bengal-exchange.io. نحن دائماً منفتحون على التعاون المثير مع منصات وتجار آخرين.",
         },
         {
           heading: "ساعات الدعم",
@@ -549,11 +549,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       sections: [
         {
           heading: "客户支持",
-          body: "如有订单相关问题、运输咨询和退货请求，请联系我们的支持团队 support@fufuni.io。我们承诺在工作日24小时内回复所有咨询。",
+          body: "如有订单相关问题、运输咨询和退货请求，请联系我们的支持团队 support@bengal-exchange.io。我们承诺在工作日24小时内回复所有咨询。",
         },
         {
           heading: "商务咨询",
-          body: "如有合作、集成和企业咨询，请联系 hello@fufuni.io。我们始终乐于与其他平台和商家探索有趣的合作机会。",
+          body: "如有合作、集成和企业咨询，请联系 hello@bengal-exchange.io。我们始终乐于与其他平台和商家探索有趣的合作机会。",
         },
         {
           heading: "支持时间",
@@ -567,11 +567,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       sections: [
         {
           heading: "תמיכת לקוחות",
-          body: "לשאלות הקשורות להזמנות, משלוחים והחזרות, פנו לצוות התמיכה שלנו בכתובת support@fufuni.io. אנחנו שואפים להגיב לכל הפניות תוך 24 שעות בימי עסקים.",
+          body: "לשאלות הקשורות להזמנות, משלוחים והחזרות, פנו לצוות התמיכה שלנו בכתובת support@bengal-exchange.io. אנחנו שואפים להגיב לכל הפניות תוך 24 שעות בימי עסקים.",
         },
         {
           heading: "פניות עסקיות",
-          body: "לשותפויות, אינטגרציות ופניות ארגוניות, אנא פנו אלינו בכתובת hello@fufuni.io. אנחנו תמיד פתוחים לשיתופי פעולה מעניינים עם פלטפורמות וסוחרים אחרים.",
+          body: "לשותפויות, אינטגרציות ופניות ארגוניות, אנא פנו אלינו בכתובת hello@bengal-exchange.io. אנחנו תמיד פתוחים לשיתופי פעולה מעניינים עם פלטפורמות וסוחרים אחרים.",
         },
         {
           heading: "שעות תמיכה",
@@ -933,7 +933,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Your Rights",
-          body: "Under applicable data protection law (GDPR, CCPA), you have the right to access, correct, delete, or export your personal data. You may also withdraw consent for marketing at any time. To exercise your rights, contact us at privacy@fufuni.io. We will respond within 30 days.",
+          body: "Under applicable data protection law (GDPR, CCPA), you have the right to access, correct, delete, or export your personal data. You may also withdraw consent for marketing at any time. To exercise your rights, contact us at privacy@bengal-exchange.io. We will respond within 30 days.",
         },
       ],
     },
@@ -951,7 +951,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Vos droits",
-          body: "En vertu du RGPD, vous avez le droit d'accéder, de corriger, de supprimer ou d'exporter vos données personnelles. Vous pouvez également retirer votre consentement aux communications marketing à tout moment. Pour exercer vos droits, contactez-nous à privacy@fufuni.io.",
+          body: "En vertu du RGPD, vous avez le droit d'accéder, de corriger, de supprimer ou d'exporter vos données personnelles. Vous pouvez également retirer votre consentement aux communications marketing à tout moment. Pour exercer vos droits, contactez-nous à privacy@bengal-exchange.io.",
         },
       ],
     },
@@ -969,7 +969,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Tus derechos",
-          body: "Bajo el RGPD y las leyes de protección de datos aplicables, tienes derecho a acceder, corregir, eliminar o exportar tus datos personales. También puedes retirar el consentimiento para marketing en cualquier momento. Contáctanos en privacy@fufuni.io.",
+          body: "Bajo el RGPD y las leyes de protección de datos aplicables, tienes derecho a acceder, corregir, eliminar o exportar tus datos personales. También puedes retirar el consentimiento para marketing en cualquier momento. Contáctanos en privacy@bengal-exchange.io.",
         },
       ],
     },
@@ -987,7 +987,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "حقوقك",
-          body: "بموجب قوانين حماية البيانات المعمول بها، لديك الحق في الوصول إلى بياناتك الشخصية وتصحيحها وحذفها أو تصديرها. يمكنك أيضاً سحب الموافقة على التسويق في أي وقت. للممارسة حقوقك، تواصل معنا على privacy@fufuni.io.",
+          body: "بموجب قوانين حماية البيانات المعمول بها، لديك الحق في الوصول إلى بياناتك الشخصية وتصحيحها وحذفها أو تصديرها. يمكنك أيضاً سحب الموافقة على التسويق في أي وقت. للممارسة حقوقك، تواصل معنا على privacy@bengal-exchange.io.",
         },
       ],
     },
@@ -1005,7 +1005,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "您的权利",
-          body: "根据适用的数据保护法（GDPR等），您有权访问、更正、删除或导出您的个人数据。您也可以随时撤回营销同意。请联系 privacy@fufuni.io 行使您的权利，我们将在30天内回复。",
+          body: "根据适用的数据保护法（GDPR等），您有权访问、更正、删除或导出您的个人数据。您也可以随时撤回营销同意。请联系 privacy@bengal-exchange.io 行使您的权利，我们将在30天内回复。",
         },
       ],
     },
@@ -1023,7 +1023,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "הזכויות שלכם",
-          body: "לפי חוקי הגנת הנתונים הרלוונטיים (GDPR), יש לכם זכות לגשת, לתקן, למחוק או לייצא את הנתונים האישיים שלכם. תוכלו גם לבטל הסכמה לשיווק בכל עת. לממוש זכויותיכם, צרו קשר ב-privacy@fufuni.io.",
+          body: "לפי חוקי הגנת הנתונים הרלוונטיים (GDPR), יש לכם זכות לגשת, לתקן, למחוק או לייצא את הנתונים האישיים שלכם. תוכלו גם לבטל הסכמה לשיווק בכל עת. לממוש זכויותיכם, צרו קשר ב-privacy@bengal-exchange.io.",
         },
       ],
     },
@@ -1033,11 +1033,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   "terms-of-service": {
     "en-US": {
       title: "Terms of Service",
-      lead: "By accessing or using Fufuni, you agree to be bound by these Terms of Service. Please read them carefully. Last updated: January 1, 2026.",
+      lead: "By accessing or using Bengal Exchange, you agree to be bound by these Terms of Service. Please read them carefully. Last updated: January 1, 2026.",
       sections: [
         {
           heading: "Use of the Platform",
-          body: "You may use our platform for lawful purposes only. You agree not to use Fufuni for any fraudulent activities, to transmit harmful or illegal content, or to violate any applicable laws. We reserve the right to terminate access for users who breach these terms.",
+          body: "You may use our platform for lawful purposes only. You agree not to use Bengal Exchange for any fraudulent activities, to transmit harmful or illegal content, or to violate any applicable laws. We reserve the right to terminate access for users who breach these terms.",
         },
         {
           heading: "Orders, Payments & Pricing",
@@ -1045,17 +1045,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Limitation of Liability",
-          body: "To the fullest extent permitted by law, Fufuni shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the platform. Our total liability shall not exceed the amount paid by you for the specific order giving rise to the claim.",
+          body: "To the fullest extent permitted by law, Bengal Exchange shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the platform. Our total liability shall not exceed the amount paid by you for the specific order giving rise to the claim.",
         },
       ],
     },
     "fr-FR": {
       title: "Conditions Générales de Vente",
-      lead: "En accédant à Fufuni ou en l'utilisant, vous acceptez d'être lié par ces Conditions générales. Veuillez les lire attentivement. Dernière mise à jour : 1er janvier 2026.",
+      lead: "En accédant à Bengal Exchange ou en l'utilisant, vous acceptez d'être lié par ces Conditions générales. Veuillez les lire attentivement. Dernière mise à jour : 1er janvier 2026.",
       sections: [
         {
           heading: "Utilisation de la plateforme",
-          body: "Vous pouvez utiliser notre plateforme à des fins légales uniquement. Vous vous engagez à ne pas utiliser Fufuni pour des activités frauduleuses, transmettre du contenu nuisible ou illégal, ou violer les lois applicables. Nous nous réservons le droit de résilier l'accès des utilisateurs qui enfreignent ces conditions.",
+          body: "Vous pouvez utiliser notre plateforme à des fins légales uniquement. Vous vous engagez à ne pas utiliser Bengal Exchange pour des activités frauduleuses, transmettre du contenu nuisible ou illégal, ou violer les lois applicables. Nous nous réservons le droit de résilier l'accès des utilisateurs qui enfreignent ces conditions.",
         },
         {
           heading: "Commandes, paiements et tarification",
@@ -1063,17 +1063,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Limitation de responsabilité",
-          body: "Dans toute la mesure permise par la loi, Fufuni ne sera pas responsable des dommages indirects, accessoires, spéciaux ou consécutifs découlant de votre utilisation de la plateforme. Notre responsabilité totale ne dépassera pas le montant que vous avez payé pour votre commande.",
+          body: "Dans toute la mesure permise par la loi, Bengal Exchange ne sera pas responsable des dommages indirects, accessoires, spéciaux ou consécutifs découlant de votre utilisation de la plateforme. Notre responsabilité totale ne dépassera pas le montant que vous avez payé pour votre commande.",
         },
       ],
     },
     "es-ES": {
       title: "Términos y Condiciones",
-      lead: "Al acceder o usar Fufuni, aceptas estar sujeto a estos Términos de Servicio. Por favor léelos detenidamente. Última actualización: 1 de enero de 2026.",
+      lead: "Al acceder o usar Bengal Exchange, aceptas estar sujeto a estos Términos de Servicio. Por favor léelos detenidamente. Última actualización: 1 de enero de 2026.",
       sections: [
         {
           heading: "Uso de la plataforma",
-          body: "Solo puedes usar nuestra plataforma para fines legales. Aceptas no usar Fufuni para actividades fraudulentas, transmitir contenido dañino o ilegal, ni violar ninguna ley aplicable. Nos reservamos el derecho de cancelar el acceso a usuarios que incumplan estos términos.",
+          body: "Solo puedes usar nuestra plataforma para fines legales. Aceptas no usar Bengal Exchange para actividades fraudulentas, transmitir contenido dañino o ilegal, ni violar ninguna ley aplicable. Nos reservamos el derecho de cancelar el acceso a usuarios que incumplan estos términos.",
         },
         {
           heading: "Pedidos, pagos y precios",
@@ -1081,7 +1081,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Limitación de responsabilidad",
-          body: "En la máxima medida permitida por la ley, Fufuni no será responsable de ningún daño indirecto, incidental, especial o consecuente que surja del uso de la plataforma. Nuestra responsabilidad total no excederá el importe pagado por tu pedido.",
+          body: "En la máxima medida permitida por la ley, Bengal Exchange no será responsable de ningún daño indirecto, incidental, especial o consecuente que surja del uso de la plataforma. Nuestra responsabilidad total no excederá el importe pagado por tu pedido.",
         },
       ],
     },
@@ -1105,11 +1105,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "zh-CN": {
       title: "服务条款",
-      lead: "通过访问或使用 Fufuni，您同意受这些服务条款的约束。请仔细阅读。最后更新：2026年1月1日。",
+      lead: "通过访问或使用 Bengal Exchange，您同意受这些服务条款的约束。请仔细阅读。最后更新：2026年1月1日。",
       sections: [
         {
           heading: "平台使用",
-          body: "您只能为合法目的使用我们的平台。您同意不将 Fufuni 用于任何欺诈活动、传播有害或非法内容，或违反任何适用法律。我们保留对违反这些条款的用户终止访问权限的权利。",
+          body: "您只能为合法目的使用我们的平台。您同意不将 Bengal Exchange 用于任何欺诈活动、传播有害或非法内容，或违反任何适用法律。我们保留对违反这些条款的用户终止访问权限的权利。",
         },
         {
           heading: "订单、付款和定价",
@@ -1117,17 +1117,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "责任限制",
-          body: "在法律允许的最大范围内，Fufuni 对因使用平台而产生的任何间接、附带、特殊或后果性损害不承担责任。我们的总责任不超过您为具体订单支付的金额。",
+          body: "在法律允许的最大范围内，Bengal Exchange 对因使用平台而产生的任何间接、附带、特殊或后果性损害不承担责任。我们的总责任不超过您为具体订单支付的金额。",
         },
       ],
     },
     "he-IL": {
       title: "תנאי שירות",
-      lead: "על ידי גישה ל-Fufuni או שימוש בו, אתם מסכימים להיות מחויבים לתנאי שירות אלה. אנא קראו אותם בעיון. עדכון אחרון: 1 בינואר 2026.",
+      lead: "על ידי גישה ל-Bengal-Exchange או שימוש בו, אתם מסכימים להיות מחויבים לתנאי שירות אלה. אנא קראו אותם בעיון. עדכון אחרון: 1 בינואר 2026.",
       sections: [
         {
           heading: "שימוש בפלטפורמה",
-          body: "תוכלו להשתמש בפלטפורמה שלנו למטרות חוקיות בלבד. אתם מסכימים לא להשתמש ב-Fufuni לפעילויות הונאה, להעביר תוכן מזיק או בלתי חוקי, או להפר כל חוק חל. אנו שומרים לעצמנו את הזכות לסיים גישה למשתמשים המפרים תנאים אלה.",
+          body: "תוכלו להשתמש בפלטפורמה שלנו למטרות חוקיות בלבד. אתם מסכימים לא להשתמש ב-Bengal-Exchange לפעילויות הונאה, להעביר תוכן מזיק או בלתי חוקי, או להפר כל חוק חל. אנו שומרים לעצמנו את הזכות לסיים גישה למשתמשים המפרים תנאים אלה.",
         },
         {
           heading: "הזמנות, תשלומים ותמחור",
@@ -1135,7 +1135,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "הגבלת אחריות",
-          body: "במידה המרבית המותרת בחוק, Fufuni לא תהיה אחראית לנזקים עקיפים, מקריים, מיוחדים או תוצאתיים הנובעים מהשימוש שלכם בפלטפורמה. האחריות הכוללת שלנו לא תעלה על הסכום ששילמתם עבור ההזמנה הספציפית.",
+          body: "במידה המרבית המותרת בחוק, Bengal Exchange לא תהיה אחראית לנזקים עקיפים, מקריים, מיוחדים או תוצאתיים הנובעים מהשימוש שלכם בפלטפורמה. האחריות הכוללת שלנו לא תעלה על הסכום ששילמתם עבור ההזמנה הספציפית.",
         },
       ],
     },
@@ -1145,7 +1145,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   "cookie-policy": {
     "en-US": {
       title: "Cookie Policy",
-      lead: "This Cookie Policy explains how Fufuni uses cookies and similar tracking technologies on our website. Last updated: January 1, 2026.",
+      lead: "This Cookie Policy explains how Bengal Exchange uses cookies and similar tracking technologies on our website. Last updated: January 1, 2026.",
       sections: [
         {
           heading: "What Are Cookies?",
@@ -1163,7 +1163,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "fr-FR": {
       title: "Politique des Cookies",
-      lead: "Cette Politique des Cookies explique comment Fufuni utilise les cookies et les technologies de suivi similaires sur notre site web. Dernière mise à jour : 1er janvier 2026.",
+      lead: "Cette Politique des Cookies explique comment Bengal Exchange utilise les cookies et les technologies de suivi similaires sur notre site web. Dernière mise à jour : 1er janvier 2026.",
       sections: [
         {
           heading: "Qu'est-ce qu'un cookie ?",
@@ -1181,7 +1181,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "es-ES": {
       title: "Política de Cookies",
-      lead: "Esta Política de Cookies explica cómo Fufuni usa cookies y tecnologías de seguimiento similares en nuestro sitio web. Última actualización: 1 de enero de 2026.",
+      lead: "Esta Política de Cookies explica cómo Bengal Exchange usa cookies y tecnologías de seguimiento similares en nuestro sitio web. Última actualización: 1 de enero de 2026.",
       sections: [
         {
           heading: "¿Qué son las cookies?",
@@ -1217,7 +1217,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "zh-CN": {
       title: "Cookie 政策",
-      lead: "本 Cookie 政策解释了 Fufuni 如何在我们的网站上使用 Cookie 和类似的跟踪技术。最后更新：2026年1月1日。",
+      lead: "本 Cookie 政策解释了 Bengal Exchange 如何在我们的网站上使用 Cookie 和类似的跟踪技术。最后更新：2026年1月1日。",
       sections: [
         {
           heading: "什么是 Cookie？",
@@ -1235,7 +1235,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "he-IL": {
       title: "מדיניות עוגיות",
-      lead: "מדיניות עוגיות זו מסבירה כיצד Fufuni משתמשת בעוגיות ובטכנולוגיות מעקב דומות באתר שלנו. עדכון אחרון: 1 בינואר 2026.",
+      lead: "מדיניות עוגיות זו מסבירה כיצד Bengal Exchange משתמשת בעוגיות ובטכנולוגיות מעקב דומות באתר שלנו. עדכון אחרון: 1 בינואר 2026.",
       sections: [
         {
           heading: "מהן עוגיות?",
@@ -1257,11 +1257,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   "legal-mentions": {
     "en-US": {
       title: "Legal Mentions",
-      lead: "The following legal information applies to the Fufuni platform and its associated website. Last updated: January 1, 2026.",
+      lead: "The following legal information applies to the Bengal Exchange platform and its associated website. Last updated: January 1, 2026.",
       sections: [
         {
           heading: "Publisher Information",
-          body: "Fufuni is operated by SCTG Development, a company registered under applicable law. Registered address: available upon request. VAT registration number: available upon request. For any legal queries, contact: legal@fufuni.io.",
+          body: "Bengal Exchange is operated by SCTG Development, a company registered under applicable law. Registered address: available upon request. VAT registration number: available upon request. For any legal queries, contact: legal@bengal-exchange.io.",
         },
         {
           heading: "Hosting",
@@ -1269,17 +1269,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Intellectual Property",
-          body: "The Fufuni platform source code is published under the AGPL-3.0 license and is available at github.com/sctg-development/fufuni. All trademarks, logos, and brand assets remain the property of SCTG Development. Unauthorized reproduction of these assets is prohibited.",
+          body: "The Bengal Exchange platform source code is published under the AGPL-3.0 license and is available at github.com/pseibangladesh/multicom. All trademarks, logos, and brand assets remain the property of SCTG Development. Unauthorized reproduction of these assets is prohibited.",
         },
       ],
     },
     "fr-FR": {
       title: "Mentions Légales",
-      lead: "Les informations légales suivantes s'appliquent à la plateforme Fufuni et à son site web associé. Dernière mise à jour : 1er janvier 2026.",
+      lead: "Les informations légales suivantes s'appliquent à la plateforme Bengal Exchange et à son site web associé. Dernière mise à jour : 1er janvier 2026.",
       sections: [
         {
           heading: "Informations sur l'éditeur",
-          body: "Fufuni est exploitée par SCTG Development, société enregistrée conformément aux lois applicables. Adresse du siège social : disponible sur demande. Numéro de TVA intracommunautaire : disponible sur demande. Pour toute question juridique : legal@fufuni.io.",
+          body: "Bengal Exchange est exploitée par SCTG Development, société enregistrée conformément aux lois applicables. Adresse du siège social : disponible sur demande. Numéro de TVA intracommunautaire : disponible sur demande. Pour toute question juridique : legal@bengal-exchange.io.",
         },
         {
           heading: "Hébergement",
@@ -1287,17 +1287,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Propriété intellectuelle",
-          body: "Le code source de la plateforme Fufuni est publié sous licence AGPL-3.0 et disponible sur github.com/sctg-development/fufuni. Toutes les marques, logos et ressources de marque restent la propriété de SCTG Development. Leur reproduction non autorisée est interdite.",
+          body: "Le code source de la plateforme Bengal Exchange est publié sous licence AGPL-3.0 et disponible sur github.com/pseibangladesh/multicom. Toutes les marques, logos et ressources de marque restent la propriété de SCTG Development. Leur reproduction non autorisée est interdite.",
         },
       ],
     },
     "es-ES": {
       title: "Aviso Legal",
-      lead: "La siguiente información legal se aplica a la plataforma Fufuni y a su sitio web asociado. Última actualización: 1 de enero de 2026.",
+      lead: "La siguiente información legal se aplica a la plataforma Bengal Exchange y a su sitio web asociado. Última actualización: 1 de enero de 2026.",
       sections: [
         {
           heading: "Información del editor",
-          body: "Fufuni es operada por SCTG Development, empresa registrada bajo la legislación aplicable. Dirección registrada: disponible bajo solicitud. Para consultas legales: legal@fufuni.io.",
+          body: "Bengal Exchange es operada por SCTG Development, empresa registrada bajo la legislación aplicable. Dirección registrada: disponible bajo solicitud. Para consultas legales: legal@bengal-exchange.io.",
         },
         {
           heading: "Alojamiento",
@@ -1305,7 +1305,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Propiedad intelectual",
-          body: "El código fuente de Fufuni se publica bajo la licencia AGPL-3.0 y está disponible en github.com/sctg-development/fufuni. Todas las marcas, logotipos y activos de marca siguen siendo propiedad de SCTG Development.",
+          body: "El código fuente de Bengal Exchange se publica bajo la licencia AGPL-3.0 y está disponible en github.com/pseibangladesh/multicom. Todas las marcas, logotipos y activos de marca siguen siendo propiedad de SCTG Development.",
         },
       ],
     },
@@ -1315,7 +1315,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       sections: [
         {
           heading: "معلومات الناشر",
-          body: "تُشغَّل فوفوني من قِبل SCTG Development، شركة مسجلة وفق القوانين المعمول بها. العنوان المسجل: متاح عند الطلب. رقم ضريبة القيمة المضافة: متاح عند الطلب. للاستفسارات القانونية: legal@fufuni.io.",
+          body: "تُشغَّل فوفوني من قِبل SCTG Development، شركة مسجلة وفق القوانين المعمول بها. العنوان المسجل: متاح عند الطلب. رقم ضريبة القيمة المضافة: متاح عند الطلب. للاستفسارات القانونية: legal@bengal-exchange.io.",
         },
         {
           heading: "الاستضافة",
@@ -1323,17 +1323,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "الملكية الفكرية",
-          body: "تم نشر كود المصدر لمنصة فوفوني بموجب ترخيص AGPL-3.0 وهو متاح على github.com/sctg-development/fufuni. جميع العلامات التجارية والشعارات وأصول العلامة التجارية تبقى ملكاً لـ SCTG Development.",
+          body: "تم نشر كود المصدر لمنصة فوفوني بموجب ترخيص AGPL-3.0 وهو متاح على github.com/pseibangladesh/multicom. جميع العلامات التجارية والشعارات وأصول العلامة التجارية تبقى ملكاً لـ SCTG Development.",
         },
       ],
     },
     "zh-CN": {
       title: "法律声明",
-      lead: "以下法律信息适用于 Fufuni 平台及其相关网站。最后更新：2026年1月1日。",
+      lead: "以下法律信息适用于 Bengal Exchange 平台及其相关网站。最后更新：2026年1月1日。",
       sections: [
         {
           heading: "发布者信息",
-          body: "Fufuni 由 SCTG Development 运营，该公司依据适用法律注册。注册地址：可根据请求提供。增值税注册号：可根据请求提供。法律咨询请联系：legal@fufuni.io。",
+          body: "Bengal Exchange 由 SCTG Development 运营，该公司依据适用法律注册。注册地址：可根据请求提供。增值税注册号：可根据请求提供。法律咨询请联系：legal@bengal-exchange.io。",
         },
         {
           heading: "托管",
@@ -1341,17 +1341,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "知识产权",
-          body: "Fufuni 平台源代码根据 AGPL-3.0 许可证发布，可在 github.com/sctg-development/fufuni 获取。所有商标、标志和品牌资产仍属于 SCTG Development 所有。未经授权复制这些资产是被禁止的。",
+          body: "Bengal Exchange 平台源代码根据 AGPL-3.0 许可证发布，可在 github.com/pseibangladesh/multicom 获取。所有商标、标志和品牌资产仍属于 SCTG Development 所有。未经授权复制这些资产是被禁止的。",
         },
       ],
     },
     "he-IL": {
       title: "הצהרות משפטיות",
-      lead: "המידע המשפטי הבא חל על פלטפורמת Fufuni ואתר האינטרנט המשויך לה. עדכון אחרון: 1 בינואר 2026.",
+      lead: "המידע המשפטי הבא חל על פלטפורמת Bengal Exchange ואתר האינטרנט המשויך לה. עדכון אחרון: 1 בינואר 2026.",
       sections: [
         {
           heading: "מידע על המפרסם",
-          body: 'Fufuni מנוהלת על ידי SCTG Development, חברה הרשומה לפי החוק החל. כתובת רשומה: זמינה על פי בקשה. מספר מע"מ: זמין על פי בקשה. לשאלות משפטיות: legal@fufuni.io.',
+          body: 'Bengal Exchange מנוהלת על ידי SCTG Development, חברה הרשומה לפי החוק החל. כתובת רשומה: זמינה על פי בקשה. מספר מע"מ: זמין על פי בקשה. לשאלות משפטיות: legal@bengal-exchange.io.',
         },
         {
           heading: "אחסון",
@@ -1359,7 +1359,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "קניין רוחני",
-          body: "קוד המקור של פלטפורמת Fufuni מפורסם תחת רישיון AGPL-3.0 וזמין בכתובת github.com/sctg-development/fufuni. כל הסימנים המסחריים, הלוגואים ונכסי המותג נשארים רכושה של SCTG Development.",
+          body: "קוד המקור של פלטפורמת Bengal Exchange מפורסם תחת רישיון AGPL-3.0 וזמין בכתובת github.com/pseibangladesh/multicom. כל הסימנים המסחריים, הלוגואים ונכסי המותג נשארים רכושה של SCTG Development.",
         },
       ],
     },

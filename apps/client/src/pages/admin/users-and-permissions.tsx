@@ -17,13 +17,12 @@
  */
 
 import { useTranslation } from "react-i18next";
-import DefaultLayout from "@/layouts/default";
 
 export default function UsersAndPermissionsPage() {
   const { t } = useTranslation();
 
   return (
-    <DefaultLayout>
+    <>
       <section className="flex flex-col gap-6 py-8 md:py-10 px-4">
         <div className="flex items-center justify-between">
           <div>
@@ -46,6 +45,6 @@ export default function UsersAndPermissionsPage() {
           </ul>
         </div>
       </section>
-    </DefaultLayout>
+    </>
   );
 }

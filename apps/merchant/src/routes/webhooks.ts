@@ -26,6 +26,8 @@
 import { Hono } from 'hono';
 import Stripe from 'stripe';
 import { getDb } from '../db';
+import { recalcCustomerStats, upsertCustomerByEmail } from '../lib/customers';
+import { getStripeSettings } from '../lib/payment-config';
 import { ApiError, uuid, now, generateOrderNumber, type HonoEnv } from '../types';
 import { dispatchWebhooks } from '../lib/webhooks';
 import { handleUCPStripeWebhook } from './ucp';
@@ -47,21 +49,10 @@ webhooks.post('/stripe', async (c) => {
 
   const db = getDb(c.var.db);
 
-  // For simplicity and to avoid an extra DB query, we read the webhook secret directly from env vars
-  let stripeConfig = {
-    secret_key: c.env.STRIPE_SECRET_KEY,
-    webhook_secret: c.env.STRIPE_WEBHOOK_SECRET,
-  };
-
-  if (!stripeConfig.secret_key || !stripeConfig.webhook_secret) {
-    // Get stripe keys from config table if not set in env vars (legacy support)
-    const [config] = await db.query<any>(`SELECT * FROM config WHERE key = 'stripe'`);
-    if (!config?.value) {
-      throw ApiError.invalidRequest('Stripe not configured');
-    }
-
-    stripeConfig = JSON.parse(config.value);
-  }
+  // Webhooks keep working while Stripe checkout is switched off, so
+  // payments and refunds for existing orders are still recorded.
+  const resolved = await getStripeSettings(db, c.env);
+  const stripeConfig = { secret_key: resolved.secretKey, webhook_secret: resolved.webhookSecret };
 
   if (!stripeConfig.secret_key || !stripeConfig.webhook_secret) {
     throw ApiError.invalidRequest('Stripe not configured. Missing secret key or webhook secret.');
@@ -201,43 +192,12 @@ webhooks.post('/stripe', async (c) => {
               }
             : null);
 
-        // Upsert customer (create or update on email match)
-        let customerId: string | null = null;
-        const [existingCustomer] = await db.query<any>(
-          `SELECT id, order_count, total_spent_cents FROM customers WHERE email = ?`,
-          [customerEmail]
-        );
-
-        if (existingCustomer) {
-          // Update existing customer
-          customerId = existingCustomer.id;
-          await db.run(
-            `UPDATE customers SET 
-              name = COALESCE(?, name),
-              phone = COALESCE(?, phone),
-              order_count = order_count + 1,
-              total_spent_cents = total_spent_cents + ?,
-              last_order_at = ?,
-              updated_at = ?
-            WHERE id = ?`,
-            [customerName, shippingPhone, session.amount_total ?? 0, now(), now(), customerId]
-          );
-        } else {
-          // Create new customer
-          customerId = uuid();
-          await db.run(
-            `INSERT INTO customers (id, email, name, phone, order_count, total_spent_cents, last_order_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?)`,
-            [
-              customerId,
-              customerEmail,
-              customerName,
-              shippingPhone,
-              session.amount_total ?? 0,
-              now(),
-            ]
-          );
-        }
+        // The customer record for this email (created if new). Totals are
+        // recalculated from the orders once the order exists (lib/customers.ts).
+        const customerId: string | null = await upsertCustomerByEmail(db, customerEmail, {
+          name: customerName,
+          phone: shippingPhone,
+        });
 
         // Attach the verified shipping address to the Stripe Customer so it appears correctly
         // in the Stripe dashboard (non-blocking – a failure here must not abort the webhook).
@@ -434,6 +394,8 @@ webhooks.post('/stripe', async (c) => {
 
         // Credit AI token packages included in this order.
         // Runs non-blocking so a failure here never aborts the webhook.
+        await recalcCustomerStats(db, customerId);
+
         if (customerId) {
           c.executionCtx.waitUntil(
             (async () => {
@@ -447,7 +409,7 @@ webhooks.post('/stripe', async (c) => {
                 );
                 for (const aiItem of aiTokenItems) {
                   if (aiItem.ai_token_units) {
-                    await creditAiTokens(db, customerId, orderId, aiItem.ai_token_units * aiItem.qty, c.var.db, c.executionCtx);
+                    await creditAiTokens(db, customerId, orderId, aiItem.ai_token_units * aiItem.qty, c.var.db, c.executionCtx as any);
                   }
                 }
               } catch (err) {
@@ -468,7 +430,7 @@ webhooks.post('/stripe', async (c) => {
         const orderItems = await db.query<any>(`SELECT * FROM order_items WHERE order_id = ?`, [
           orderId,
         ]);
-        await dispatchWebhooks(c.var.db, c.executionCtx, 'order.created', {
+        await dispatchWebhooks(c.var.db, c.executionCtx as any, 'order.created', {
           order: {
             id: orderId,
             number: orderNumber,

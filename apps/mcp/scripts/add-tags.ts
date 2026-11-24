@@ -16,7 +16,7 @@ const TAG_RULES: Array<{ match: RegExp; tags: string[] }> = [
   { match: /migration/i, tags: ['database', 'migrations', 'schema'] },
   { match: /schema|durable.?object|sqlite/i, tags: ['database', 'schema', 'durable-object'] },
   { match: /route|hono|openapi/i, tags: ['backend', 'api', 'hono'] },
-  { match: /auth0?|jwt|identity|credential/i, tags: ['auth', 'auth0', 'security'] },
+  { match: /auth|session|identity|credential/i, tags: ['auth', 'security'] },
   { match: /stripe|payment|checkout|refund|billing/i, tags: ['payments', 'stripe', 'checkout'] },
   { match: /webhook|event|notification/i, tags: ['webhooks', 'events'] },
   { match: /react|frontend|heroui|component|ui/i, tags: ['frontend', 'react', 'ui'] },
