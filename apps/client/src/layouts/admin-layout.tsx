@@ -1,8 +1,10 @@
 /**
- * Admin area: every module in a grouped sidebar (desktop) or a collapsible
- * section list (phone), with the page in the outlet.
+ * Admin area: every module in a grouped sidebar (desktop) or a slide-in
+ * drawer behind a hamburger button (phone / tablet), with the page in the
+ * outlet.
  */
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
@@ -24,7 +26,7 @@ function AdminNavList({ onNavigate }: { onNavigate?: () => void }) {
               <li key={href}>
                 <NavLink
                   className={({ isActive }) =>
-                    `flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                    `bx-tap flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
                       isActive
                         ? "bg-bx-indigo-tint font-medium text-bx-primary"
                         : "text-bx-ink-soft hover:bg-bx-paper hover:text-bx-ink"
@@ -49,36 +51,96 @@ function AdminNavList({ onNavigate }: { onNavigate?: () => void }) {
 export default function AdminLayout() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
-  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const current = [...ADMIN_NAV_ITEMS]
     .sort((a, b) => b.href.length - a.href.length)
     .find((i) => pathname === i.href || pathname.startsWith(i.href + "/"));
 
-  // Close the phone menu after navigating.
+  // Close the drawer after navigating.
+  useEffect(() => setMenuOpen(false), [pathname]);
+
+  // While open: Escape closes, the page behind doesn't scroll, focus moves
+  // into the drawer and back to the hamburger on close.
   useEffect(() => {
-    if (detailsRef.current) detailsRef.current.open = false;
-  }, [pathname]);
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    const overflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKey);
+    closeButtonRef.current?.focus();
+
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener("keydown", onKey);
+      menuButtonRef.current?.focus();
+    };
+  }, [menuOpen]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      {/* Phone / tablet: collapsible list */}
-      <details
-        ref={detailsRef}
-        className="rounded-md border border-bx-line bg-bx-surface-raised lg:hidden"
-      >
-        <summary className="flex cursor-pointer items-center justify-between px-4 py-3 text-sm font-medium text-bx-ink">
-          <span>
-            {t("admin-nav-label")}
-            {current ? `: ${t(current.labelKey)}` : ""}
-          </span>
-        </summary>
-        <nav
-          aria-label={t("admin-nav-label")}
-          className="border-t border-bx-line p-3"
+      {/* Phone / tablet: hamburger + drawer */}
+      <div className="flex items-center gap-3 lg:hidden">
+        <button
+          ref={menuButtonRef}
+          aria-controls="admin-drawer"
+          aria-expanded={menuOpen}
+          className="inline-flex h-11 items-center gap-2 rounded-md border border-bx-line bg-bx-surface-raised px-3 text-sm font-medium text-bx-ink hover:border-bx-primary"
+          type="button"
+          onClick={() => setMenuOpen(true)}
         >
-          <AdminNavList />
-        </nav>
-      </details>
+          <Menu aria-hidden className="h-5 w-5" />
+          {t("admin-nav-label")}
+        </button>
+        {current && (
+          <span className="min-w-0 truncate text-sm text-bx-stone">
+            {t(current.labelKey)}
+          </span>
+        )}
+      </div>
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            aria-label={t("admin-nav-close")}
+            className="absolute inset-0 bg-black/50"
+            tabIndex={-1}
+            type="button"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div
+            aria-label={t("admin-nav-label")}
+            aria-modal="true"
+            className="absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col border-r border-bx-line bg-bx-surface-raised shadow-xl"
+            id="admin-drawer"
+            role="dialog"
+          >
+            <div className="flex items-center justify-between border-b border-bx-line px-4 py-3">
+              <span className="font-semibold text-bx-ink">
+                {t("admin-nav-label")}
+              </span>
+              <button
+                ref={closeButtonRef}
+                aria-label={t("admin-nav-close")}
+                className="grid h-9 w-9 place-items-center rounded-md text-bx-stone hover:bg-bx-paper hover:text-bx-ink"
+                type="button"
+                onClick={() => setMenuOpen(false)}
+              >
+                <X aria-hidden className="h-5 w-5" />
+              </button>
+            </div>
+            <nav
+              aria-label={t("admin-nav-label")}
+              className="flex-1 overflow-y-auto p-3"
+            >
+              <AdminNavList onNavigate={() => setMenuOpen(false)} />
+            </nav>
+          </div>
+        </div>
+      )}
 
       {/* Desktop: sidebar */}
       <aside className="hidden lg:block">

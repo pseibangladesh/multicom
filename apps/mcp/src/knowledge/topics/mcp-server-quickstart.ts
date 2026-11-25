@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'mcp-server-quickstart',
-  description: 'Setup and extension of the Bengal Exchange MCP server itself — generate.ts pipeline, adding a new topic, running gen-knowledge, and deploying to Cloudflare.',
+  description: 'Setup and extension of the Bengali Exchange MCP server itself — generate.ts pipeline, adding a new topic, running gen-knowledge, and deploying to Cloudflare.',
   tags: ["frontend","react","ui"],
   sources: [],
   systemPrompt: BASE_SYSTEM,

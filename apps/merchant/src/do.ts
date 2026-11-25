@@ -2009,7 +2009,12 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
 
     // Compatibility endpoint used by the client: { session: null | {...} }
     if (url.pathname === '/api/auth/session' && request.method === 'GET') {
-      const result = await this.auth.api.getSession({ headers: request.headers });
+      // Skip the 5-minute cookie cache so a new profile picture or name shows
+      // at once (a local SQLite read inside this object).
+      const result = await this.auth.api.getSession({
+        headers: request.headers,
+        query: { disableCookieCache: true },
+      });
       if (!result) return Response.json({ session: null });
       return Response.json({
         session: {

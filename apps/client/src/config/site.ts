@@ -35,15 +35,13 @@ import i18next from "../i18n";
  * @example
  * ```tsx
  * const config = siteConfig();
- * console.log(config.name); // e.g. "Bengal Exchange"
+ * console.log(config.name); // e.g. "Bengali Exchange"
  * ```
  */
 export const siteConfig = () => ({
-  name: i18next.t("vite-heroui"),
+  name: "Bengali Exchange", // brand name, not translated
   needCookieConsent: true, // Set to false if you don't need cookie consent
-  description: i18next.t(
-    "make-beautiful-websites-regardless-of-your-design-experience",
-  ),
+  description: i18next.t("footer-blurb"),
   navItems: [
     {
       label: i18next.t("home"),

@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Ronan LE MEILLAT
 // License: AGPL-3.0-or-later
 //
-// Local stdio entry point for the Bengal Exchange MCP server.
+// Local stdio entry point for the Bengali Exchange MCP server.
 // Allows Claude for VS Code (and other stdio-only MCP clients) to run
 // this server as a local subprocess instead of connecting over HTTP.
 //
@@ -84,7 +84,7 @@ class LoggingStdioServerTransport {
 }
 
 const server = new McpServer({
-  name: "Bengal Exchange Knowledge Base",
+  name: "Bengali Exchange Knowledge Base",
   version: "2.0.0",
 });
 

@@ -235,54 +235,58 @@ export default function CountriesPage() {
         onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={(v) => setStatusFilter(v || "")}
       >
-        <Card>
+        <Card className="p-2 sm:p-4 lg:p-6">
           <Card.Content>
             <Table>
-              <Table.Content>
-                <Table.Header>
-                  <Table.Column key="code" isRowHeader>
-                    {t("admin-common-code")}
-                  </Table.Column>
-                  <Table.Column key="display_name">
-                    {t("admin-common-name")}
-                  </Table.Column>
-                  <Table.Column key="country_name">
-                    {t("admin-countries-fullname")}
-                  </Table.Column>
-                  <Table.Column key="language_code">
-                    {t("admin-common-language")}
-                  </Table.Column>
-                  <Table.Column key="status">
-                    {t("admin-common-status")}
-                  </Table.Column>
-                  <Table.Column key="actions">
-                    {t("admin-common-actions")}
-                  </Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => <div>{t("admin-common-empty")}</div>}
-                >
-                  {displayed.map((country) => (
-                    <Table.Row key={country.id} className="odd:bg-default-50">
-                      <Table.Cell className=" font-bold">
-                        {country.code}
-                      </Table.Cell>
-                      <Table.Cell>{country.display_name}</Table.Cell>
-                      <Table.Cell>{country.country_name}</Table.Cell>
-                      <Table.Cell>{country.language_code}</Table.Cell>
-                      <Table.Cell>
-                        <StatusBadge status={country.status} />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <RowActions
-                          onDelete={() => handleDelete(country.id)}
-                          onEdit={() => handleOpenEdit(country)}
-                        />
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
+              <Table.ScrollContainer>
+                <Table.Content>
+                  <Table.Header>
+                    <Table.Column key="code" isRowHeader>
+                      {t("admin-common-code")}
+                    </Table.Column>
+                    <Table.Column key="display_name">
+                      {t("admin-common-name")}
+                    </Table.Column>
+                    <Table.Column key="country_name">
+                      {t("admin-countries-fullname")}
+                    </Table.Column>
+                    <Table.Column key="language_code">
+                      {t("admin-common-language")}
+                    </Table.Column>
+                    <Table.Column key="status">
+                      {t("admin-common-status")}
+                    </Table.Column>
+                    <Table.Column key="actions">
+                      {t("admin-common-actions")}
+                    </Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() => (
+                      <div>{t("admin-common-empty")}</div>
+                    )}
+                  >
+                    {displayed.map((country) => (
+                      <Table.Row key={country.id} className="odd:bg-default-50">
+                        <Table.Cell className=" font-bold">
+                          {country.code}
+                        </Table.Cell>
+                        <Table.Cell>{country.display_name}</Table.Cell>
+                        <Table.Cell>{country.country_name}</Table.Cell>
+                        <Table.Cell>{country.language_code}</Table.Cell>
+                        <Table.Cell>
+                          <StatusBadge status={country.status} />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <RowActions
+                            onDelete={() => handleDelete(country.id)}
+                            onEdit={() => handleOpenEdit(country)}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
           </Card.Content>
         </Card>

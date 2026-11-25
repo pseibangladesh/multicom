@@ -32,6 +32,13 @@ import { z } from '@hono/zod-openapi';
 import { type HonoEnv } from '../types';
 import { getDb } from '../db';
 import { authMiddleware, adminOnly } from '../middleware/auth';
+import {
+  currenciesInPeriod,
+  ordersBySource,
+  ordersOverTime,
+  salesByCategory,
+  sinceExpr,
+} from '../lib/analytics';
 
 const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', authMiddleware);
@@ -76,6 +83,27 @@ const getDashboardRoute = createRoute({
               count:  z.number(),
             })),
             low_stock_count: z.number(),
+            /** Per day (per month for "all"), gaps filled with zeros. */
+            orders_over_time: z.array(z.object({
+              date:          z.string(),
+              orders:        z.number(),
+              revenue_cents: z.number(),
+            })),
+            /** Units sold per top-level category. */
+            sales_by_category: z.array(z.object({
+              category_id:   z.string(),
+              name:          z.string(),
+              units_sold:    z.number(),
+              revenue_cents: z.number(),
+            })),
+            /** Orders per source: storefront, etsy, ebay, amazon. */
+            orders_by_source: z.array(z.object({
+              source:        z.string(),
+              orders:        z.number(),
+              revenue_cents: z.number(),
+            })),
+            /** Currencies summed into the revenue figures. */
+            currencies: z.array(z.string()),
           }),
         },
       },
@@ -87,9 +115,9 @@ adminApp.openapi(getDashboardRoute, async (c) => {
   const { period } = c.req.valid('query');
   const db         = getDb(c.var.db);
 
-  // Build a safe SQL date expression from a Zod-validated enum (no user input)
-  const days  = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : null;
-  const since = days ? `datetime('now', '-${days} days')` : `'1970-01-01'`;
+  // Safe SQL date bound from the Zod-validated enum (no user input). Compared
+  // with the date part of created_at, which is stored in two formats.
+  const since = sinceExpr(period);
 
   // ── Revenue (paid + fulfilled orders only) ─────────────────────────────
   const [rev] = await db.query<{
@@ -103,7 +131,7 @@ adminApp.openapi(getDashboardRoute, async (c) => {
        COALESCE(AVG(total_cents), 0)  AS avg_order_cents
      FROM orders
      WHERE status IN ('paid','processing','shipped','delivered')
-       AND created_at >= ${since}`
+       AND substr(created_at, 1, 10) >= ${since}`
   );
 
   // ── Customer stats ─────────────────────────────────────────────────────
@@ -115,7 +143,7 @@ adminApp.openapi(getDashboardRoute, async (c) => {
   }>(
     `SELECT
        COUNT(*)                                                  AS total,
-       SUM(CASE WHEN created_at >= ${since} THEN 1 ELSE 0 END)  AS new_customers,
+       SUM(CASE WHEN substr(created_at, 1, 10) >= ${since} THEN 1 ELSE 0 END) AS new_customers,
        SUM(CASE WHEN order_count > 1        THEN 1 ELSE 0 END)  AS returning_customers
      FROM customers`
   );
@@ -138,7 +166,7 @@ adminApp.openapi(getDashboardRoute, async (c) => {
      JOIN products p ON p.id       = v.product_id
      JOIN orders   o ON o.id       = oi.order_id
      WHERE o.status IN ('paid','processing','shipped','delivered')
-       AND o.created_at >= ${since}
+       AND substr(o.created_at, 1, 10) >= ${since}
      GROUP BY p.id
      ORDER BY revenue_cents DESC
      LIMIT 10`
@@ -172,6 +200,10 @@ adminApp.openapi(getDashboardRoute, async (c) => {
       top_products:     topProducts,
       orders_by_status: ordersByStatus,
       low_stock_count:  ls.count,
+      orders_over_time:  await ordersOverTime(db, period),
+      sales_by_category: await salesByCategory(db, period),
+      orders_by_source:  await ordersBySource(db, period),
+      currencies:        await currenciesInPeriod(db, period),
     },
     200
   );

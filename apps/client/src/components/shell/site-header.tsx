@@ -134,7 +134,15 @@ export const SiteHeader = forwardRef<HTMLButtonElement, SiteHeaderProps>(
                 </span>
                 <span className="bx-menu-label">{t("menu")}</span>
                 <span aria-hidden="true" className="bx-avatar">
-                  {initial || <PersonGlyph />}
+                  {isAuthenticated && user?.image ? (
+                    <img
+                      alt=""
+                      className="h-full w-full rounded-full object-cover"
+                      src={user.image}
+                    />
+                  ) : (
+                    initial || <PersonGlyph />
+                  )}
                 </span>
               </button>
             </div>

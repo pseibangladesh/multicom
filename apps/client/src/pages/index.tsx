@@ -172,7 +172,7 @@ export default function IndexPage() {
   if (categoryUnknown) {
     return (
       <div className="mx-auto max-w-7xl py-6">
-        <h1 className="mb-4 font-display text-3xl text-bx-ink">
+        <h1 className="mb-4 font-display text-2xl md:text-3xl text-bx-ink">
           {t("category-not-found")}
         </h1>
         <p className="mb-4 text-bx-ink-soft">{t("category-not-found-body")}</p>
@@ -195,13 +195,13 @@ export default function IndexPage() {
         {/* Page heading: on the landing page the hero owns the <h1>. */}
         {isLanding ? (
           <h2
-            className="mb-6 scroll-mt-24 font-display text-3xl text-bx-ink"
+            className="mb-6 scroll-mt-24 font-display text-2xl md:text-3xl text-bx-ink"
             id="catalogue"
           >
             {t("shop-products-title")}
           </h2>
         ) : (
-          <h1 className="mb-6 font-display text-3xl text-bx-ink">
+          <h1 className="mb-6 font-display text-2xl md:text-3xl text-bx-ink">
             {term ? t("search-results-for", { term }) : categoryName}
           </h1>
         )}
@@ -230,7 +230,7 @@ export default function IndexPage() {
           <>
             <div
               ref={gridRef}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
             >
               {safeProducts.map((product) => (
                 <ProductCard
@@ -268,6 +268,12 @@ export default function IndexPage() {
 
   return (
     <>
+      {/* Brand gradient behind the landing page (globals.css). */}
+      <div aria-hidden="true" className="bx-landing-glow">
+        <span />
+        <span />
+        <span />
+      </div>
       {bannerIndex === -1 && (
         <>
           <CategoryRow />

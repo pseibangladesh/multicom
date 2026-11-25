@@ -64,6 +64,7 @@ import { publicBanners, adminBanners } from './routes/banners';
 import { publicHome, adminHomeSections } from './routes/home-sections';
 import { adminApiKeys } from './routes/api-keys';
 import { publicStorefrontSettings, adminStorefrontSettings } from './routes/storefront-settings';
+import { publicSiteContent, adminSiteContent } from './routes/site-content';
 import { publicPaymentMethods } from './routes/payment-methods';
 import { marketplaceRoutes } from './routes/marketplace';
 import { adminMarketplaceChannelRoutes } from './routes/marketplace/channels';
@@ -150,11 +151,13 @@ app.route('/v1/payment-methods', publicPaymentMethods); // storefront: which gat
 app.route('/v1/banners', publicBanners);                 // storefront: home-page banners
 app.route('/v1/storefront', publicStorefrontSettings);    // storefront: enabled languages
 app.route('/v1/storefront', publicHome);                  // storefront: home page sections
+app.route('/v1/storefront', publicSiteContent);            // storefront: footer social links, page edits
 // Admin settings
 app.route('/v1/admin', adminSettings);
 // Mounted here, before the '/v1' routers whose use('*', customerAuthMiddleware)
 // would otherwise reject admin API keys for every later /v1 route.
 app.route('/v1/admin/settings', adminStorefrontSettings); // languages, UCP switch, AI status
+app.route('/v1/admin/settings', adminSiteContent);        // social links, page content
 app.route('/v1/admin/banners', adminBanners);
 app.route('/v1/admin/home-sections', adminHomeSections); // page builder
 app.route('/v1/admin/categories', adminCategoryList); // all categories incl. showcase-only (public lists hide them)
@@ -240,7 +243,7 @@ app.all('/api/auth/*', async (c) => {
 app.doc31('/openapi.json', {
   openapi: '3.1.0',
   info: {
-    title: 'Bengal Exchange API',
+    title: 'Bengali Exchange API',
     version: '1.0.0',
     description: 'The open-source commerce backend for Cloudflare + Stripe + Better Auth',
   },

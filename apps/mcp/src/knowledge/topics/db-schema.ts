@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'db-schema',
-  description: 'Complete Durable Object SQL schema — every table, column, index and foreign key used by the Bengal Exchange backend.',
+  description: 'Complete Durable Object SQL schema — every table, column, index and foreign key used by the Bengali Exchange backend.',
   tags: ["database","durable-object","schema"],
   sources: [
     'apps/merchant/src/do.ts',
@@ -17,7 +17,7 @@ const topic: Topic = {
     'The Durable Object executes SQL synchronously via `this.sql.exec()` but incoming calls from the Worker are asynchronous (fetch-based RPC via MERCHANT binding).',
     'Migrations are tracked via the SQL `migrations` table (columns: name TEXT PK, applied_at TEXT). There is NO storage.put("db_version") pattern — all migration state lives in the DB itself.',
     'ensureInitialized() first runs the SCHEMA DDL, then iterates an inline array of { name, sql } migration objects and inserts their name into the migrations table once applied.',
-    'Bengal Exchange does NOT use Drizzle ORM or any query builder. All queries are raw SQL strings passed to db.query<T>(sql, params) or db.run(sql, params) from the getDb() helper.',
+    'Bengali Exchange does NOT use Drizzle ORM or any query builder. All queries are raw SQL strings passed to db.query<T>(sql, params) or db.run(sql, params) from the getDb() helper.',
     'The storefront has one theme (Bengal) with light/dark mode chosen per browser (localStorage "theme"). Per-customer data such as wishlist and saved carts is in customers.metadata; the account cart is in customer_carts.',
     'getDb(c.var.db) returns a Database object with query<T>(sql, params?): Promise<T[]> and run(sql, params?): Promise<{changes}> — both proxy to the Durable Object via RPC.',
     'Migration 034 added currency, reason (duplicate|fraudulent|requested_by_customer), notes, and updated_at to the existing refunds table. The refunds table now fully tracks partial refunds with audit trail.',

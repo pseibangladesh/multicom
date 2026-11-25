@@ -1,12 +1,12 @@
 // Copyright (c) 2024-2026 Ronan LE MEILLAT
 // License: AGPL-3.0-or-later
 //
-// Bengal Exchange MCP Server — serves the static knowledge-base files from mcp/ as MCP tools.
+// Bengali Exchange MCP Server — serves the static knowledge-base files from mcp/ as MCP tools.
 //
 // Usage:
 //   GET /mcp           — Streamable HTTP MCP endpoint (MCP clients)
 //   GET /sse           — SSE MCP endpoint (legacy Claude Desktop / older clients)
-//   GET /              — Health-check (returns 200 "Bengal Exchange MCP Server")
+//   GET /              — Health-check (returns 200 "Bengali Exchange MCP Server")
 //
 // Knowledge files are pre-bundled at build time by scripts/gen-knowledge.ts into
 // src/knowledge.ts (gitignored). Run `npm run gen-knowledge` before deploying.
@@ -63,7 +63,7 @@ async function checkRateLimit(request: Request, env: Env): Promise<Response | nu
 
 export class BengalExchangeMCP extends McpAgent {
   server = new McpServer({
-    name: "Bengal Exchange Knowledge Base",
+    name: "Bengali Exchange Knowledge Base",
     version: "2.0.0",
   });
 

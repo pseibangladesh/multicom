@@ -47,12 +47,14 @@ import {
   getHandleForLocale,
   mergeHandleLocale,
   getTaxNameForLocale,
+  stripHtml,
 } from "@/utils/description";
 import { availableLanguages } from "@/i18n";
 import {
   ProductImagesInput,
   type ProductImage,
 } from "@/components/product-images-input";
+import { ProductThumb, productThumbUrl } from "@/components/product-thumb";
 import { storedImageKey } from "@/lib/banners";
 
 // --- Data types ----------------------------------------------------------
@@ -73,18 +75,18 @@ interface Variant {
   barcode?: string | null;
   compare_at_price_cents?: number | null;
   tax_code?: string | null;
-  variant_type?: 'physical' | 'digital' | 'ai_tokens';
+  variant_type?: "physical" | "digital" | "ai_tokens";
   ai_token_units?: number | null;
   color?: string | null;
   size?: string | null;
   availability?: Availability;
 }
 
-type Availability = 'in_stock' | 'out_of_stock' | 'preorder';
+type Availability = "in_stock" | "out_of_stock" | "preorder";
 const AVAILABILITY_KEYS: Record<Availability, string> = {
-  in_stock: 'admin-products-availability-in-stock',
-  out_of_stock: 'admin-products-availability-out-of-stock',
-  preorder: 'admin-products-availability-preorder',
+  in_stock: "admin-products-availability-in-stock",
+  out_of_stock: "admin-products-availability-out-of-stock",
+  preorder: "admin-products-availability-preorder",
 };
 
 /**
@@ -229,6 +231,7 @@ export default function ProductsPage() {
     if (!editingProduct) return;
     if (!deleteConfirm) {
       setDeleteConfirm(true);
+
       return;
     }
     try {
@@ -262,11 +265,14 @@ export default function ProductsPage() {
   const [variantBarcode, setVariantBarcode] = useState("");
   const [variantCompareAtPrice, setVariantCompareAtPrice] = useState("");
   const [variantTaxCode, setVariantTaxCode] = useState("");
-  const [variantType, setVariantType] = useState<'physical' | 'digital' | 'ai_tokens'>('physical');
+  const [variantType, setVariantType] = useState<
+    "physical" | "digital" | "ai_tokens"
+  >("physical");
   const [variantAiTokenUnits, setVariantAiTokenUnits] = useState("");
   const [variantColor, setVariantColor] = useState("");
   const [variantSize, setVariantSize] = useState("");
-  const [variantAvailability, setVariantAvailability] = useState<Availability>('in_stock');
+  const [variantAvailability, setVariantAvailability] =
+    useState<Availability>("in_stock");
 
   // fetch products from backend
   /**
@@ -722,11 +728,11 @@ export default function ProductsPage() {
     setVariantBarcode("");
     setVariantCompareAtPrice("");
     setVariantTaxCode("");
-    setVariantType('physical');
+    setVariantType("physical");
     setVariantAiTokenUnits("");
     setVariantColor("");
     setVariantSize("");
-    setVariantAvailability('in_stock');
+    setVariantAvailability("in_stock");
   };
 
   /**
@@ -758,11 +764,13 @@ export default function ProductsPage() {
     setVariantBarcode(v.barcode || "");
     setVariantCompareAtPrice(String(v.compare_at_price_cents || ""));
     setVariantTaxCode(v.tax_code || "");
-    setVariantType(v.variant_type || 'physical');
-    setVariantAiTokenUnits(v.ai_token_units != null ? String(v.ai_token_units) : "");
+    setVariantType(v.variant_type || "physical");
+    setVariantAiTokenUnits(
+      v.ai_token_units != null ? String(v.ai_token_units) : "",
+    );
     setVariantColor(v.color ?? "");
     setVariantSize(v.size ?? "");
-    setVariantAvailability(v.availability ?? 'in_stock');
+    setVariantAvailability(v.availability ?? "in_stock");
     setVariantModal(true);
   };
 
@@ -803,9 +811,10 @@ export default function ProductsPage() {
         weight_g: variantWeightG ? parseFloat(variantWeightG) : undefined,
         requires_shipping: variantRequiresShipping,
         variant_type: variantType,
-        ai_token_units: variantType === 'ai_tokens' && variantAiTokenUnits
-          ? parseInt(variantAiTokenUnits, 10)
-          : undefined,
+        ai_token_units:
+          variantType === "ai_tokens" && variantAiTokenUnits
+            ? parseInt(variantAiTokenUnits, 10)
+            : undefined,
         barcode: variantBarcode || undefined,
         compare_at_price_cents: variantCompareAtPrice
           ? parseInt(variantCompareAtPrice, 10)
@@ -861,7 +870,7 @@ export default function ProductsPage() {
 
   return (
     <>
-      <div className="px-4 py-6">
+      <div className="py-4 md:px-4 md:py-6">
         {/* header bar */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold">{t("admin-products-title")}</h1>
@@ -907,38 +916,52 @@ export default function ProductsPage() {
           <p className="text-default-500">{t("admin-products-loading")}</p>
         ) : (
           <Table aria-label="Products">
-            <Table.Content selectionMode="none">
-              <Table.Header>
-                <Table.Column isRowHeader>
-                  {t("admin-products-col-title")}
-                </Table.Column>
-                <Table.Column>
-                  {t("admin-products-col-description")}
-                </Table.Column>
-                <Table.Column>{t("admin-products-col-variants")}</Table.Column>
-                <Table.Column>{t("admin-products-col-status")}</Table.Column>
-                <Table.Column>{t("actions")}</Table.Column>
-              </Table.Header>
-              <Table.Body renderEmptyState={() => t("admin-products-empty")}>
-                {displayed.map((p) => (
-                  <Table.Row key={p.id}>
-                    <Table.Cell>
-                      {resolveTitle(p.title, i18n.language)}
-                    </Table.Cell>
-                    <Table.Cell>
-                      {resolveDescription(p.description, i18n.language) || "-"}
-                    </Table.Cell>
-                    <Table.Cell>{p.variants.length}</Table.Cell>
-                    <Table.Cell>{p.status}</Table.Cell>
-                    <Table.Cell>
-                      <Button size="sm" onPress={() => openEdit(p)}>
-                        {t("admin-products-btn-edit")}
-                      </Button>
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Content>
+            <Table.ScrollContainer>
+              <Table.Content selectionMode="none">
+                <Table.Header>
+                  <Table.Column isRowHeader>
+                    {t("admin-products-col-title")}
+                  </Table.Column>
+                  <Table.Column>
+                    {t("admin-products-col-description")}
+                  </Table.Column>
+                  <Table.Column>
+                    {t("admin-products-col-variants")}
+                  </Table.Column>
+                  <Table.Column>{t("admin-products-col-status")}</Table.Column>
+                  <Table.Column>{t("actions")}</Table.Column>
+                </Table.Header>
+                <Table.Body renderEmptyState={() => t("admin-products-empty")}>
+                  {displayed.map((p) => (
+                    <Table.Row key={p.id}>
+                      <Table.Cell>
+                        <div className="flex min-w-48 items-center gap-3">
+                          <ProductThumb src={productThumbUrl(p)} />
+                          <span className="font-medium">
+                            {resolveTitle(p.title, i18n.language)}
+                          </span>
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        {/* Descriptions are HTML; show two lines of plain text. */}
+                        <span className="line-clamp-2 min-w-48 max-w-md">
+                          {stripHtml(
+                            resolveDescription(p.description, i18n.language),
+                          ) || "-"}
+                        </span>
+                      </Table.Cell>
+                      <Table.Cell>{p.variants.length}</Table.Cell>
+                      <Table.Cell>{p.status}</Table.Cell>
+                      <Table.Cell>
+                        <Button size="sm" onPress={() => openEdit(p)}>
+                          {t("admin-products-btn-edit")}
+                        </Button>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
             <Table.Footer>
               <div className="w-full p-2">
                 <Pagination className="justify-between">
@@ -1431,34 +1454,47 @@ export default function ProductsPage() {
                         />
                       </div>
                       {/* Options shown to shoppers + availability switch */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
-                          <label className="block text-sm font-medium" htmlFor="variant-color">
+                          <label
+                            className="block text-sm font-medium"
+                            htmlFor="variant-color"
+                          >
                             {t("admin-products-field-color")}
                           </label>
                           <Input
                             id="variant-color"
                             maxLength={60}
-                            placeholder={t("admin-products-field-color-placeholder")}
+                            placeholder={t(
+                              "admin-products-field-color-placeholder",
+                            )}
                             value={variantColor}
                             onChange={(e) => setVariantColor(e.target.value)}
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium" htmlFor="variant-size">
+                          <label
+                            className="block text-sm font-medium"
+                            htmlFor="variant-size"
+                          >
                             {t("admin-products-field-size")}
                           </label>
                           <Input
                             id="variant-size"
                             maxLength={60}
-                            placeholder={t("admin-products-field-size-placeholder")}
+                            placeholder={t(
+                              "admin-products-field-size-placeholder",
+                            )}
                             value={variantSize}
                             onChange={(e) => setVariantSize(e.target.value)}
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium" htmlFor="variant-availability">
+                        <label
+                          className="block text-sm font-medium"
+                          htmlFor="variant-availability"
+                        >
                           {t("admin-products-field-availability")}
                         </label>
                         <select
@@ -1466,15 +1502,24 @@ export default function ProductsPage() {
                           className="mt-1 w-full rounded-md border border-bx-field-line bg-bx-surface px-3 py-2 text-sm text-bx-ink"
                           id="variant-availability"
                           value={variantAvailability}
-                          onChange={(e) => setVariantAvailability(e.target.value as Availability)}
+                          onChange={(e) =>
+                            setVariantAvailability(
+                              e.target.value as Availability,
+                            )
+                          }
                         >
-                          {(Object.keys(AVAILABILITY_KEYS) as Availability[]).map((a) => (
+                          {(
+                            Object.keys(AVAILABILITY_KEYS) as Availability[]
+                          ).map((a) => (
                             <option key={a} value={a}>
                               {t(AVAILABILITY_KEYS[a])}
                             </option>
                           ))}
                         </select>
-                        <p className="mt-1 text-xs text-bx-stone" id="variant-availability-help">
+                        <p
+                          className="mt-1 text-xs text-bx-stone"
+                          id="variant-availability-help"
+                        >
                           {t(`${AVAILABILITY_KEYS[variantAvailability]}-help`)}
                         </p>
                       </div>
@@ -1510,7 +1555,11 @@ export default function ProductsPage() {
                           <Select.Popover>
                             <ListBox>
                               {variantCurrencies.length === 0 ? (
-                                <ListBox.Item key="USD" id="USD" textValue="USD">
+                                <ListBox.Item
+                                  key="USD"
+                                  id="USD"
+                                  textValue="USD"
+                                >
                                   USD
                                   <ListBox.ItemIndicator />
                                 </ListBox.Item>
@@ -1619,29 +1668,53 @@ export default function ProductsPage() {
                           <Select
                             value={variantType}
                             onChange={(value) => {
-                              const vt = (value as string) as 'physical' | 'digital' | 'ai_tokens';
+                              const vt = value as string as
+                                "physical" | "digital" | "ai_tokens";
+
                               setVariantType(vt);
-                              if (vt !== 'physical') setVariantRequiresShipping(false);
+                              if (vt !== "physical")
+                                setVariantRequiresShipping(false);
                               else setVariantRequiresShipping(true);
-                              if (vt !== 'ai_tokens') setVariantAiTokenUnits('');
+                              if (vt !== "ai_tokens")
+                                setVariantAiTokenUnits("");
                             }}
                           >
-                            <Label>{t("admin-products-field-variant-type")}</Label>
+                            <Label>
+                              {t("admin-products-field-variant-type")}
+                            </Label>
                             <Select.Trigger>
                               <Select.Value />
                               <Select.Indicator />
                             </Select.Trigger>
                             <Select.Popover>
                               <ListBox>
-                                <ListBox.Item key="physical" id="physical" textValue={t("admin-products-variant-type-physical")}>
+                                <ListBox.Item
+                                  key="physical"
+                                  id="physical"
+                                  textValue={t(
+                                    "admin-products-variant-type-physical",
+                                  )}
+                                >
                                   {t("admin-products-variant-type-physical")}
                                   <ListBox.ItemIndicator />
                                 </ListBox.Item>
-                                <ListBox.Item key="digital" id="digital" textValue={t("admin-products-variant-type-digital")}>
+                                <ListBox.Item
+                                  key="digital"
+                                  id="digital"
+                                  textValue={t(
+                                    "admin-products-variant-type-digital",
+                                  )}
+                                >
                                   {t("admin-products-variant-type-digital")}
                                   <ListBox.ItemIndicator />
                                 </ListBox.Item>
-                                <ListBox.Item key="ai_tokens" id="ai_tokens" textValue={t("admin-products-variant-type-ai-tokens")}>
+                                <ListBox.Item
+                                  key="ai_tokens"
+                                  id="ai_tokens"
+                                  textValue={t(
+                                    "admin-products-variant-type-ai-tokens",
+                                  )}
+                                >
                                   {t("admin-products-variant-type-ai-tokens")}
                                   <ListBox.ItemIndicator />
                                 </ListBox.Item>
@@ -1651,17 +1724,21 @@ export default function ProductsPage() {
                         </div>
 
                         {/* AI Token Units — shown only for ai_tokens type */}
-                        {variantType === 'ai_tokens' && (
+                        {variantType === "ai_tokens" && (
                           <div className="mb-3">
                             <label className="block text-sm font-medium">
                               {t("admin-products-field-ai-token-units")}
                             </label>
                             <Input
                               min={1}
-                              placeholder={t("admin-products-field-ai-token-units-placeholder")}
+                              placeholder={t(
+                                "admin-products-field-ai-token-units-placeholder",
+                              )}
                               type="number"
                               value={variantAiTokenUnits}
-                              onChange={(e) => setVariantAiTokenUnits(e.target.value)}
+                              onChange={(e) =>
+                                setVariantAiTokenUnits(e.target.value)
+                              }
                             />
                           </div>
                         )}
@@ -1919,7 +1996,7 @@ function VariantCard({
 }) {
   const { t } = useTranslation();
   const options = [variant.color, variant.size].filter(Boolean).join(" · ");
-  const availability = variant.availability ?? 'in_stock';
+  const availability = variant.availability ?? "in_stock";
 
   return (
     <button
@@ -1944,8 +2021,10 @@ function VariantCard({
           {variant.sku}
           {options && ` · ${options}`}
         </p>
-        {availability !== 'in_stock' && (
-          <p className={`text-xs font-medium ${availability === 'out_of_stock' ? 'text-danger' : 'text-bx-primary'}`}>
+        {availability !== "in_stock" && (
+          <p
+            className={`text-xs font-medium ${availability === "out_of_stock" ? "text-danger" : "text-bx-primary"}`}
+          >
             {t(AVAILABILITY_KEYS[availability])}
           </p>
         )}

@@ -210,72 +210,74 @@ export default function ShippingClassesPage() {
         onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={setStatusFilter}
       >
-        <Card>
+        <Card className="p-2 sm:p-4 lg:p-6">
           <Card.Content>
             <Table>
-              <Table.Content>
-                <Table.Header>
-                  <Table.Column key="code" isRowHeader>
-                    {t("admin-shipping-classes-col-code")}
-                  </Table.Column>
-                  <Table.Column key="display_name">
-                    {t("admin-shipping-classes-col-name")}
-                  </Table.Column>
-                  <Table.Column key="resolution">
-                    {t("admin-shipping-classes-col-resolution")}
-                  </Table.Column>
-                  <Table.Column key="description">
-                    {t("admin-shipping-classes-col-description")}
-                  </Table.Column>
-                  <Table.Column key="status">
-                    {t("admin-shipping-classes-col-status")}
-                  </Table.Column>
-                  <Table.Column key="actions">
-                    {t("admin-shipping-classes-col-actions")}
-                  </Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => (
-                    <div>{t("admin-shipping-classes-empty")}</div>
-                  )}
-                >
-                  {displayed.map((cls) => (
-                    <Table.Row key={cls.id} className="odd:bg-default-50">
-                      <Table.Cell>
-                        <code className="text-xs bg-default-100 px-2 py-0.5 rounded">
-                          {cls.code}
-                        </code>
-                      </Table.Cell>
-                      <Table.Cell className="font-medium">
-                        {cls.display_name}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {cls.resolution === "exclusive" ? (
-                          <Chip size="sm" variant="tertiary">
-                            {t("admin-shipping-classes-exclusive")}
-                          </Chip>
-                        ) : (
-                          <Chip size="sm" variant="tertiary">
-                            {t("admin-shipping-classes-additive")}
-                          </Chip>
-                        )}
-                      </Table.Cell>
-                      <Table.Cell className="text-default-500 text-sm">
-                        {cls.description ?? "—"}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <StatusBadge status={cls.status} />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <RowActions
-                          onDelete={() => handleDelete(cls.id)}
-                          onEdit={() => handleOpenEdit(cls)}
-                        />
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
+              <Table.ScrollContainer>
+                <Table.Content>
+                  <Table.Header>
+                    <Table.Column key="code" isRowHeader>
+                      {t("admin-shipping-classes-col-code")}
+                    </Table.Column>
+                    <Table.Column key="display_name">
+                      {t("admin-shipping-classes-col-name")}
+                    </Table.Column>
+                    <Table.Column key="resolution">
+                      {t("admin-shipping-classes-col-resolution")}
+                    </Table.Column>
+                    <Table.Column key="description">
+                      {t("admin-shipping-classes-col-description")}
+                    </Table.Column>
+                    <Table.Column key="status">
+                      {t("admin-shipping-classes-col-status")}
+                    </Table.Column>
+                    <Table.Column key="actions">
+                      {t("admin-shipping-classes-col-actions")}
+                    </Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() => (
+                      <div>{t("admin-shipping-classes-empty")}</div>
+                    )}
+                  >
+                    {displayed.map((cls) => (
+                      <Table.Row key={cls.id} className="odd:bg-default-50">
+                        <Table.Cell>
+                          <code className="text-xs bg-default-100 px-2 py-0.5 rounded">
+                            {cls.code}
+                          </code>
+                        </Table.Cell>
+                        <Table.Cell className="font-medium">
+                          {cls.display_name}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {cls.resolution === "exclusive" ? (
+                            <Chip size="sm" variant="tertiary">
+                              {t("admin-shipping-classes-exclusive")}
+                            </Chip>
+                          ) : (
+                            <Chip size="sm" variant="tertiary">
+                              {t("admin-shipping-classes-additive")}
+                            </Chip>
+                          )}
+                        </Table.Cell>
+                        <Table.Cell className="text-default-500 text-sm">
+                          {cls.description ?? "—"}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <StatusBadge status={cls.status} />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <RowActions
+                            onDelete={() => handleDelete(cls.id)}
+                            onEdit={() => handleOpenEdit(cls)}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
           </Card.Content>
         </Card>
@@ -359,8 +361,7 @@ export default function ShippingClassesPage() {
                               setFormData({
                                 ...formData,
                                 resolution: e.target.value as
-                                  | "exclusive"
-                                  | "additive",
+                                  "exclusive" | "additive",
                               })
                             }
                           >
@@ -387,8 +388,7 @@ export default function ShippingClassesPage() {
                                 setFormData({
                                   ...formData,
                                   status: e.target.value as
-                                    | "active"
-                                    | "inactive",
+                                    "active" | "inactive",
                                 })
                               }
                             >

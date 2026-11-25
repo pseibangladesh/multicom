@@ -46,7 +46,9 @@ import { ShellRoute } from "@/layouts/default";
 // Admin code is only downloaded when an admin opens /admin.
 const BuyNowPage = lazy(() => import("@/pages/buy-now"));
 const CategoriesPage = lazy(() => import("@/pages/admin/categories"));
-const UsersAndPermissionsPage = lazy(() => import("@/pages/admin/users-and-permissions"));
+const UsersAndPermissionsPage = lazy(
+  () => import("@/pages/admin/users-and-permissions"),
+);
 const ProductsPage = lazy(() => import("@/pages/admin/products"));
 const CustomersPage = lazy(() => import("@/pages/admin/customers"));
 const InventoryPage = lazy(() => import("@/pages/admin/inventory"));
@@ -58,16 +60,22 @@ const CurrenciesPage = lazy(() => import("@/pages/admin/currencies"));
 const CountriesPage = lazy(() => import("@/pages/admin/countries"));
 const WarehousesPage = lazy(() => import("@/pages/admin/warehouses"));
 const ShippingRatesPage = lazy(() => import("@/pages/admin/shipping-rates"));
-const ShippingClassesPage = lazy(() => import("@/pages/admin/shipping-classes"));
+const ShippingClassesPage = lazy(
+  () => import("@/pages/admin/shipping-classes"),
+);
 const TaxRatesPage = lazy(() => import("@/pages/admin/tax-rates"));
 const AnalyticsPage = lazy(() => import("@/pages/admin/analytics"));
 const AdminReviewsPage = lazy(() => import("@/pages/admin/reviews"));
-const PaymentGatewaysPage = lazy(() => import("@/pages/admin/payment-gateways"));
+const PaymentGatewaysPage = lazy(
+  () => import("@/pages/admin/payment-gateways"),
+);
 const MarketplacesPage = lazy(() => import("@/pages/admin/marketplaces"));
 const AdminDashboardPage = lazy(() => import("@/pages/admin/index"));
 const BannersPage = lazy(() => import("@/pages/admin/banners"));
 const ApiKeysPage = lazy(() => import("@/pages/admin/api-keys"));
 const LanguagesPage = lazy(() => import("@/pages/admin/languages"));
+const AdminPagesPage = lazy(() => import("@/pages/admin/pages"));
+const SocialLinksPage = lazy(() => import("@/pages/admin/social-links"));
 const AiAgentsPage = lazy(() => import("@/pages/admin/ai-agents"));
 const AdminLayout = lazy(() => import("@/layouts/admin-layout"));
 
@@ -150,6 +158,8 @@ function App() {
             <Route element={<BannersPage />} path="banners" />
             <Route element={<ApiKeysPage />} path="api-keys" />
             <Route element={<LanguagesPage />} path="languages" />
+            <Route element={<AdminPagesPage />} path="pages" />
+            <Route element={<SocialLinksPage />} path="social-links" />
             <Route element={<AiAgentsPage />} path="ai-agents" />
           </Route>
           <Route

@@ -15,14 +15,15 @@ export const MODE_STORAGE_KEY = "theme";
 
 export type ColorMode = "light" | "dark";
 
-/** The stored mode wins; anything else falls back to the system preference. */
-export function resolveMode(
-  stored: string | null,
-  prefersDark: boolean,
-): ColorMode {
-  if (stored === "light" || stored === "dark") return stored;
+/**
+ * Mode for visitors who never chose one. The brand is dark-first (black with
+ * jute, gold, green and orange accents), so this ignores the OS setting.
+ */
+export const DEFAULT_MODE: ColorMode = "dark";
 
-  return prefersDark ? "dark" : "light";
+/** The stored mode wins; anything else gets the default (dark). */
+export function resolveMode(stored: string | null): ColorMode {
+  return stored === "light" || stored === "dark" ? stored : DEFAULT_MODE;
 }
 
 export interface ModeControllerDeps {
@@ -31,15 +32,12 @@ export interface ModeControllerDeps {
     set(key: string, value: string): void;
     remove(key: string): void;
   };
-  prefersDark(): boolean;
-  /** Subscribe to system light/dark changes; returns an unsubscribe function. */
-  onSystemChange(listener: (dark: boolean) => void): () => void;
   apply(mode: ColorMode): void;
 }
 
 /**
  * Light/dark state. The mode is saved only when the user chooses one; until
- * then it follows the system setting, including later changes.
+ * then it is DEFAULT_MODE.
  */
 export function createModeController(deps: ModeControllerDeps) {
   migrateLegacyTheme(deps.storage);
@@ -48,13 +46,7 @@ export function createModeController(deps: ModeControllerDeps) {
 
     return v === "light" || v === "dark" ? v : null;
   };
-  let current: ColorMode = resolveMode(saved(), deps.prefersDark());
-
-  const unsubscribe = deps.onSystemChange((dark) => {
-    if (saved() !== null) return;
-    current = dark ? "dark" : "light";
-    deps.apply(current);
-  });
+  let current: ColorMode = resolveMode(saved());
 
   return {
     mode: () => current,
@@ -65,10 +57,9 @@ export function createModeController(deps: ModeControllerDeps) {
     },
     /** Re-read the saved choice (another tab may have changed it). */
     sync() {
-      current = resolveMode(saved(), deps.prefersDark());
+      current = resolveMode(saved());
       deps.apply(current);
     },
-    dispose: unsubscribe,
   };
 }
 

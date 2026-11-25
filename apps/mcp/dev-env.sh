@@ -2,7 +2,7 @@
 # Copyright (c) 2024-2026 Ronan LE MEILLAT
 # License: AGPL-3.0-or-later
 #
-# Local dev launcher for the Bengal Exchange MCP Worker.
+# Local dev launcher for the Bengali Exchange MCP Worker.
 # Sources root .env into .dev.vars then starts wrangler dev.
 #
 # Usage (from monorepo root):

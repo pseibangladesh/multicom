@@ -59,6 +59,13 @@ export const rateLimits = {
       requests: 60,
       windowMs: 60 * 1000,
     },
+    // Signed-in browsers (Better Auth session cookie, no API key). An admin
+    // clicking through the panel makes 5-15 calls per page, so the 100/min
+    // default ran out within a minute and pages failed with 429.
+    session: {
+      requests: 600,
+      windowMs: 60 * 1000,
+    },
   },
 
   // Per endpoint overrides (path prefix -> config)
@@ -99,7 +106,9 @@ export const rateLimits = {
  * @param path - The incoming request path (e.g. `"/v1/carts"`).
  * @param role - Optional resolved role (`"admin"` | `"public"`).
  */
-export function getLimitForRequest(path: string, role?: 'admin' | 'public'): RateLimitConfig {
+export type RateLimitRole = keyof typeof rateLimits.roles;
+
+export function getLimitForRequest(path: string, role?: RateLimitRole): RateLimitConfig {
   // Check endpoint-specific overrides first
   for (const [prefix, config] of Object.entries(rateLimits.endpoints)) {
     if (path.startsWith(prefix)) {

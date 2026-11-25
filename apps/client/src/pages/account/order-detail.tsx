@@ -75,6 +75,7 @@ export default function OrderDetail() {
           const dlResult: { downloads: DownloadLink[] } = await auth.getJson(
             `${apiBase}/v1/orders/${result.id}/downloads`,
           );
+
           setDownloads(dlResult.downloads ?? []);
         } catch {
           // Ignore — order may have no digital items
@@ -106,7 +107,8 @@ export default function OrderDetail() {
 
   const handleDownloadPDF = async () => {
     // Generate and download the invoice PDF using jsPDF
-    const storeName = import.meta.env.VITE_STORE_NAME || "Bengal Exchange Store";
+    const storeName =
+      import.meta.env.VITE_STORE_NAME || "Bengali Exchange Store";
     const locale = "en-US"; // Could also use i18n locale here
 
     downloadInvoicePdf(
@@ -133,7 +135,7 @@ export default function OrderDetail() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">
+        <h1 className="text-2xl md:text-3xl font-bold">
           {t("account-order")} #{order.number}
         </h1>
         <div className="flex gap-2">
@@ -217,30 +219,32 @@ export default function OrderDetail() {
         <Separator />
         <Card.Content>
           <Table aria-label={t("account-items")}>
-            <Table.Content selectionMode="none">
-              <Table.Header>
-                <Table.Column isRowHeader>{t("account-item")}</Table.Column>
-                <Table.Column>{t("account-qty")}</Table.Column>
-                <Table.Column>{t("account-unit-price")}</Table.Column>
-                <Table.Column>{t("account-total")}</Table.Column>
-              </Table.Header>
-              <Table.Body renderEmptyState={() => ""}>
-                {order.items.map((item, idx) => (
-                  <Table.Row key={idx}>
-                    <Table.Cell>{item.title}</Table.Cell>
-                    <Table.Cell>{item.qty}</Table.Cell>
-                    <Table.Cell>
-                      {(item.unit_price_cents / 100).toFixed(2)}{" "}
-                      {order.currency}
-                    </Table.Cell>
-                    <Table.Cell>
-                      {((item.qty * item.unit_price_cents) / 100).toFixed(2)}{" "}
-                      {order.currency}
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Content>
+            <Table.ScrollContainer>
+              <Table.Content selectionMode="none">
+                <Table.Header>
+                  <Table.Column isRowHeader>{t("account-item")}</Table.Column>
+                  <Table.Column>{t("account-qty")}</Table.Column>
+                  <Table.Column>{t("account-unit-price")}</Table.Column>
+                  <Table.Column>{t("account-total")}</Table.Column>
+                </Table.Header>
+                <Table.Body renderEmptyState={() => ""}>
+                  {order.items.map((item, idx) => (
+                    <Table.Row key={idx}>
+                      <Table.Cell>{item.title}</Table.Cell>
+                      <Table.Cell>{item.qty}</Table.Cell>
+                      <Table.Cell>
+                        {(item.unit_price_cents / 100).toFixed(2)}{" "}
+                        {order.currency}
+                      </Table.Cell>
+                      <Table.Cell>
+                        {((item.qty * item.unit_price_cents) / 100).toFixed(2)}{" "}
+                        {order.currency}
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
           </Table>
         </Card.Content>
       </Card>

@@ -253,59 +253,66 @@ export default function WarehousesPage() {
         onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={(v) => setStatusFilter(v || "")}
       >
-        <Card>
+        <Card className="p-2 sm:p-4 lg:p-6">
           <Card.Content>
             <Table>
-              <Table.Content>
-                <Table.Header>
-                  <Table.Column key="display_name" isRowHeader>
-                    {t("admin-common-name")}
-                  </Table.Column>
-                  <Table.Column key="city">
-                    {t("admin-warehouses-city")}
-                  </Table.Column>
-                  <Table.Column key="country">
-                    {t("admin-common-country")}
-                  </Table.Column>
-                  <Table.Column key="priority">
-                    {t("admin-warehouses-priority")}
-                  </Table.Column>
-                  <Table.Column key="status">
-                    {t("admin-common-status")}
-                  </Table.Column>
-                  <Table.Column key="actions">
-                    {t("admin-common-actions")}
-                  </Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => <div>{t("admin-common-empty")}</div>}
-                >
-                  {displayedSorted.map((warehouse) => (
-                    <Table.Row key={warehouse.id} className="odd:bg-default-50">
-                      <Table.Cell>{warehouse.display_name}</Table.Cell>
-                      <Table.Cell>
-                        {warehouse.city}
-                        {warehouse.state ? `, ${warehouse.state}` : ""}
-                      </Table.Cell>
-                      <Table.Cell>{warehouse.country_code}</Table.Cell>
-                      <Table.Cell>
-                        <span className="bg-default-100 text-default-700 border border-default-200 px-2 py-1 rounded">
-                          {warehouse.priority}
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <StatusBadge status={warehouse.status} />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <RowActions
-                          onDelete={() => handleDelete(warehouse.id)}
-                          onEdit={() => handleOpenEdit(warehouse)}
-                        />
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
+              <Table.ScrollContainer>
+                <Table.Content>
+                  <Table.Header>
+                    <Table.Column key="display_name" isRowHeader>
+                      {t("admin-common-name")}
+                    </Table.Column>
+                    <Table.Column key="city">
+                      {t("admin-warehouses-city")}
+                    </Table.Column>
+                    <Table.Column key="country">
+                      {t("admin-common-country")}
+                    </Table.Column>
+                    <Table.Column key="priority">
+                      {t("admin-warehouses-priority")}
+                    </Table.Column>
+                    <Table.Column key="status">
+                      {t("admin-common-status")}
+                    </Table.Column>
+                    <Table.Column key="actions">
+                      {t("admin-common-actions")}
+                    </Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() => (
+                      <div>{t("admin-common-empty")}</div>
+                    )}
+                  >
+                    {displayedSorted.map((warehouse) => (
+                      <Table.Row
+                        key={warehouse.id}
+                        className="odd:bg-default-50"
+                      >
+                        <Table.Cell>{warehouse.display_name}</Table.Cell>
+                        <Table.Cell>
+                          {warehouse.city}
+                          {warehouse.state ? `, ${warehouse.state}` : ""}
+                        </Table.Cell>
+                        <Table.Cell>{warehouse.country_code}</Table.Cell>
+                        <Table.Cell>
+                          <span className="bg-default-100 text-default-700 border border-default-200 px-2 py-1 rounded">
+                            {warehouse.priority}
+                          </span>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <StatusBadge status={warehouse.status} />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <RowActions
+                            onDelete={() => handleDelete(warehouse.id)}
+                            onEdit={() => handleOpenEdit(warehouse)}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
           </Card.Content>
         </Card>

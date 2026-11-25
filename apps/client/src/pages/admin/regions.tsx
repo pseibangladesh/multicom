@@ -263,73 +263,77 @@ export default function RegionsPage() {
         onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={setStatusFilter}
       >
-        <Card>
+        <Card className="p-2 sm:p-4 lg:p-6">
           <Card.Content>
             <Table>
-              <Table.Content>
-                <Table.Header>
-                  <Table.Column key="display_name" isRowHeader>
-                    {t("admin-common-name")}
-                  </Table.Column>
-                  <Table.Column key="currency">
-                    {t("admin-common-currency")}
-                  </Table.Column>
-                  <Table.Column key="is_default">
-                    {t("admin-common-default")}
-                  </Table.Column>
-                  <Table.Column key="tax_inclusive">
-                    {t("admin-regions-tax-inclusive")}
-                  </Table.Column>
-                  <Table.Column key="status">
-                    {t("admin-common-status")}
-                  </Table.Column>
-                  <Table.Column key="actions">
-                    {t("admin-common-actions")}
-                  </Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => <div>{t("admin-common-empty")}</div>}
-                >
-                  {displayed.map((region: Region) => (
-                    <Table.Row key={region.id} className="odd:bg-default-50">
-                      <Table.Cell>{region.display_name}</Table.Cell>
-                      <Table.Cell>
-                        {region.currency_code || region.currency_id}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {region.is_default ? (
-                          <span className="text-green-600">✓ Default</span>
-                        ) : (
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleSetDefault(region.id)}
-                          >
-                            Set Default
-                          </Button>
-                        )}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {region.tax_inclusive ? (
-                          <span className="text-blue-600">TTC</span>
-                        ) : (
-                          <span className="text-gray-500">HT</span>
-                        )}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <StatusBadge status={region.status} />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <RowActions
-                          onDelete={() => handleDelete(region.id)}
-                          onEdit={() => handleOpenEdit(region)}
-                        />
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
+              <Table.ScrollContainer>
+                <Table.Content>
+                  <Table.Header>
+                    <Table.Column key="display_name" isRowHeader>
+                      {t("admin-common-name")}
+                    </Table.Column>
+                    <Table.Column key="currency">
+                      {t("admin-common-currency")}
+                    </Table.Column>
+                    <Table.Column key="is_default">
+                      {t("admin-common-default")}
+                    </Table.Column>
+                    <Table.Column key="tax_inclusive">
+                      {t("admin-regions-tax-inclusive")}
+                    </Table.Column>
+                    <Table.Column key="status">
+                      {t("admin-common-status")}
+                    </Table.Column>
+                    <Table.Column key="actions">
+                      {t("admin-common-actions")}
+                    </Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() => (
+                      <div>{t("admin-common-empty")}</div>
+                    )}
+                  >
+                    {displayed.map((region: Region) => (
+                      <Table.Row key={region.id} className="odd:bg-default-50">
+                        <Table.Cell>{region.display_name}</Table.Cell>
+                        <Table.Cell>
+                          {region.currency_code || region.currency_id}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {region.is_default ? (
+                            <span className="text-green-600">✓ Default</span>
+                          ) : (
+                            <Button
+                              className="whitespace-nowrap"
+                              size="sm"
+                              variant="tertiary"
+                              onPress={() => handleSetDefault(region.id)}
+                            >
+                              Set Default
+                            </Button>
+                          )}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {region.tax_inclusive ? (
+                            <span className="text-blue-600">TTC</span>
+                          ) : (
+                            <span className="text-gray-500">HT</span>
+                          )}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <StatusBadge status={region.status} />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <RowActions
+                            onDelete={() => handleDelete(region.id)}
+                            onEdit={() => handleOpenEdit(region)}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
               <Table.Footer>
                 <div className="w-full p-2">
                   <Pagination className="justify-between">

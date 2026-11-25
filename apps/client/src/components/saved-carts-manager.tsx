@@ -265,31 +265,36 @@ export function SavedCartsManager() {
                         <Separator />
 
                         {/* Items Table */}
-                        <Table aria-label="Articles du panier">
-                          <Table.Header>
-                            <Table.Column>Titre</Table.Column>
-                            <Table.Column>Quantité</Table.Column>
-                            <Table.Column>Prix unitaire</Table.Column>
-                            <Table.Column>Total</Table.Column>
-                          </Table.Header>
-                          <Table.Body>
-                            {selectedCart.items.map((item, idx) => (
-                              <Table.Row key={idx}>
-                                <Table.Cell>{item.title}</Table.Cell>
-                                <Table.Cell>{item.qty}</Table.Cell>
-                                <Table.Cell>
-                                  ${(item.unit_price_cents / 100).toFixed(2)}
-                                </Table.Cell>
-                                <Table.Cell>
-                                  $
-                                  {(
-                                    (item.unit_price_cents * item.qty) /
-                                    100
-                                  ).toFixed(2)}
-                                </Table.Cell>
-                              </Table.Row>
-                            ))}
-                          </Table.Body>
+                        <Table>
+                          <Table.ScrollContainer>
+                            <Table.Content aria-label="Articles du panier">
+                              <Table.Header>
+                                <Table.Column>Titre</Table.Column>
+                                <Table.Column>Quantité</Table.Column>
+                                <Table.Column>Prix unitaire</Table.Column>
+                                <Table.Column>Total</Table.Column>
+                              </Table.Header>
+                              <Table.Body>
+                                {selectedCart.items.map((item, idx) => (
+                                  <Table.Row key={idx}>
+                                    <Table.Cell>{item.title}</Table.Cell>
+                                    <Table.Cell>{item.qty}</Table.Cell>
+                                    <Table.Cell>
+                                      $
+                                      {(item.unit_price_cents / 100).toFixed(2)}
+                                    </Table.Cell>
+                                    <Table.Cell>
+                                      $
+                                      {(
+                                        (item.unit_price_cents * item.qty) /
+                                        100
+                                      ).toFixed(2)}
+                                    </Table.Cell>
+                                  </Table.Row>
+                                ))}
+                              </Table.Body>
+                            </Table.Content>
+                          </Table.ScrollContainer>
                         </Table>
 
                         <Separator />

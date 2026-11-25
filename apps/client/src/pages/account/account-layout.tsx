@@ -5,15 +5,10 @@
 
 import { Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  Button,
-  Card,
-  Separator,
-  Avatar,
-  Link as HeroUILink,
-} from "@heroui/react";
+import { Button, Card, Separator, Link as HeroUILink } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
+import { UserAvatar } from "@/components/profile-picture";
 import { getBaseURL } from "@/utils/base-url";
 
 /**
@@ -61,29 +56,19 @@ export default function AccountLayout() {
 
   return (
     <>
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col gap-6 md:flex-row">
         {/* Sidebar Navigation */}
-        <aside className="w-full lg:w-64">
-          <Card className="sticky top-6 border border-default-200">
+        <aside className="w-full shrink-0 md:w-56 lg:w-64">
+          <Card className="border border-default-200 md:sticky md:top-24">
             {/* User Profile Section */}
             <Card.Content className="gap-4 py-6">
               <div className="flex items-center gap-4">
-                <Avatar
-                  className="ring-2 ring-background rounded-lg"
-                  color="accent"
-                  size="lg"
-                >
-                  <Avatar.Fallback>
-                    {user?.name
-                      ? user.name
-                          .split(" ")
-                          .map((n: string) => n[0])
-                          .join("")
-                      : user?.email
-                        ? user.email[0].toUpperCase()
-                        : "U"}
-                  </Avatar.Fallback>
-                </Avatar>
+                <UserAvatar
+                  className="ring-2 ring-background"
+                  email={user?.email}
+                  image={user?.image}
+                  name={user?.name}
+                />
                 <div className="flex-1 min-w-0">
                   <h2 className="text-sm font-bold truncate">
                     {user?.name || user?.email || "Account"}
@@ -97,7 +82,7 @@ export default function AccountLayout() {
               <Separator className="my-2" />
 
               {/* Navigation Links */}
-              <nav className="flex flex-col gap-2">
+              <nav className="grid grid-cols-2 gap-2 md:flex md:flex-col">
                 {navLinks.map((link) => {
                   const isActive = isCurrentPage(link.to, link.end);
 
@@ -105,7 +90,7 @@ export default function AccountLayout() {
                     <HeroUILink
                       key={link.to}
                       className={`
-                        px-4 py-3 rounded-lg transition-all duration-200 font-medium
+                        min-h-11 px-4 py-3 rounded-lg transition-all duration-200 font-medium
                         flex items-center gap-3 text-sm
                         ${
                           isActive

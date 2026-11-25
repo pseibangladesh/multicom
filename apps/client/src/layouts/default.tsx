@@ -37,6 +37,7 @@ import { LoginModal } from "@/features/auth/components/login-modal";
  */
 export function ShellRoute() {
   useLanguagePolicy(); // Admin → Languages: default and switched-off languages
+
   return (
     <Shell>
       {/* Lazy pages (admin) load inside the shell, so header and footer stay. */}
@@ -58,7 +59,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   return (
-    <div className="relative flex min-h-dvh flex-col bg-bx-paper text-bx-ink">
+    // `isolate`: the landing page's background glow (z-index -1) sits above
+    // this background and below the content.
+    <div className="relative isolate flex min-h-dvh flex-col bg-bx-paper text-bx-ink">
       <SiteHeader
         menuOpen={menuOpen}
         onOpenCart={openCart}

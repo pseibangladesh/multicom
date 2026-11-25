@@ -41,11 +41,11 @@ describe("admin navigation", () => {
     expect(broken).toEqual([]);
   });
 
-  it("has no duplicate entries and covers all 24 admin pages", () => {
+  it("has no duplicate entries and covers all 26 admin pages", () => {
     const hrefs = ADMIN_NAV_ITEMS.map((i) => i.href);
 
     expect(new Set(hrefs).size).toBe(hrefs.length);
-    expect(adminRoutes()).toHaveLength(24);
+    expect(adminRoutes()).toHaveLength(26);
     expect(ADMIN_NAV.every((g) => g.items.length > 0)).toBe(true);
   });
 

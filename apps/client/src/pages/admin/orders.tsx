@@ -307,7 +307,7 @@ export default function OrdersPage() {
 
   return (
     <>
-      <div className="px-4 py-6">
+      <div className="py-4 md:px-4 md:py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 h-9">
           <h1
@@ -503,7 +503,7 @@ export default function OrdersPage() {
                           </Chip>
 
                           {/* Two column layout */}
-                          <div className="grid grid-cols-2 gap-5">
+                          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                             {/* Left column */}
                             <div className="space-y-4">
                               {/* Customer */}
@@ -690,7 +690,7 @@ export default function OrdersPage() {
                           <Separator />
 
                           {/* Status & Tracking */}
-                          <div className="grid grid-cols-2 gap-5">
+                          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                             {/* Status Update */}
                             <div>
                               <Label>{t("admin-orders-status")}</Label>

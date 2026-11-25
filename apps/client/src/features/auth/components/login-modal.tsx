@@ -44,7 +44,7 @@ export function LoginModal({
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const [mode, setMode] = useState<AuthMode>("signin");
-  const storeName = import.meta.env.STORE_NAME || "Bengal Exchange";
+  const storeName = import.meta.env.STORE_NAME || "Bengali Exchange";
 
   // Every time it opens, start on "sign in".
   useEffect(() => {

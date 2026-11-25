@@ -39,11 +39,20 @@ interface OrderDetails {
   tracking_url: string | null;
   shipped_at: string | null;
   taxes?: { name: string; amount_cents: number }[];
-  items: { sku: string; title: string; qty: number; unit_price_cents: number }[];
+  items: {
+    sku: string;
+    title: string;
+    qty: number;
+    unit_price_cents: number;
+  }[];
 }
 
 // Format a price in cents to a localized string, e.g. 2999 → "29,99 EUR"
-function formatPrice(cents: number, currency: string, locale: string = "en-US") {
+function formatPrice(
+  cents: number,
+  currency: string,
+  locale: string = "en-US",
+) {
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: currency.toUpperCase(),
@@ -93,10 +102,14 @@ export default function SuccessPage() {
 
     // Call the public lookup endpoint — no auth token needed
     const merchantAPI = import.meta.env.API_BASE_URL || "http://localhost:8787";
-    fetch(`${merchantAPI}/v1/orders/lookup?session_id=${encodeURIComponent(sessionId)}`)
+    fetch(
+      `${merchantAPI}/v1/orders/lookup?session_id=${encodeURIComponent(sessionId)}`,
+    )
       .then((res) => {
         if (!res.ok) {
-          throw new Error(res.status === 404 ? "Order not found" : "Failed to load order");
+          throw new Error(
+            res.status === 404 ? "Order not found" : "Failed to load order",
+          );
         }
         return res.json();
       })
@@ -123,20 +136,32 @@ export default function SuccessPage() {
                 strokeWidth={2.5}
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             </div>
 
-            <h1 className="text-3xl font-bold mb-4">{t("success")}</h1>
+            <h1 className="text-2xl md:text-3xl font-bold mb-4">
+              {t("success")}
+            </h1>
             <p className="text-default-400 mb-8">
               {t("checkout-success-message")}
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link className="inline-block px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 font-semibold" to="/">
+              <Link
+                className="inline-block px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 font-semibold"
+                to="/"
+              >
                 {t("continue-shopping")}
               </Link>
-              <Link className="inline-block px-6 py-2 rounded-full border-2 border-current hover:bg-default-100 font-semibold" to="/cart">
+              <Link
+                className="inline-block px-6 py-2 rounded-full border-2 border-current hover:bg-default-100 font-semibold"
+                to="/cart"
+              >
                 {t("view-cart")}
               </Link>
             </div>
@@ -168,19 +193,31 @@ export default function SuccessPage() {
               strokeWidth={2.5}
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold mb-4">{t("success")}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-4">
+            {t("success")}
+          </h1>
           <p className="text-default-400 mb-8">
             {t("checkout-success-message")}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link className="inline-block px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 font-semibold" to="/">
+            <Link
+              className="inline-block px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 font-semibold"
+              to="/"
+            >
               {t("continue-shopping")}
             </Link>
-            <Link className="inline-block px-6 py-2 rounded-full border-2 border-current hover:bg-default-100 font-semibold" to="/cart">
+            <Link
+              className="inline-block px-6 py-2 rounded-full border-2 border-current hover:bg-default-100 font-semibold"
+              to="/cart"
+            >
               {t("view-cart")}
             </Link>
           </div>
@@ -213,19 +250,30 @@ export default function SuccessPage() {
               strokeWidth={2.5}
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5 13l4 4L19 7"
+              />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold mb-2">{t("order-confirmed")}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-2">
+            {t("order-confirmed")}
+          </h1>
           <p className="text-default-500">
-            {t("order-number")}<strong>{order.number}</strong>
+            {t("order-number")}
+            <strong>{order.number}</strong>
           </p>
-          <p className="text-sm text-default-400 mt-1">{formatDate(order.created_at, i18n.language)}</p>
+          <p className="text-sm text-default-400 mt-1">
+            {formatDate(order.created_at, i18n.language)}
+          </p>
         </div>
 
         {/* Status Badge */}
         <div className="bg-default-100 rounded-lg p-4 mb-6 flex items-center justify-between">
-          <span className="text-sm font-medium text-default-600">{t("status")}</span>
+          <span className="text-sm font-medium text-default-600">
+            {t("status")}
+          </span>
           <span className="bg-success-100 text-success-700 text-xs font-semibold px-3 py-1 rounded-full">
             {statusLabels[order.status] ?? order.status}
           </span>
@@ -234,13 +282,22 @@ export default function SuccessPage() {
         {/* Items */}
         <div className="border border-default-200 rounded-lg divide-y mb-6">
           {order.items.map((item) => (
-            <div key={item.sku} className="flex justify-between items-center p-4">
+            <div
+              key={item.sku}
+              className="flex justify-between items-center p-4"
+            >
               <div>
                 <p className="font-medium text-sm">{item.title}</p>
-                <p className="text-xs text-default-400">{t("qty")}: {item.qty}</p>
+                <p className="text-xs text-default-400">
+                  {t("qty")}: {item.qty}
+                </p>
               </div>
               <p className="font-medium text-sm">
-                {formatPrice(item.unit_price_cents * item.qty, order.currency, i18n.language)}
+                {formatPrice(
+                  item.unit_price_cents * item.qty,
+                  order.currency,
+                  i18n.language,
+                )}
               </p>
             </div>
           ))}
@@ -250,34 +307,53 @@ export default function SuccessPage() {
         <div className="bg-default-50 rounded-lg p-4 space-y-2 text-sm mb-6">
           <div className="flex justify-between">
             <span className="text-default-600">{t("subtotal")}</span>
-            <span>{formatPrice(order.subtotal_cents, order.currency, i18n.language)}</span>
+            <span>
+              {formatPrice(order.subtotal_cents, order.currency, i18n.language)}
+            </span>
           </div>
           {order.discount_cents > 0 && (
             <div className="flex justify-between text-success-600">
               <span>{t("discount")}</span>
-              <span>−{formatPrice(order.discount_cents, order.currency, i18n.language)}</span>
+              <span>
+                −
+                {formatPrice(
+                  order.discount_cents,
+                  order.currency,
+                  i18n.language,
+                )}
+              </span>
             </div>
           )}
           {order.taxes && order.taxes.length > 0 ? (
             order.taxes.map((tax, index) => (
               <div key={index} className="flex justify-between">
-                <span className="text-default-600">{resolveTaxName(tax.name, i18n.language)}</span>
-                <span>{formatPrice(tax.amount_cents, order.currency, i18n.language)}</span>
+                <span className="text-default-600">
+                  {resolveTaxName(tax.name, i18n.language)}
+                </span>
+                <span>
+                  {formatPrice(tax.amount_cents, order.currency, i18n.language)}
+                </span>
               </div>
             ))
           ) : order.tax_cents > 0 ? (
             <div className="flex justify-between">
               <span className="text-default-600">{t("tax")}</span>
-              <span>{formatPrice(order.tax_cents, order.currency, i18n.language)}</span>
+              <span>
+                {formatPrice(order.tax_cents, order.currency, i18n.language)}
+              </span>
             </div>
           ) : null}
           <div className="flex justify-between">
             <span className="text-default-600">{t("shipping")}</span>
-            <span>{formatPrice(order.shipping_cents, order.currency, i18n.language)}</span>
+            <span>
+              {formatPrice(order.shipping_cents, order.currency, i18n.language)}
+            </span>
           </div>
           <div className="flex justify-between font-bold text-base pt-2 border-t border-default-200">
             <span>{t("total")}</span>
-            <span>{formatPrice(order.total_cents, order.currency, i18n.language)}</span>
+            <span>
+              {formatPrice(order.total_cents, order.currency, i18n.language)}
+            </span>
           </div>
         </div>
 
@@ -285,7 +361,9 @@ export default function SuccessPage() {
         {order.tracking_number && (
           <div className="bg-primary-50 rounded-lg p-4 mb-6">
             <p className="font-medium text-sm mb-1">{t("tracking")}</p>
-            <p className="text-xs text-default-500 mb-2">{t("tracking-number")} {order.tracking_number}</p>
+            <p className="text-xs text-default-500 mb-2">
+              {t("tracking-number")} {order.tracking_number}
+            </p>
             {order.shipped_at && (
               <p className="text-xs text-default-400 mb-2">
                 {t("shipped-on")} {formatDate(order.shipped_at, i18n.language)}
@@ -311,10 +389,16 @@ export default function SuccessPage() {
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link className="inline-block px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 font-semibold" to="/">
+          <Link
+            className="inline-block px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 font-semibold"
+            to="/"
+          >
             {t("continue-shopping")}
           </Link>
-          <Link className="inline-block px-6 py-2 rounded-full border-2 border-current hover:bg-default-100 font-semibold" to="/cart">
+          <Link
+            className="inline-block px-6 py-2 rounded-full border-2 border-current hover:bg-default-100 font-semibold"
+            to="/cart"
+          >
             {t("view-cart")}
           </Link>
         </div>

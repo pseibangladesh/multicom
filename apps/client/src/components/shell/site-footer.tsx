@@ -14,16 +14,11 @@ import { Link as RouterLink } from "react-router-dom";
 import { BrandMark } from "./brand-mark";
 
 import { useAuth } from "@/authentication";
-import {
-  FOOTER_COLUMNS,
-  SOCIAL_LINKS,
-  visibleLinks,
-} from "@/config/navigation";
+import { FOOTER_COLUMNS, visibleLinks } from "@/config/navigation";
 import { paymentBadges } from "@/lib/payment-badges";
+import { useSocialLinks } from "@/lib/site-content";
 import { enabledPaymentMethods, getPaymentMethods } from "@/lib/store-api";
-import { GithubIcon } from "@/shared/ui/icons";
-
-const SOCIAL_ICONS: Record<string, typeof GithubIcon> = { github: GithubIcon };
+import { SOCIAL_PLATFORM_LABELS, SocialIcon } from "@/shared/ui/social-icons";
 
 export function SiteFooter() {
   const { t } = useTranslation();
@@ -35,6 +30,8 @@ export function SiteFooter() {
     retry: 1, // decoration only: settle quickly if the endpoint is down
   });
   const badges = methods ? paymentBadges(enabledPaymentMethods(methods)) : [];
+  // Admin → Social links. Nothing until loaded, so a removed link never flashes.
+  const { data: socialLinks = [] } = useSocialLinks();
 
   return (
     <footer className="bx-footer">
@@ -78,7 +75,7 @@ export function SiteFooter() {
               rel="noopener noreferrer"
               target="_blank"
             >
-              <Trans ns="base">powered-by</Trans> SCTG Bengal Exchange
+              <Trans ns="base">powered-by</Trans> SCTG Bengali Exchange
             </a>
             {isAuthenticated && user?.name && (
               <>
@@ -92,23 +89,27 @@ export function SiteFooter() {
             )}
           </div>
 
-          <div className="bx-social">
-            {SOCIAL_LINKS.map((l) => {
-              const Icon = SOCIAL_ICONS[l.key];
+          {socialLinks.length > 0 && (
+            <ul aria-label={t("footer-social")} className="bx-social">
+              {socialLinks.map((l, i) => {
+                const label = SOCIAL_PLATFORM_LABELS[l.platform] ?? l.platform;
 
-              return (
-                <a
-                  key={l.key}
-                  aria-label={t(l.key)}
-                  href={l.href}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  {Icon ? <Icon /> : t(l.key)}
-                </a>
-              );
-            })}
-          </div>
+                return (
+                  <li key={`${l.platform}-${i}`}>
+                    <a
+                      aria-label={label}
+                      href={l.url}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                      title={label}
+                    >
+                      <SocialIcon platform={l.platform} />
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
 
           {/* Loading: a quiet placeholder in the reserved space. Loaded: the
               list only when a gateway is on (none or an error shows nothing). */}

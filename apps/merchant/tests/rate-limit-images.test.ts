@@ -37,3 +37,35 @@ describe('rate limit and images', () => {
     expect(statuses.at(-1)).toBe(429);
   });
 });
+
+describe('rate limit identity', () => {
+  function api() {
+    const a = new Hono();
+    a.onError((err, c) => c.json({}, (err instanceof ApiError ? err.statusCode : 500) as 429));
+    a.use('/v1/*', rateLimitMiddleware());
+    a.get('/v1/orders', (c) => c.json({ ok: true }));
+    return a;
+  }
+  const PK = 'pk_' + 'c'.repeat(48);
+
+  it('counts the shared public key per shopper, not for the whole store', async () => {
+    const a = api();
+    const limit = rateLimits.roles.public.requests;
+    const shopperA = { Authorization: `Bearer ${PK}`, 'CF-Connecting-IP': '198.51.100.1' };
+    const shopperB = { Authorization: `Bearer ${PK}`, 'CF-Connecting-IP': '198.51.100.2' };
+    for (let i = 0; i < limit; i++) expect((await a.request('/v1/orders', { headers: shopperA })).status).toBe(200);
+    expect((await a.request('/v1/orders', { headers: shopperA })).status).toBe(429);
+    // Same key, another shopper: unaffected.
+    expect((await a.request('/v1/orders', { headers: shopperB })).status).toBe(200);
+  });
+
+  it('gives signed-in browsers the session limit', async () => {
+    const a = api();
+    const headers = { cookie: 'better-auth.session_token=abc.def', 'CF-Connecting-IP': '198.51.100.3' };
+    const r = await a.request('/v1/orders', { headers });
+    expect(r.headers.get('X-RateLimit-Limit')).toBe(String(rateLimits.roles.session.requests));
+    // Past the anonymous default (100), a session is still served.
+    for (let i = 0; i < rateLimits.default.requests + 5; i++) await a.request('/v1/orders', { headers });
+    expect((await a.request('/v1/orders', { headers })).status).toBe(200);
+  });
+});

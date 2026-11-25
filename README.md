@@ -1,12 +1,12 @@
 <div align="center">
-  <h1>🛍️ Bengal Exchange</h1>
+  <h1>🛍️ Bengali Exchange</h1>
   <p><strong>A headless, AI-ready e-commerce platform that runs entirely on Cloudflare's edge.</strong><br/>
   Cloudflare Workers · Durable Objects (SQLite) · React 19 · Better Auth · Stripe · SSLCommerz</p>
 </div>
 
 ---
 
-Bengal Exchange is a full online store: a storefront, an admin dashboard and a backend API. It sells physical and digital products in several currencies and languages. Payments go through Stripe or SSLCommerz. Orders can also come in from Etsy, eBay and Amazon, and AI shopping agents can place them through the Universal Commerce Protocol (UCP).
+Bengali Exchange is a full online store: a storefront, an admin dashboard and a backend API. It sells physical and digital products in several currencies and languages. Payments go through Stripe or SSLCommerz. Orders can also come in from Etsy, eBay and Amazon, and AI shopping agents can place them through the Universal Commerce Protocol (UCP).
 
 The backend is a single Cloudflare Worker. All store data lives in one Durable Object's SQLite database, so there is no external database to run.
 
@@ -228,7 +228,7 @@ Follow **[docs/production-checklist.md](docs/production-checklist.md)** before g
 
 ## License
 
-Bengal Exchange is built on the open-source project by Ronan LE MEILLAT / SCTG Development, and keeps its licenses:
+Bengali Exchange is built on the open-source project by Ronan LE MEILLAT / SCTG Development, and keeps its licenses:
 
 - `apps/client/`: **AGPL-3.0-or-later** (stated in each source file's header)
 - `apps/merchant/`: **MIT** (see [apps/merchant/LICENSE](apps/merchant/LICENSE))

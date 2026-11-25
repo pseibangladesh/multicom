@@ -219,54 +219,61 @@ export default function CurrenciesPage() {
         onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={(v) => setStatusFilter(v || "")}
       >
-        <Card>
+        <Card className="p-2 sm:p-4 lg:p-6">
           <Card.Content>
             <Table>
-              <Table.Content>
-                <Table.Header>
-                  <Table.Column key="code" isRowHeader>
-                    {t("admin-common-code")}
-                  </Table.Column>
-                  <Table.Column key="display_name">
-                    {t("admin-common-name")}
-                  </Table.Column>
-                  <Table.Column key="symbol">
-                    {t("admin-common-symbol")}
-                  </Table.Column>
-                  <Table.Column key="decimal_places">
-                    {t("admin-currencies-decimals")}
-                  </Table.Column>
-                  <Table.Column key="status">
-                    {t("admin-common-status")}
-                  </Table.Column>
-                  <Table.Column key="actions">
-                    {t("admin-common-actions")}
-                  </Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => <div>{t("admin-common-empty")}</div>}
-                >
-                  {displayed.map((currency) => (
-                    <Table.Row key={currency.id} className="odd:bg-default-50">
-                      <Table.Cell className=" font-bold">
-                        {currency.code}
-                      </Table.Cell>
-                      <Table.Cell>{currency.display_name}</Table.Cell>
-                      <Table.Cell>{currency.symbol}</Table.Cell>
-                      <Table.Cell>{currency.decimal_places}</Table.Cell>
-                      <Table.Cell>
-                        <StatusBadge status={currency.status} />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <RowActions
-                          onDelete={() => handleDelete(currency.id)}
-                          onEdit={() => handleOpenEdit(currency)}
-                        />
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
+              <Table.ScrollContainer>
+                <Table.Content>
+                  <Table.Header>
+                    <Table.Column key="code" isRowHeader>
+                      {t("admin-common-code")}
+                    </Table.Column>
+                    <Table.Column key="display_name">
+                      {t("admin-common-name")}
+                    </Table.Column>
+                    <Table.Column key="symbol">
+                      {t("admin-common-symbol")}
+                    </Table.Column>
+                    <Table.Column key="decimal_places">
+                      {t("admin-currencies-decimals")}
+                    </Table.Column>
+                    <Table.Column key="status">
+                      {t("admin-common-status")}
+                    </Table.Column>
+                    <Table.Column key="actions">
+                      {t("admin-common-actions")}
+                    </Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() => (
+                      <div>{t("admin-common-empty")}</div>
+                    )}
+                  >
+                    {displayed.map((currency) => (
+                      <Table.Row
+                        key={currency.id}
+                        className="odd:bg-default-50"
+                      >
+                        <Table.Cell className=" font-bold">
+                          {currency.code}
+                        </Table.Cell>
+                        <Table.Cell>{currency.display_name}</Table.Cell>
+                        <Table.Cell>{currency.symbol}</Table.Cell>
+                        <Table.Cell>{currency.decimal_places}</Table.Cell>
+                        <Table.Cell>
+                          <StatusBadge status={currency.status} />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <RowActions
+                            onDelete={() => handleDelete(currency.id)}
+                            onEdit={() => handleOpenEdit(currency)}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
           </Card.Content>
         </Card>

@@ -23,7 +23,7 @@ export const DEFAULT_LANGUAGE_SETTINGS: LanguageSettings = {
 const LANGUAGES_KEY = 'storefront.languages';
 const UCP_KEY = 'ucp.enabled';
 
-async function readConfig<T>(db: Database, key: string): Promise<T | null> {
+export async function readConfig<T>(db: Database, key: string): Promise<T | null> {
   const [row] = await db.query<{ value: string }>(`SELECT value FROM config WHERE key = ?`, [key]);
   if (!row) return null;
   try {
@@ -33,7 +33,7 @@ async function readConfig<T>(db: Database, key: string): Promise<T | null> {
   }
 }
 
-async function writeConfig(db: Database, key: string, value: unknown): Promise<void> {
+export async function writeConfig(db: Database, key: string, value: unknown): Promise<void> {
   await db.run(
     `INSERT INTO config (key, value, updated_at) VALUES (?, ?, datetime('now'))
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,

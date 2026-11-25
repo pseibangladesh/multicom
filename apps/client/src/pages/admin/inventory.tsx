@@ -321,9 +321,11 @@ export default function InventoryPage() {
 
   return (
     <>
-      <div className="p-6">
+      <div className="py-4 md:p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">{t("admin-inventory-title")}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">
+            {t("admin-inventory-title")}
+          </h1>
           <button
             className="p-2 rounded hover:bg-default-200 transition-colors disabled:opacity-50"
             onClick={() => loadData(cursor)}
@@ -703,7 +705,7 @@ export default function InventoryPage() {
                                   <p className="text-xs font-medium text-gray-600">
                                     {t("admin-inventory-adjust-section")}
                                   </p>
-                                  <div className="grid grid-cols-2 gap-3">
+                                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                     <Tooltip>
                                       <Tooltip.Trigger>
                                         <TextField isRequired>

@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'mcp-maintenance-guide',
-  description: "Call this when you need to maintain or extend the Bengal Exchange MCP knowledge base.",
+  description: "Call this when you need to maintain or extend the Bengali Exchange MCP knowledge base.",
   tags: ["mcp","knowledge","maintenance","documentation"],
   sources: [
     'apps/mcp/src/knowledge/base.ts',
@@ -33,8 +33,8 @@ const topic: Topic = {
     'Copyright header required in every new topic file: "Copyright (c) 2026 Ronan LE MEILLAT - SCTG Development / License: AGPL-3.0-or-later".',
     'The description and tags fields are auto-populated by the LLM on first generation (BASE_SYSTEM instructs the LLM to emit <!--mcp-description: ...--> and <!--mcp-tags: [...]-->). patchTopicTs() rewrites those fields in the .ts source after each successful generation. You do not need to fill them manually.',
 
-    // ── Mandatory checklist when Bengal Exchange evolves ──────────────────────────────
-    'CHECKLIST — When you add a new feature to Bengal Exchange (new route, new migration, new frontend component), you MUST: (1) check if an existing topic covers it → add the new source file to its sources[] array; (2) if no existing topic covers it → create a new topic file; (3) add any non-obvious facts (security rules, naming conventions, gotchas) to manualFacts[]; (4) run npm run mcp:auto:flash (or mcp:auto:mistral) to regenerate only the changed topics.',
+    // ── Mandatory checklist when Bengali Exchange evolves ──────────────────────────────
+    'CHECKLIST — When you add a new feature to Bengali Exchange (new route, new migration, new frontend component), you MUST: (1) check if an existing topic covers it → add the new source file to its sources[] array; (2) if no existing topic covers it → create a new topic file; (3) add any non-obvious facts (security rules, naming conventions, gotchas) to manualFacts[]; (4) run npm run mcp:auto:flash (or mcp:auto:mistral) to regenerate only the changed topics.',
     'CHECKLIST — When you rename or move a source file: update all sources[] arrays in every topic that references that path. The generator will fail silently (source missing) if a path is wrong.',
     'CHECKLIST — When you change a naming convention or add a global constraint: add it to the manualFacts[] of the most relevant topic AND to apps/mcp/src/knowledge/base.ts BASE_SYSTEM if it applies to all topics.',
     'CHECKLIST — When you add a new DB migration: update the migrations-reference topic sources[] to include the new SQL file. Run mcp:auto:flash after.',
@@ -61,11 +61,11 @@ const topic: Topic = {
     'KV cache binding is KV_CACHE in wrangler.jsonc. Cache TTL: 3600s for retrieve_knowledge and get_manifest, 86400s for static tools (list_topics, get_topic, etc.). All keys include MANIFEST_COMMIT so redeploying always starts with a cold cache.',
   ],
   buildPrompt: (src) => appendFacts(`
-Below are the relevant source files for the Bengal Exchange MCP server:
+Below are the relevant source files for the Bengali Exchange MCP server:
 
 ${src}
 
-Task: Write a "MCP Maintenance Guide" for the sole developer of the Bengal Exchange project.
+Task: Write a "MCP Maintenance Guide" for the sole developer of the Bengali Exchange project.
 
 The guide must cover exactly these four sections:
 
@@ -78,7 +78,7 @@ Describe the runtime structure of the MCP server:
 
 ## Authoring and Maintaining Topics
 Explain the Topic interface with all fields (name, description, tags, sources, systemPrompt, buildPrompt, manualFacts, staticAppend, maxSourceChars) and their roles.
-Then give the complete mandatory checklist the developer must go through each time Bengal Exchange gains a new feature, route, migration, or convention. For each item in the checklist, explain WHICH field to update and WHY.
+Then give the complete mandatory checklist the developer must go through each time Bengali Exchange gains a new feature, route, migration, or convention. For each item in the checklist, explain WHICH field to update and WHY.
 Show a complete minimal topic file as a TypeScript code example.
 
 ## VS Code Installation

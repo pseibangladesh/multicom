@@ -35,12 +35,19 @@
 
 @theme {
   /* System font stacks only (no blocking web fonts). Bangla fallbacks included. */
-  --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", system-ui, -apple-system,
+  --font-sans:
+    "Avenir Next", "Segoe UI", "Helvetica Neue", system-ui, -apple-system,
     "Noto Sans Bengali", "Kohinoor Bangla", "Nirmala UI", sans-serif;
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino,
-    Georgia, serif;
+  --font-display:
+    "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia,
+    serif;
 
-  --background-image-gradient-border-violet: linear-gradient(hsl(var(--heroui-background)), hsl(var(--heroui-background))), linear-gradient(83.87deg, #F54180, #9353D3);
+  --background-image-gradient-border-violet:
+    linear-gradient(
+      hsl(var(--heroui-background)),
+      hsl(var(--heroui-background))
+    ),
+    linear-gradient(83.87deg, #f54180, #9353d3);
 }
 
 /* bg-bx-paper, text-bx-stone, border-bx-line … follow the active mode. */
@@ -58,6 +65,10 @@
   --color-bx-indigo-tint: var(--bx-indigo-tint);
   --color-bx-accent: var(--bx-accent);
   --color-bx-accent-soft: var(--bx-accent-soft);
+  --color-bx-jute: var(--bx-jute);
+  --color-bx-gold: var(--bx-gold);
+  --color-bx-green: var(--bx-green);
+  --color-bx-orange: var(--bx-orange);
 }
 
 @layer base {
@@ -94,6 +105,121 @@
     padding-inline: var(--bx-gutter);
     width: 100%;
   }
+
+  /*
+   * Brand gradients (jute / gold / green / orange on black). Decoration
+   * only: text keeps its solid token colour for contrast.
+   */
+
+  /* Heading text that runs from ink into gold. Falls back to ink. */
+  .bx-gradient-text {
+    color: var(--bx-ink);
+    background: linear-gradient(
+      100deg,
+      var(--bx-ink) 0%,
+      var(--bx-ink) 35%,
+      var(--bx-gold) 75%,
+      var(--bx-orange) 110%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  @media (forced-colors: active) {
+    .bx-gradient-text {
+      background: none;
+      -webkit-text-fill-color: currentColor;
+    }
+  }
+
+  /* Soft gold glow behind a primary call to action. */
+  .bx-cta-glow {
+    box-shadow: 0 10px 40px -12px
+      color-mix(in srgb, var(--bx-gold) 70%, transparent);
+  }
+
+  /* A thin jute → green line, e.g. under a section heading. */
+  .bx-gradient-rule {
+    height: 1px;
+    border: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--bx-jute),
+      var(--bx-green),
+      transparent
+    );
+  }
+
+  /*
+   * Landing-page background: three slow-moving radial glows (gold, green,
+   * orange) over the page colour, fading out toward the fold. Absolutely
+   * positioned in the shell (layouts/default.tsx is `relative isolate`), so
+   * it spans the full width without causing horizontal scroll.
+   */
+  .bx-landing-glow {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: min(1100px, 150vh);
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+    mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  }
+  .bx-landing-glow > span {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: var(--bx-glow-strength);
+    will-change: transform;
+    animation: bx-drift 26s ease-in-out infinite alternate;
+  }
+  .bx-landing-glow > span:nth-child(1) {
+    width: 58vw;
+    height: 58vw;
+    max-width: 760px;
+    max-height: 760px;
+    top: -18%;
+    left: -12%;
+    background: radial-gradient(closest-side, var(--bx-gold), transparent);
+  }
+  .bx-landing-glow > span:nth-child(2) {
+    width: 46vw;
+    height: 46vw;
+    max-width: 620px;
+    max-height: 620px;
+    top: 4%;
+    right: -14%;
+    background: radial-gradient(closest-side, var(--bx-green), transparent);
+    animation-duration: 32s;
+    animation-delay: -8s;
+  }
+  .bx-landing-glow > span:nth-child(3) {
+    width: 36vw;
+    height: 36vw;
+    max-width: 480px;
+    max-height: 480px;
+    top: 34%;
+    left: 30%;
+    background: radial-gradient(closest-side, var(--bx-orange), transparent);
+    opacity: calc(var(--bx-glow-strength) * 0.6);
+    animation-duration: 38s;
+    animation-delay: -16s;
+  }
+  /* Faint jute grain over the glows, so the black never looks flat. */
+  .bx-landing-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(
+      color-mix(in srgb, var(--bx-jute) 18%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 22px 22px;
+    opacity: 0.35;
+  }
+
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -103,9 +229,24 @@
   }
 }
 
+@keyframes bx-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, 6%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-5%, 2%, 0) scale(0.96);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  .bx-landing-glow > span {
+    animation: none;
   }
   *,
   *::before,
@@ -127,4 +268,46 @@
 .dark .swagger-ui img,
 .dark .swagger-ui video {
   filter: invert(1) hue-rotate(180deg);
+}
+
+/* ── Touch targets ──────────────────────────────────────────────────────────
+   On touch screens every control is at least 44×44px (WCAG 2.5.5). HeroUI's
+   sm/md buttons (36/40px), tabs (32px) and inputs (42px) are raised here;
+   mouse users keep the denser desktop sizes. Unlayered, so it beats HeroUI's
+   component layer without !important. */
+@media (pointer: coarse) {
+  .button,
+  .tabs__tab,
+  .pagination__link,
+  .input,
+  .select__trigger,
+  .bx-mobile-cart,
+  .bx-menu-btn,
+  .bx-search input,
+  select,
+  .bx-tap {
+    min-height: 2.75rem;
+  }
+  .button--icon-only,
+  .pagination__link,
+  .bx-mobile-cart {
+    min-width: 2.75rem;
+  }
+  /* Text links in lists and breadcrumbs get a taller hit area. */
+  .breadcrumbs__link,
+  .bx-footer-col a,
+  .bx-footer-bottom a,
+  .bx-wordmark {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+  .bx-footer-col ul {
+    gap: 0;
+  }
+  .bx-social a {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    justify-content: center;
+  }
 }

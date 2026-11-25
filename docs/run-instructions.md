@@ -124,9 +124,9 @@ CORS_ORIGIN=http://localhost:5173
 
 > **⚠️ Security**: Never commit `.env` to git. It is listed in `.gitignore`.
 
-### 2.2 Frontend `.env` (client app)
+### 2.2 Frontend variables (client app)
 
-Create `/multicom/apps/client/.env`:
+The client has no `.env` of its own. Its `dev` and `dev:env` scripts both load the **root** `.env` before starting Vite, so add these variables to the root `.env` from 2.1. (Vite reads them from `process.env` in `vite.config.ts`, so a file at `apps/client/.env` would be ignored.)
 
 ```bash
 # === REQUIRED: Auth provider type ===
@@ -144,7 +144,7 @@ MAIL_PERMISSION=mail:api
 
 # === OPTIONAL: Store identity ===
 STORE_URL=http://localhost:5173
-STORE_NAME="Bengal Exchange Store"
+STORE_NAME="Bengali Exchange Store"
 BENGAL_EXCHANGE_THEME=heroui_standard
 
 # === OPTIONAL: Stripe publishable key (for checkout) ===
@@ -265,7 +265,7 @@ npm run dev:env
 cd apps/merchant && npm run dev
 ```
 
-The Worker starts at **`http://localhost:8787`**. `npm run dev:env` runs `dev-env.sh`, which copies `.env` to `.dev.vars` (Wrangler's local secrets file) and starts `wrangler dev`. `npm run dev` uses `.dev.vars` as it is.
+The Worker starts at **`http://localhost:8787`**. `npm run dev:env` runs `dev-env.sh`, which copies `.env` to `.dev.vars` (Wrangler's local secrets file) and starts `wrangler dev`. `npm run dev` uses `.dev.vars` as it is, so run `dev:env` once after editing `.env` (or update `.dev.vars` yourself).
 
 ### 3.5 Stripe Webhook Forwarding (Optional)
 
@@ -274,7 +274,7 @@ The Worker starts at **`http://localhost:8787`**. `npm run dev:env` runs `dev-en
 npm run stripe:listen
 ```
 
-Requires the Stripe CLI installed. Reads `STRIPE_SECRET_KEY` from `.env` and forwards Stripe webhook events to `localhost:8787`.
+Reads `STRIPE_SECRET_KEY` from `.env` and forwards Stripe webhook events to `localhost:8787`. This needs the [Stripe CLI](https://docs.stripe.com/stripe-cli). `npm run dev:env` also starts it. If the `stripe` command is not installed, the script prints a warning and exits successfully, so the rest of the dev environment keeps running without webhook forwarding.
 
 ### 3.6 Frontend Development
 
@@ -282,9 +282,11 @@ Requires the Stripe CLI installed. Reads `STRIPE_SECRET_KEY` from `.env` and for
 # From monorepo root (recommended — loads .env automatically):
 npm run dev:env
 
-# Or start just the client:
+# Or start just the client (also loads the root .env):
 cd apps/client && npm run dev
 ```
+
+`npm run dev` loads the root `.env` automatically, whether you run it from the monorepo root (Turbo starts every workspace) or from `apps/client`. If the root `.env` is missing, it prints a warning and Vite starts with `API_BASE_URL` and `STORE_URL` unset, and the app shows the "Environment Variables Missing" screen.
 
 The Vite SPA starts at **`http://localhost:5173`**. It connects to the backend at `API_BASE_URL`.
 
@@ -619,7 +621,7 @@ DATABASE_PERMISSION=admin:database
 AI_PERMISSION=ai:api
 MAIL_PERMISSION=mail:api
 STORE_URL=http://localhost:5173
-STORE_NAME="Bengal Exchange Store"
+STORE_NAME="Bengali Exchange Store"
 STRIPE_PUBLISHABLE_KEY=pk_test_placeholder
 EOF
 

@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ronan LE MEILLAT - SCTG Development
  * License: AGPL-3.0-or-later
  *
- * export-code-for-llm.ts — Enhanced LLM context exporter for Bengal Exchange
+ * export-code-for-llm.ts — Enhanced LLM context exporter for Bengali Exchange
  *
  * Improvements over v1:
  *  - Structured YAML front-matter for LLM system context
@@ -415,7 +415,7 @@ function buildTree(paths: string[]): string[] {
 const ARCHITECTURE_PREAMBLE = `
 ## Architecture overview
 
-Bengal Exchange is a **full-stack e-commerce framework** built as a Turborepo monorepo.
+Bengali Exchange is a **full-stack e-commerce framework** built as a Turborepo monorepo.
 
 ### Stack
 
@@ -539,7 +539,7 @@ async function main() {
 
     // YAML front-matter
     md += `---\n`;
-    md += `title: "Bengal Exchange e-commerce framework — full source context"\n`;
+    md += `title: "Bengali Exchange e-commerce framework — full source context"\n`;
     md += `description: "Complete source export for LLM-assisted development. Includes architecture overview, all TypeScript/SQL source files with per-file metadata, and schema summaries."\n`;
     md += `framework: bengal-exchange\n`;
     md += `stack: "React 19, Hono, Cloudflare Workers, D1, Stripe, Clerk"\n`;
@@ -627,7 +627,7 @@ async function main() {
         }
 
         const indexFile = path.join(path.dirname(outFile), "llms.txt");
-        let idx = `Bengal Exchange e-commerce framework — source index (${now})\n`;
+        let idx = `Bengali Exchange e-commerce framework — source index (${now})\n`;
         idx += `Stack: React 19 + Vite (client) · Hono on Cloudflare Workers (API) · Durable Objects (SQLite) · Stripe · Better Auth\n\n`;
         idx += `FILES\n`;
         for (const p of allPaths) idx += `  ${p}\n`;

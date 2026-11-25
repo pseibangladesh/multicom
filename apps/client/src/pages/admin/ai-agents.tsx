@@ -85,7 +85,7 @@ export default function AiAgentsPage() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl text-bx-ink">
+      <h1 className="font-display text-2xl md:text-3xl text-bx-ink">
         {t("admin-ai-agents-title")}
       </h1>
       <p className="mt-1 mb-6 max-w-2xl text-sm text-bx-stone">

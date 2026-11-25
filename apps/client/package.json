@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "bash -c 'if [ -f ../../.env ]; then set -a && . ../../.env && set +a; else echo \"⚠️  ../../.env not found; API_BASE_URL and STORE_URL will be unset.\" >&2; fi; exec vite \"$@\"' --",
     "dev:env": "bash -c 'set -a && source ../../.env && set +a; base=\"\"; for arg in \"$@\"; do case \"$arg\" in --base=*) base=\"${arg#*=}\";; esac; done; if [ -n \"$base\" ]; then export STORE_URL=\"http://localhost:5173${base}\"; export CORS_ORIGIN=\"http://localhost:5173${base}\"; fi; exec vite \"$@\"' --",
     "build": "tsc && vite build",
     "build:env": "bash -c 'set -a && source ../../.env && set +a && tsc && vite build \"$@\"' --",
@@ -42,6 +42,7 @@
     "react-dom": "19.2.6",
     "react-i18next": "^17.0.7",
     "react-router-dom": "^7.15.0",
+    "recharts": "^3.11.1",
     "swagger-ui-react": "^5.32.6",
     "tailwind-merge": "^3.7.1",
     "tailwind-variants": "3.2.2",

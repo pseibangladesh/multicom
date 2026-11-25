@@ -44,7 +44,7 @@ export function EnvMissingScreen({ missing }: { missing: readonly string[] }) {
         {`# Values with spaces must be quoted, and no <angle brackets>:
 API_BASE_URL=http://localhost:8787
 STORE_URL=http://localhost:5173
-STORE_NAME="My Store"
+STORE_NAME="Bengali Exchange"
 
 # Then restart the dev server (Vite reads these only at startup).`}
       </pre>

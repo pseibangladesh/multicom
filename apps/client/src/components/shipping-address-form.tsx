@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import { Input, TextField, Label, Checkbox } from "@heroui/react";
 import { Select, ListBox } from "@heroui/react";
 import { Button } from "@heroui/react";
-import { Card} from "@heroui/react";
+import { Card } from "@heroui/react";
 import { setShippingAddress } from "@/lib/store-api";
 import { useAuth } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
@@ -54,7 +54,11 @@ interface ShippingAddressFormProps {
   isLoading?: boolean;
 }
 
-export default function ShippingAddressForm({ cartId, onSuccess, isLoading = false }: ShippingAddressFormProps) {
+export default function ShippingAddressForm({
+  cartId,
+  onSuccess,
+  isLoading = false,
+}: ShippingAddressFormProps) {
   const { t } = useTranslation();
   const auth = useAuth() as any;
   const isAuthenticated: boolean = auth?.isAuthenticated ?? false;
@@ -104,7 +108,7 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
             country: form.country,
           })
           .catch((err: any) =>
-            console.warn("[ShippingAddressForm] Failed to save address:", err)
+            console.warn("[ShippingAddressForm] Failed to save address:", err),
           );
       }
 
@@ -116,12 +120,15 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
     }
   };
 
-  const isValid = form.name && form.line1 && form.city && form.postal_code && form.country;
+  const isValid =
+    form.name && form.line1 && form.city && form.postal_code && form.country;
 
   return (
     <Card className="w-full">
       <Card.Header>
-        <h2 className="text-lg font-semibold">{t("shipping-address") || "Shipping Address"}</h2>
+        <h2 className="text-lg font-semibold">
+          {t("shipping-address") || "Shipping Address"}
+        </h2>
       </Card.Header>
       <Card.Content>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -137,7 +144,9 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
             <Label>{t("address-line-1") || "Address Line 1"}</Label>
             <Input
               value={form.line1}
-              onChange={(e) => setForm((f) => ({ ...f, line1: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, line1: e.target.value }))
+              }
             />
           </TextField>
 
@@ -145,16 +154,20 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
             <Label>{t("address-line-2") || "Address Line 2 (optional)"}</Label>
             <Input
               value={form.line2}
-              onChange={(e) => setForm((f) => ({ ...f, line2: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, line2: e.target.value }))
+              }
             />
           </TextField>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField isRequired isDisabled={submitting || isLoading}>
               <Label>{t("city") || "City"}</Label>
               <Input
                 value={form.city}
-                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, city: e.target.value }))
+                }
               />
             </TextField>
 
@@ -162,7 +175,9 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
               <Label>{t("postal-code") || "Postal Code"}</Label>
               <Input
                 value={form.postal_code}
-                onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, postal_code: e.target.value }))
+                }
               />
             </TextField>
           </div>
@@ -171,13 +186,17 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
             <Label>{t("state-region") || "State / Region (optional)"}</Label>
             <Input
               value={form.state}
-              onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, state: e.target.value }))
+              }
             />
           </TextField>
 
           <Select
             value={form.country}
-            onChange={(value) => setForm((f) => ({ ...f, country: (value as string) || "" }))}
+            onChange={(value) =>
+              setForm((f) => ({ ...f, country: (value as string) || "" }))
+            }
             isRequired
             isDisabled={submitting || isLoading}
           >

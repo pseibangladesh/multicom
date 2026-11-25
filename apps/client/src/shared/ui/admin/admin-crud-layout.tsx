@@ -75,7 +75,7 @@ export function AdminCrudLayout({
         <div className="flex items-center gap-3">
           {icon}
           <div>
-            <h1 className="text-3xl font-bold">{title}</h1>
+            <h1 className="text-2xl md:text-3xl font-bold">{title}</h1>
             {subtitle && (
               <p className="text-sm text-default-500 mt-1">{subtitle}</p>
             )}

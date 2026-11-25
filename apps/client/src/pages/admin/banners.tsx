@@ -55,9 +55,9 @@ function useLinkOptions() {
       ...(categories ?? [])
         .filter((c) => c.visibility !== "showcase")
         .map((c) => ({
-        value: `/?category=${encodeURIComponent(c.handle)}`,
-        label: `${t("categories")}: ${resolveTitle(c.name, i18n.language)}`,
-      })),
+          value: `/?category=${encodeURIComponent(c.handle)}`,
+          label: `${t("categories")}: ${resolveTitle(c.name, i18n.language)}`,
+        })),
     ],
     [t, i18n.language, categories],
   );
@@ -605,7 +605,7 @@ export default function BannersPage() {
   if (editing) {
     return (
       <div>
-        <h1 className="mb-6 font-display text-3xl text-bx-ink">
+        <h1 className="mb-6 font-display text-2xl md:text-3xl text-bx-ink">
           {t("admin-banners-title")}
         </h1>
         <BannerEditor
@@ -627,7 +627,7 @@ export default function BannersPage() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl text-bx-ink">
+          <h1 className="font-display text-2xl md:text-3xl text-bx-ink">
             {t("admin-banners-title")}
           </h1>
           <p className="mt-1 text-sm text-bx-stone">

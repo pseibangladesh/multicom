@@ -65,7 +65,7 @@
     ]
   },
   {
-    "query": "What Cloudflare Worker patterns does Bengal Exchange use?",
+    "query": "What Cloudflare Worker patterns does Bengali Exchange use?",
     "relevant_topics": [
       "cloudflare-worker-patterns",
       "framework-overview"
@@ -93,7 +93,7 @@
     ]
   },
   {
-    "query": "What is the DurableObject pattern in Bengal Exchange?",
+    "query": "What is the DurableObject pattern in Bengali Exchange?",
     "relevant_topics": [
       "cloudflare-worker-patterns",
       "db-schema"
@@ -148,7 +148,7 @@
     ]
   },
   {
-    "query": "What is the webhook system in Bengal Exchange?",
+    "query": "What is the webhook system in Bengali Exchange?",
     "relevant_topics": [
       "webhooks-outbound",
       "api-error-patterns"
@@ -168,7 +168,7 @@
     ]
   },
   {
-    "query": "How to use internationalization (i18n) in Bengal Exchange?",
+    "query": "How to use internationalization (i18n) in Bengali Exchange?",
     "relevant_topics": [
       "i18n-patterns",
       "localized-content-patterns"
@@ -255,7 +255,7 @@
     ]
   },
   {
-    "query": "What database schema tables exist in Bengal Exchange?",
+    "query": "What database schema tables exist in Bengali Exchange?",
     "relevant_topics": [
       "db-schema",
       "migrations-reference"

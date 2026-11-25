@@ -8,6 +8,7 @@ import { createMerchantDb } from './helpers/merchant-db';
 import { publicBanners, adminBanners } from '../src/routes/banners';
 import { adminApiKeys } from '../src/routes/api-keys';
 import { publicStorefrontSettings, adminStorefrontSettings } from '../src/routes/storefront-settings';
+import { publicSiteContent, adminSiteContent } from '../src/routes/site-content';
 import { adminCatalog } from '../src/routes/catalog';
 import { ucp } from '../src/routes/ucp';
 import { isSafeLink, saleBlockReason } from '../src/lib/storefront-settings';
@@ -32,7 +33,9 @@ async function setup(extraEnv: Record<string, string> = {}) {
   });
   app.route('/v1/banners', publicBanners);
   app.route('/v1/storefront', publicStorefrontSettings);
+  app.route('/v1/storefront', publicSiteContent);
   app.route('/v1/admin/settings', adminStorefrontSettings);
+  app.route('/v1/admin/settings', adminSiteContent);
   app.route('/v1/admin/banners', adminBanners);
   app.route('/v1/admin/api-keys', adminApiKeys);
   app.route('/v1/products', adminCatalog);
@@ -311,5 +314,83 @@ describe('product image gallery', () => {
     expect(parseProductImages('not json', A)).toEqual([{ url: A, alt: '' }]);
     expect(parseProductImages('[{"url":"' + B + '"},{"nope":1}]', A)).toEqual([{ url: B, alt: '' }]);
     expect(parseProductImages(null, null)).toEqual([]);
+  });
+});
+
+describe('footer social links', () => {
+  it('starts with the GitHub link, saves an ordered list, and rejects unsafe URLs', async () => {
+    const { call } = await setup();
+    const initial = await call('GET', '/v1/storefront/social-links', undefined, null);
+    expect(initial.json.links).toEqual([{ platform: 'github', url: 'https://github.com/pseibangladesh/multicom' }]);
+
+    const links = [
+      { platform: 'facebook', url: 'https://facebook.com/shop' },
+      { platform: 'whatsapp', url: ' https://wa.me/8801700000000 ' },
+    ];
+    const saved = await call('PUT', '/v1/admin/settings/social-links', { links });
+    expect(saved.status).toBe(200);
+    expect(saved.json.links).toEqual([
+      { platform: 'facebook', url: 'https://facebook.com/shop' },
+      { platform: 'whatsapp', url: 'https://wa.me/8801700000000' },
+    ]);
+    expect((await call('GET', '/v1/storefront/social-links', undefined, null)).json.links).toEqual(saved.json.links);
+
+    // An empty list means "no links", not "back to the default".
+    await call('PUT', '/v1/admin/settings/social-links', { links: [] });
+    expect((await call('GET', '/v1/storefront/social-links', undefined, null)).json.links).toEqual([]);
+
+    for (const url of ['javascript:alert(1)', '//evil.test', 'facebook.com/shop', 'data:text/html,x']) {
+      expect((await call('PUT', '/v1/admin/settings/social-links', { links: [{ platform: 'x', url }] })).status).toBe(400);
+    }
+    expect(
+      (await call('PUT', '/v1/admin/settings/social-links', { links: [{ platform: 'myspace', url: 'https://a.test' }] }))
+        .status,
+    ).toBe(400);
+  });
+
+  it('only admins can change them', async () => {
+    const { call } = await setup();
+    const body = { links: [{ platform: 'x', url: 'https://x.com/shop' }] };
+    expect((await call('PUT', '/v1/admin/settings/social-links', body, null)).status).toBe(401);
+    expect([401, 403]).toContain((await call('PUT', '/v1/admin/settings/social-links', body, PK)).status);
+  });
+});
+
+describe('page content', () => {
+  const about = { title: 'About us', lead: 'We sell tea.', sections: [{ heading: 'Story', body: 'Line 1\nLine 2' }] };
+
+  it('saves edits per locale, lists them, and restores the built-in text', async () => {
+    const { call } = await setup();
+    expect((await call('GET', '/v1/storefront/pages/about', undefined, null)).json).toEqual({ handle: 'about', content: {} });
+
+    const saved = await call('PUT', '/v1/admin/settings/pages/about', { content: { 'en-US': about, 'bn-BD': about } });
+    expect(saved.status).toBe(200);
+    const pub = await call('GET', '/v1/storefront/pages/about', undefined, null);
+    expect(pub.json.content).toEqual({ 'en-US': about, 'bn-BD': about });
+
+    const list = await call('GET', '/v1/admin/settings/pages');
+    expect(list.json.pages.find((p: { handle: string }) => p.handle === 'about').edited_locales.sort()).toEqual([
+      'bn-BD',
+      'en-US',
+    ]);
+    expect(list.json.pages.find((p: { handle: string }) => p.handle === 'faq').edited_locales).toEqual([]);
+
+    // Leaving a locale out of the next save restores it.
+    await call('PUT', '/v1/admin/settings/pages/about', { content: { 'en-US': about } });
+    expect(Object.keys((await call('GET', '/v1/storefront/pages/about', undefined, null)).json.content)).toEqual(['en-US']);
+
+    expect((await call('DELETE', '/v1/admin/settings/pages/about')).status).toBe(200);
+    expect((await call('GET', '/v1/storefront/pages/about', undefined, null)).json.content).toEqual({});
+  });
+
+  it('rejects unknown pages, unknown locales, empty titles and non-admins', async () => {
+    const { call } = await setup();
+    expect((await call('GET', '/v1/storefront/pages/not-a-page', undefined, null)).status).toBe(400);
+    expect((await call('PUT', '/v1/admin/settings/pages/not-a-page', { content: { 'en-US': about } })).status).toBe(400);
+    expect((await call('PUT', '/v1/admin/settings/pages/about', { content: { 'xx-XX': about } })).status).toBe(400);
+    expect(
+      (await call('PUT', '/v1/admin/settings/pages/about', { content: { 'en-US': { ...about, title: ' ' } } })).status,
+    ).toBe(400);
+    expect((await call('PUT', '/v1/admin/settings/pages/about', { content: { 'en-US': about } }, null)).status).toBe(401);
   });
 });
