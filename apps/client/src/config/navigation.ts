@@ -54,7 +54,10 @@ export const FOOTER_COLUMNS: { titleKey: string; links: NavLink[] }[] = [
   },
 ];
 
-/** Only the project's own accounts. */
+/**
+ * Footer social links when the backend can't be reached. The live list is
+ * managed in Admin → Social links (lib/site-content.ts).
+ */
 export const SOCIAL_LINKS: NavLink[] = [
   {
     key: "github",

@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'conventions-and-anti-patterns',
-  description: 'Bengal Exchange coding conventions and forbidden patterns — naming rules, no c.req.json, no Drizzle, Zod-in-createRoute, plus AI-agent contributor guidelines.',
+  description: 'Bengali Exchange coding conventions and forbidden patterns — naming rules, no c.req.json, no Drizzle, Zod-in-createRoute, plus AI-agent contributor guidelines.',
   tags: ["ai-agents","frontend","react","ucp","ui"],
   sources: [],
   systemPrompt: BASE_SYSTEM,
@@ -34,7 +34,7 @@ const topic: Topic = {
     'DO NOT use dangerouslySetInnerHTML outside of renderDescription() — all user-generated HTML has already been sanitized by the backend.',
   ],
   buildPrompt: (src) => appendFacts(`
-Task: Write a "Conventions & Anti-Patterns Guide" for the Bengal Exchange project.
+Task: Write a "Conventions & Anti-Patterns Guide" for the Bengali Exchange project.
 Organize as two sections:
 1. CONVENTIONS (what you MUST do): coding standards, naming, file placement, migration rules,
    i18n requirements, monetary storage, error handling, admin route protection.

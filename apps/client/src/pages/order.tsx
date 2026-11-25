@@ -39,10 +39,20 @@ interface OrderStatus {
   tracking_number: string | null;
   tracking_url: string | null;
   shipped_at: string | null;
-  items: { sku: string; title: string; qty: number; unit_price_cents: number; product_id: string | null }[];
+  items: {
+    sku: string;
+    title: string;
+    qty: number;
+    unit_price_cents: number;
+    product_id: string | null;
+  }[];
 }
 
-function formatPrice(cents: number, currency: string, locale: string = "en-US") {
+function formatPrice(
+  cents: number,
+  currency: string,
+  locale: string = "en-US",
+) {
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: currency.toUpperCase(),
@@ -122,7 +132,7 @@ function GuestReviewForm({
             order_id: orderId,
             order_token: orderToken,
           }),
-        }
+        },
       );
       if (res.status === 409) {
         setErr(t("reviews-already-submitted"));
@@ -152,7 +162,11 @@ function GuestReviewForm({
           <button key={s} type="button" onClick={() => setRating(s)}>
             <Star
               size={22}
-              className={s <= rating ? "fill-amber-400 text-amber-400" : "text-default-300"}
+              className={
+                s <= rating
+                  ? "fill-amber-400 text-amber-400"
+                  : "text-default-300"
+              }
             />
           </button>
         ))}
@@ -223,7 +237,9 @@ export default function OrderPage() {
 
     // Call the public status endpoint — no Authorization header needed
     const merchantAPI = import.meta.env.API_BASE_URL || "http://localhost:8787";
-    fetch(`${merchantAPI}/v1/orders/${id}/status?token=${encodeURIComponent(token)}`)
+    fetch(
+      `${merchantAPI}/v1/orders/${id}/status?token=${encodeURIComponent(token)}`,
+    )
       .then((res) => {
         if (res.status === 401) {
           setErrorKey("tracking-link-expired-message");
@@ -258,15 +274,20 @@ export default function OrderPage() {
         <div className="max-w-2xl mx-auto py-12 px-6 text-center">
           <div className="mb-6">
             <div className="text-5xl mb-3">⚠️</div>
-            <h1 className="text-2xl font-bold mb-2">{t("tracking-link-invalid")}</h1>
+            <h1 className="text-2xl font-bold mb-2">
+              {t("tracking-link-invalid")}
+            </h1>
             <p className="text-default-500 mb-6">
-              {errorKey ? t(errorKey) : (error || t("unable-to-load-order"))}
+              {errorKey ? t(errorKey) : error || t("unable-to-load-order")}
             </p>
             <p className="text-sm text-default-400">
               {t("tracking-link-valid-30days")}
             </p>
           </div>
-          <Link className="inline-block px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 font-semibold" to="/">
+          <Link
+            className="inline-block px-6 py-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/80 font-semibold"
+            to="/"
+          >
             {t("return-home")}
           </Link>
         </div>
@@ -283,9 +304,12 @@ export default function OrderPage() {
       <div className="max-w-2xl mx-auto py-12 px-6">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold">{t("order-tracking")}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">
+            {t("order-tracking")}
+          </h1>
           <p className="text-default-500 mt-1">
-            {t("order-number")}<strong>{order.number}</strong>
+            {t("order-number")}
+            <strong>{order.number}</strong>
             &nbsp;·&nbsp;
             {formatDate(order.created_at, i18n.language)}
           </p>
@@ -293,8 +317,12 @@ export default function OrderPage() {
 
         {/* Status */}
         <div className="rounded-lg border border-default-200 p-4 mb-6 flex items-center justify-between">
-          <span className="text-sm font-medium text-default-600">{t("status")}</span>
-          <span className={`text-sm font-semibold px-3 py-1 rounded-full ${statusColor}`}>
+          <span className="text-sm font-medium text-default-600">
+            {t("status")}
+          </span>
+          <span
+            className={`text-sm font-semibold px-3 py-1 rounded-full ${statusColor}`}
+          >
             {t(statusKey)}
           </span>
         </div>
@@ -303,7 +331,9 @@ export default function OrderPage() {
         {order.tracking_number && (
           <div className="rounded-lg bg-primary-50 p-4 mb-6">
             <p className="font-medium mb-1">{t("tracking")}</p>
-            <p className="text-sm text-default-500 mb-2">{t("tracking-number")} {order.tracking_number}</p>
+            <p className="text-sm text-default-500 mb-2">
+              {t("tracking-number")} {order.tracking_number}
+            </p>
             {order.shipped_at && (
               <p className="text-sm text-default-400 mb-2">
                 {t("shipped-on")} {formatDate(order.shipped_at, i18n.language)}
@@ -325,10 +355,15 @@ export default function OrderPage() {
         {/* Items */}
         <div className="border border-default-200 rounded-lg divide-y mb-6">
           {order.items.map((item) => (
-            <div key={item.sku} className="flex justify-between items-start p-4 gap-4">
+            <div
+              key={item.sku}
+              className="flex justify-between items-start p-4 gap-4"
+            >
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm">{item.title}</p>
-                <p className="text-xs text-default-400">{t("qty")}: {item.qty}</p>
+                <p className="text-xs text-default-400">
+                  {t("qty")}: {item.qty}
+                </p>
                 {order.status === "delivered" && item.product_id && (
                   <div className="mt-2">
                     {isAuthenticated ? (
@@ -338,7 +373,9 @@ export default function OrderPage() {
                           type="button"
                           onClick={() =>
                             setActiveReview(
-                              activeReview === item.product_id ? null : item.product_id
+                              activeReview === item.product_id
+                                ? null
+                                : item.product_id,
                             )
                           }
                         >
@@ -359,7 +396,9 @@ export default function OrderPage() {
                           type="button"
                           onClick={() =>
                             setActiveReview(
-                              activeReview === item.product_id ? null : item.product_id
+                              activeReview === item.product_id
+                                ? null
+                                : item.product_id,
                             )
                           }
                         >
@@ -381,7 +420,11 @@ export default function OrderPage() {
                 )}
               </div>
               <p className="text-sm font-medium shrink-0">
-                {formatPrice(item.unit_price_cents * item.qty, order.currency, i18n.language)}
+                {formatPrice(
+                  item.unit_price_cents * item.qty,
+                  order.currency,
+                  i18n.language,
+                )}
               </p>
             </div>
           ))}
@@ -391,31 +434,49 @@ export default function OrderPage() {
         <div className="bg-default-50 rounded-lg p-4 space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-default-600">{t("subtotal")}</span>
-            <span>{formatPrice(order.subtotal_cents, order.currency, i18n.language)}</span>
+            <span>
+              {formatPrice(order.subtotal_cents, order.currency, i18n.language)}
+            </span>
           </div>
           {order.discount_cents > 0 && (
             <div className="flex justify-between text-success-600">
               <span>{t("discount")}</span>
-              <span>−{formatPrice(order.discount_cents, order.currency, i18n.language)}</span>
+              <span>
+                −
+                {formatPrice(
+                  order.discount_cents,
+                  order.currency,
+                  i18n.language,
+                )}
+              </span>
             </div>
           )}
           <div className="flex justify-between">
             <span className="text-default-600">{t("tax")}</span>
-            <span>{formatPrice(order.tax_cents, order.currency, i18n.language)}</span>
+            <span>
+              {formatPrice(order.tax_cents, order.currency, i18n.language)}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-default-600">{t("shipping")}</span>
-            <span>{formatPrice(order.shipping_cents, order.currency, i18n.language)}</span>
+            <span>
+              {formatPrice(order.shipping_cents, order.currency, i18n.language)}
+            </span>
           </div>
           <div className="flex justify-between font-bold text-base pt-2 border-t border-default-200">
             <span>{t("total")}</span>
-            <span>{formatPrice(order.total_cents, order.currency, i18n.language)}</span>
+            <span>
+              {formatPrice(order.total_cents, order.currency, i18n.language)}
+            </span>
           </div>
         </div>
 
         {/* Action */}
         <div className="mt-8 text-center">
-          <Link className="inline-block px-6 py-2 rounded-full border-2 border-current hover:bg-default-100 font-semibold" to="/">
+          <Link
+            className="inline-block px-6 py-2 rounded-full border-2 border-current hover:bg-default-100 font-semibold"
+            to="/"
+          >
             {t("continue-shopping")}
           </Link>
         </div>

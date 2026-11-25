@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   BENGAL_THEME,
+  DEFAULT_MODE,
   MODE_STORAGE_KEY,
   createModeController,
   type ColorMode,
@@ -27,7 +28,6 @@ import {
 
 /** Same-tab broadcast so every useTheme instance follows a mode change. */
 const MODE_CHANGED_EVENT = "bengal-exchange:mode-changed";
-const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 /** Puts the mode on <html>: the `light`/`dark` class, the Bengal theme and colour-scheme. */
 function applyModeToDom(mode: ColorMode) {
@@ -44,7 +44,7 @@ function announce(mode: ColorMode) {
   window.dispatchEvent(new CustomEvent(MODE_CHANGED_EVENT, { detail: mode }));
 }
 
-/** One controller per page: saves only explicit choices, otherwise follows the system. */
+/** One controller per page: saves only explicit choices, otherwise dark. */
 const controller =
   typeof window === "undefined"
     ? null
@@ -72,25 +72,6 @@ const controller =
             }
           },
         },
-        prefersDark: () => {
-          try {
-            return window.matchMedia(DARK_QUERY).matches;
-          } catch {
-            return false;
-          }
-        },
-        onSystemChange: (listener) => {
-          try {
-            const mq = window.matchMedia(DARK_QUERY);
-            const handler = (e: MediaQueryListEvent) => listener(e.matches);
-
-            mq.addEventListener("change", handler);
-
-            return () => mq.removeEventListener("change", handler);
-          } catch {
-            return () => undefined;
-          }
-        },
         apply: announce,
       });
 
@@ -100,20 +81,18 @@ if (controller) {
   window.addEventListener("storage", (e) => {
     if (e.key === MODE_STORAGE_KEY || e.key === null) controller.sync();
   });
-  // Vite dev only: drop the old controller's system listener on hot reload.
-  import.meta.hot?.dispose(() => controller.dispose());
 }
 
 /**
  * Light / dark mode for the Bengal theme.
  *
  * Saved in localStorage ("theme") only when the user picks Light or Dark;
- * until then the system setting decides, and later system changes are
- * followed. index.html applies the same rule before the first paint.
+ * until then the page is dark (DEFAULT_MODE). index.html applies the same
+ * rule before the first paint.
  */
 export const useTheme = () => {
   const [theme, setTheme] = useState<ColorMode>(
-    () => controller?.mode() ?? "light",
+    () => controller?.mode() ?? DEFAULT_MODE,
   );
 
   const isDark = useMemo(() => theme === "dark", [theme]);
@@ -124,7 +103,7 @@ export const useTheme = () => {
       setTheme((e as CustomEvent<ColorMode>).detail);
 
     window.addEventListener(MODE_CHANGED_EVENT, onLocal);
-    const mode = controller?.mode() ?? "light";
+    const mode = controller?.mode() ?? DEFAULT_MODE;
 
     applyModeToDom(mode);
     setTheme(mode);

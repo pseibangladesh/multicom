@@ -17,7 +17,7 @@
 -->
 ## Transactional Email Reference
 
-<!--mcp-description: Call this when documenting or extending Bengal Exchange's transactional email system (Mailgun integration, templates, triggers).-->
+<!--mcp-description: Call this when documenting or extending Bengali Exchange's transactional email system (Mailgun integration, templates, triggers).-->
 <!--mcp-tags: ["email","backend","commerce","frontend","mailgun"]-->
 
 ### Mailgun Setup
@@ -33,7 +33,7 @@ wrangler secret put MAILGUN_USER      # Sender email address
 
 ### Triggered Emails
 
-Bengal Exchange automatically sends emails for these order events:
+Bengali Exchange automatically sends emails for these order events:
 
 | Event          | Trigger Point               | Content |
 |----------------|-----------------------------|---------|

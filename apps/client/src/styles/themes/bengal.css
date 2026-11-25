@@ -2,9 +2,18 @@
  * Copyright (c) 2026 Ronan LE MEILLAT
  * License: AGPL-3.0-or-later
  *
- * Bengal Exchange theme. The --bx-* tokens come from the storefront mock
- * (bengal-exchange-storefront-v2.html); HeroUI v3's variables are mapped onto
- * them, so every HeroUI component follows the theme in light and dark mode.
+ * Bengali Exchange theme: black with jute, gold, green and a little orange.
+ * Dark mode is the default (lib/theme.ts DEFAULT_MODE); light mode is the
+ * same palette on jute paper. HeroUI v3's variables are mapped onto the
+ * --bx-* tokens, so every HeroUI component follows the theme in both modes.
+ *
+ * Primary: in dark mode buttons and links are gold on black; in light mode
+ * they are black on jute paper. --bx-accent (green) is the focus ring and the
+ * small highlight colour. --bx-jute/gold/green/orange feed the gradients
+ * in globals.css (.bx-landing-glow, .bx-gradient-text).
+ *
+ * Contrast (WCAG AA) checked for every text/background pair below; orange is
+ * decoration only in light mode (4.3:1).
  *
  * Light: :root[data-theme="bengal"]       Dark: :root[data-theme="bengal"].dark
  * (two-part selectors so they win over HeroUI's :root / .dark defaults).
@@ -14,23 +23,29 @@
   :root[data-theme="bengal"] {
     color-scheme: light;
 
-    --bx-paper: #f7f5f0;
-    --bx-surface: #fcfbf8;
+    --bx-paper: #f5efe3; /* jute paper */
+    --bx-surface: #fbf8f1;
     --bx-surface-raised: #ffffff;
-    --bx-ink: #15203a;
-    --bx-ink-soft: #2e3a55;
-    --bx-stone: #6b675d;
-    --bx-line: #e2ded4;
-    --bx-field-line: #8f8a7f; /* 3:1 on paper and field (WCAG 1.4.11) */
-    --bx-primary: #2a3f7e;
-    --bx-on-primary: #fcfbf8;
-    --bx-indigo-tint: #e6e9f2;
-    --bx-accent: #9e3b24;
-    --bx-accent-soft: #f3e3dc;
-    --bx-danger: #b3261e; /* 6.3:1 with on-danger, 6.5:1 as text on white */
+    --bx-ink: #14110c; /* 16.4:1 on paper */
+    --bx-ink-soft: #3b342a;
+    --bx-stone: #6a604f; /* 5.4:1 on paper */
+    --bx-line: #e2d8c4;
+    --bx-field-line: #8c806b; /* 3:1 on paper and field (WCAG 1.4.11) */
+    --bx-primary: #14110c; /* black */
+    --bx-on-primary: #f5e6c0;
+    --bx-indigo-tint: #ece0c6; /* primary tint (name kept for the utilities) */
+    --bx-accent: #0d7550; /* Bengal green, 5:1 on paper */
+    --bx-accent-soft: #dcefe4;
+    --bx-danger: #b3261e;
     --bx-on-danger: #fcfbf8;
-    --bx-scrim: rgba(12, 16, 30, 0.42);
-    --bx-shadow: 0 24px 60px -28px rgba(21, 32, 58, 0.35);
+    --bx-scrim: rgba(20, 17, 12, 0.45);
+    --bx-shadow: 0 24px 60px -28px rgba(20, 17, 12, 0.35);
+
+    --bx-jute: #b98a3e;
+    --bx-gold: #c9962e;
+    --bx-green: #0d7550;
+    --bx-orange: #d9692b;
+    --bx-glow-strength: 0.22; /* gradient opacity on light paper */
 
     --bx-max: 1240px;
     --bx-gutter: clamp(1rem, 4vw, 2.5rem);
@@ -39,23 +54,29 @@
   :root[data-theme="bengal"].dark {
     color-scheme: dark;
 
-    --bx-paper: #0d1221;
-    --bx-surface: #151c30;
-    --bx-surface-raised: #1b2440;
-    --bx-ink: #edeff6;
-    --bx-ink-soft: #c4cadb;
-    --bx-stone: #9aa1b6;
-    --bx-line: #2a3352;
-    --bx-field-line: #6b75a0;
-    --bx-primary: #9db0f2;
-    --bx-on-primary: #0d1221;
-    --bx-indigo-tint: #1c2543;
-    --bx-accent: #eb8b73;
-    --bx-accent-soft: #3a2421;
-    --bx-danger: #f28b82; /* 7.8:1 with on-danger, 6.4:1 as text on raised */
-    --bx-on-danger: #0d1221;
-    --bx-scrim: rgba(3, 5, 12, 0.66);
-    --bx-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.7);
+    --bx-paper: #0b0a08; /* warm black */
+    --bx-surface: #14120e;
+    --bx-surface-raised: #1c1915;
+    --bx-ink: #f4eee2; /* 17:1 on paper */
+    --bx-ink-soft: #cfc5b2;
+    --bx-stone: #a3988a; /* 6.2:1 on raised */
+    --bx-line: #2e2a22;
+    --bx-field-line: #7d7262; /* 3.7:1 on raised */
+    --bx-primary: #e2b45a; /* gold, 10:1 on paper */
+    --bx-on-primary: #0b0a08;
+    --bx-indigo-tint: #2a2316; /* primary tint (name kept for the utilities) */
+    --bx-accent: #45c08f; /* green, 7.7:1 on raised */
+    --bx-accent-soft: #12291f;
+    --bx-danger: #f28b82;
+    --bx-on-danger: #0b0a08;
+    --bx-scrim: rgba(0, 0, 0, 0.7);
+    --bx-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.8);
+
+    --bx-jute: #c99a52;
+    --bx-gold: #e2b45a;
+    --bx-green: #2fa57a;
+    --bx-orange: #f08a4b;
+    --bx-glow-strength: 0.32;
   }
 
   /* HeroUI variables, from the tokens above (same for both modes). */

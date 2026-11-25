@@ -610,9 +610,9 @@ export default function ShippingRatesPage() {
 
   return (
     <>
-      <div className="p-6">
+      <div className="py-4 md:p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-2xl md:text-3xl font-bold">
             {t("admin-shipping-rates-title")}
           </h1>
           <Button variant="primary" onPress={handleOpenCreate}>
@@ -663,92 +663,96 @@ export default function ShippingRatesPage() {
           </Card.Content>
         </Card>
 
-        <Card>
+        <Card className="p-2 sm:p-4 lg:p-6">
           <Card.Content>
             <Table>
-              <Table.Content>
-                <Table.Header>
-                  <Table.Column key="display_name" isRowHeader>
-                    {t("admin-common-name")}
-                  </Table.Column>
-                  <Table.Column key="description">
-                    {t("admin-common-description")}
-                  </Table.Column>
-                  <Table.Column key="max_weight">
-                    {t("admin-shipping-rates-max-weight")}
-                  </Table.Column>
-                  <Table.Column key="price">
-                    {t("admin-shipping-rates-price")}
-                  </Table.Column>
-                  <Table.Column key="delivery_days">
-                    {t("admin-shipping-rates-delivery-days")}
-                  </Table.Column>
-                  <Table.Column key="status">
-                    {t("admin-common-status")}
-                  </Table.Column>
-                  <Table.Column key="actions">
-                    {t("admin-common-actions")}
-                  </Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() => <div>{t("admin-common-empty")}</div>}
-                >
-                  {displayed.map((rate) => (
-                    <Table.Row key={rate.id} className="odd:bg-default-50">
-                      <Table.Cell>{rate.display_name}</Table.Cell>
-                      <Table.Cell>
-                        {rate.description
-                          ? rate.description.substring(0, 50)
-                          : "-"}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {rate.max_weight_g ? `${rate.max_weight_g}g` : "-"}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {rate.price_cents != null && rate.currency_code
-                          ? formatMoney(rate.price_cents, rate.currency_code)
-                          : "-"}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {rate.min_delivery_days || rate.max_delivery_days
-                          ? `${rate.min_delivery_days || "?"}-${rate.max_delivery_days || "?"} days`
-                          : "-"}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <span
-                          className={
-                            rate.status === "active"
-                              ? "text-green-600"
-                              : "text-gray-600"
-                          }
-                        >
-                          {rate.status}
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleOpenEdit(rate)}
+              <Table.ScrollContainer>
+                <Table.Content>
+                  <Table.Header>
+                    <Table.Column key="display_name" isRowHeader>
+                      {t("admin-common-name")}
+                    </Table.Column>
+                    <Table.Column key="description">
+                      {t("admin-common-description")}
+                    </Table.Column>
+                    <Table.Column key="max_weight">
+                      {t("admin-shipping-rates-max-weight")}
+                    </Table.Column>
+                    <Table.Column key="price">
+                      {t("admin-shipping-rates-price")}
+                    </Table.Column>
+                    <Table.Column key="delivery_days">
+                      {t("admin-shipping-rates-delivery-days")}
+                    </Table.Column>
+                    <Table.Column key="status">
+                      {t("admin-common-status")}
+                    </Table.Column>
+                    <Table.Column key="actions">
+                      {t("admin-common-actions")}
+                    </Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() => (
+                      <div>{t("admin-common-empty")}</div>
+                    )}
+                  >
+                    {displayed.map((rate) => (
+                      <Table.Row key={rate.id} className="odd:bg-default-50">
+                        <Table.Cell>{rate.display_name}</Table.Cell>
+                        <Table.Cell>
+                          {rate.description
+                            ? rate.description.substring(0, 50)
+                            : "-"}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {rate.max_weight_g ? `${rate.max_weight_g}g` : "-"}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {rate.price_cents != null && rate.currency_code
+                            ? formatMoney(rate.price_cents, rate.currency_code)
+                            : "-"}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {rate.min_delivery_days || rate.max_delivery_days
+                            ? `${rate.min_delivery_days || "?"}-${rate.max_delivery_days || "?"} days`
+                            : "-"}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <span
+                            className={
+                              rate.status === "active"
+                                ? "text-green-600"
+                                : "text-gray-600"
+                            }
                           >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="danger"
-                            onPress={() => handleDelete(rate.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
+                            {rate.status}
+                          </span>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <div className="flex gap-2">
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="tertiary"
+                              onPress={() => handleOpenEdit(rate)}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="danger"
+                              onPress={() => handleDelete(rate.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
           </Card.Content>
         </Card>
@@ -765,122 +769,124 @@ export default function ShippingRatesPage() {
             </Button>
           </div>
 
-          <Card>
+          <Card className="p-2 sm:p-4 lg:p-6">
             <Card.Content>
               <Table>
-                <Table.Content>
-                  <Table.Header>
-                    <Table.Column key="code" isRowHeader>
-                      {t("admin-shipping-classes-col-code")}
-                    </Table.Column>
-                    <Table.Column key="display_name">
-                      {t("admin-shipping-classes-col-name")}
-                    </Table.Column>
-                    <Table.Column key="resolution">
-                      {t("admin-shipping-classes-col-resolution")}
-                    </Table.Column>
-                    <Table.Column key="description">
-                      {t("admin-shipping-classes-col-description")}
-                    </Table.Column>
-                    <Table.Column key="status">
-                      {t("admin-shipping-classes-col-status")}
-                    </Table.Column>
-                    <Table.Column key="actions">
-                      {t("admin-shipping-classes-col-actions")}
-                    </Table.Column>
-                  </Table.Header>
-                  <Table.Body
-                    renderEmptyState={() => (
-                      <div>{t("admin-shipping-classes-empty")}</div>
-                    )}
-                  >
-                    {shippingClasses.map((cls) => (
-                      <Table.Row key={cls.id} className="odd:bg-default-50">
-                        <Table.Cell>
-                          <code className="text-xs bg-default-100 px-2 py-0.5 rounded">
-                            {cls.code}
-                          </code>
-                        </Table.Cell>
-                        <Table.Cell className="font-medium">
-                          {cls.display_name}
-                        </Table.Cell>
-                        <Table.Cell>
-                          <span
-                            className="text-xs px-2 py-1 rounded"
-                            style={{
-                              backgroundColor:
-                                cls.resolution === "exclusive"
-                                  ? "#fed7aa"
-                                  : "#dbeafe",
-                              color:
-                                cls.resolution === "exclusive"
-                                  ? "#92400e"
-                                  : "#0c2340",
-                            }}
-                          >
-                            {cls.resolution === "exclusive"
-                              ? t("admin-shipping-classes-exclusive")
-                              : t("admin-shipping-classes-additive")}
-                          </span>
-                        </Table.Cell>
-                        <Table.Cell className="text-default-500 text-sm">
-                          {cls.description
-                            ? cls.description.substring(0, 40) +
-                              (cls.description.length > 40 ? "..." : "")
-                            : "—"}
-                        </Table.Cell>
-                        <Table.Cell>
-                          <span
-                            className={
-                              cls.status === "active"
-                                ? "text-green-600 font-medium"
-                                : "text-gray-400"
-                            }
-                          >
-                            {cls.status}
-                          </span>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <div className="flex gap-2">
-                            <Tooltip>
-                              <Tooltip.Trigger>
-                                <Button
-                                  isIconOnly
-                                  size="sm"
-                                  variant="tertiary"
-                                  onPress={() => handleOpenEditClass(cls)}
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                {t("admin-shipping-classes-btn-edit", "Edit")}
-                              </Tooltip.Content>
-                            </Tooltip>
-                            <Tooltip>
-                              <Tooltip.Trigger>
-                                <Button
-                                  isIconOnly
-                                  size="sm"
-                                  variant="danger"
-                                  onPress={() => handleDeleteClass(cls.id)}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                {t(
-                                  "admin-shipping-classes-btn-delete",
-                                  "Delete",
-                                )}
-                              </Tooltip.Content>
-                            </Tooltip>
-                          </div>
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Content>
+                <Table.ScrollContainer>
+                  <Table.Content>
+                    <Table.Header>
+                      <Table.Column key="code" isRowHeader>
+                        {t("admin-shipping-classes-col-code")}
+                      </Table.Column>
+                      <Table.Column key="display_name">
+                        {t("admin-shipping-classes-col-name")}
+                      </Table.Column>
+                      <Table.Column key="resolution">
+                        {t("admin-shipping-classes-col-resolution")}
+                      </Table.Column>
+                      <Table.Column key="description">
+                        {t("admin-shipping-classes-col-description")}
+                      </Table.Column>
+                      <Table.Column key="status">
+                        {t("admin-shipping-classes-col-status")}
+                      </Table.Column>
+                      <Table.Column key="actions">
+                        {t("admin-shipping-classes-col-actions")}
+                      </Table.Column>
+                    </Table.Header>
+                    <Table.Body
+                      renderEmptyState={() => (
+                        <div>{t("admin-shipping-classes-empty")}</div>
+                      )}
+                    >
+                      {shippingClasses.map((cls) => (
+                        <Table.Row key={cls.id} className="odd:bg-default-50">
+                          <Table.Cell>
+                            <code className="text-xs bg-default-100 px-2 py-0.5 rounded">
+                              {cls.code}
+                            </code>
+                          </Table.Cell>
+                          <Table.Cell className="font-medium">
+                            {cls.display_name}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <span
+                              className="text-xs px-2 py-1 rounded"
+                              style={{
+                                backgroundColor:
+                                  cls.resolution === "exclusive"
+                                    ? "#fed7aa"
+                                    : "#dbeafe",
+                                color:
+                                  cls.resolution === "exclusive"
+                                    ? "#92400e"
+                                    : "#0c2340",
+                              }}
+                            >
+                              {cls.resolution === "exclusive"
+                                ? t("admin-shipping-classes-exclusive")
+                                : t("admin-shipping-classes-additive")}
+                            </span>
+                          </Table.Cell>
+                          <Table.Cell className="text-default-500 text-sm">
+                            {cls.description
+                              ? cls.description.substring(0, 40) +
+                                (cls.description.length > 40 ? "..." : "")
+                              : "—"}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <span
+                              className={
+                                cls.status === "active"
+                                  ? "text-green-600 font-medium"
+                                  : "text-gray-400"
+                              }
+                            >
+                              {cls.status}
+                            </span>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <div className="flex gap-2">
+                              <Tooltip>
+                                <Tooltip.Trigger>
+                                  <Button
+                                    isIconOnly
+                                    size="sm"
+                                    variant="tertiary"
+                                    onPress={() => handleOpenEditClass(cls)}
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </Button>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content>
+                                  {t("admin-shipping-classes-btn-edit", "Edit")}
+                                </Tooltip.Content>
+                              </Tooltip>
+                              <Tooltip>
+                                <Tooltip.Trigger>
+                                  <Button
+                                    isIconOnly
+                                    size="sm"
+                                    variant="danger"
+                                    onPress={() => handleDeleteClass(cls.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </Tooltip.Trigger>
+                                <Tooltip.Content>
+                                  {t(
+                                    "admin-shipping-classes-btn-delete",
+                                    "Delete",
+                                  )}
+                                </Tooltip.Content>
+                              </Tooltip>
+                            </div>
+                          </Table.Cell>
+                        </Table.Row>
+                      ))}
+                    </Table.Body>
+                  </Table.Content>
+                </Table.ScrollContainer>
               </Table>
             </Card.Content>
           </Card>

@@ -2,30 +2,41 @@
  * Copyright (c) 2024-2026 Ronan LE MEILLAT
  * License: AGPL-3.0-or-later
  *
- * Generic CMS page renderer — displays static multilingual content
- * for informational pages referenced from the footer (about, legal, help, etc.).
+ * Generic CMS page renderer for the informational pages linked from the
+ * footer (about, legal, help, etc.): the built-in text from config/cms-content.ts
+ * with any edits saved in Admin → Pages laid over it (lib/site-content.ts).
  */
 
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { getCmsPage } from "@/config/cms-content";
+import { useCmsPage } from "@/lib/site-content";
 import { title as titleCls } from "@/shared/ui/primitives";
 import { PageNotFound } from "@/pages/404";
 
 export default function CmsPage() {
   const { handle } = useParams<{ handle: string }>();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
-  const page = getCmsPage(handle ?? "", i18n.language);
+  const { page, isLoadingEdits } = useCmsPage(handle ?? "", i18n.language);
+
+  // Brief wait for saved edits, so an edited page doesn't flash its old text.
+  if (isLoadingEdits) {
+    return (
+      <p
+        aria-live="polite"
+        className="mx-auto w-full max-w-3xl px-4 py-16 text-sm text-bx-stone"
+      >
+        {t("loading")}
+      </p>
+    );
+  }
 
   if (!page) {
     return <PageNotFound />;
   }
 
-  const isRtl = ["ar", "he"].some((lang) =>
-    i18n.language.startsWith(lang),
-  );
+  const isRtl = ["ar", "he"].some((lang) => i18n.language.startsWith(lang));
 
   return (
     <>
@@ -38,7 +49,7 @@ export default function CmsPage() {
           <h1 className={titleCls({ class: "mb-4" })}>{page.title}</h1>
 
           {/* Lead paragraph */}
-          <p className="text-default-600 text-lg leading-relaxed mb-10">
+          <p className="whitespace-pre-line text-default-600 text-lg leading-relaxed mb-10">
             {page.lead}
           </p>
 
@@ -49,7 +60,9 @@ export default function CmsPage() {
                 <h2 className="text-xl font-semibold text-foreground mb-2">
                   {section.heading}
                 </h2>
-                <p className="text-default-600 leading-relaxed">{section.body}</p>
+                <p className="whitespace-pre-line text-default-600 leading-relaxed">
+                  {section.body}
+                </p>
               </article>
             ))}
           </div>

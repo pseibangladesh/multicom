@@ -14,7 +14,7 @@
     apps/client/src/utils/invoice-pdf.ts: 11ddd3f966fee950190290a27f79f9133bffde236caba1646b075cf04fa80612
     apps/client/src/utils/currency.ts: 7e1cb97bded689948864ace24f8a0c0283794387309bc2299c559b1f6a81fdc8
 -->
-The Bengal Exchange e-commerce framework handles invoice generation entirely client-side using the jsPDF library for PDF creation and formatting. This approach ensures that no sensitive order data is transmitted to external servers during the PDF generation process.
+The Bengali Exchange e-commerce framework handles invoice generation entirely client-side using the jsPDF library for PDF creation and formatting. This approach ensures that no sensitive order data is transmitted to external servers during the PDF generation process.
 
 ## PDF Generation
 

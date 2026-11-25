@@ -11,6 +11,7 @@ import {
   Boxes,
   CreditCard,
   FileCode2,
+  FileText,
   FolderTree,
   Globe2,
   Image,
@@ -23,6 +24,7 @@ import {
   Percent,
   Receipt,
   Star,
+  Share2,
   Store,
   Truck,
   Users,
@@ -77,6 +79,17 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       },
       { labelKey: "admin-banners-title", href: "/admin/banners", icon: Image },
       { labelKey: "reviews-title", href: "/admin/reviews", icon: Star },
+    ],
+  },
+  {
+    labelKey: "admin-nav-content",
+    items: [
+      { labelKey: "admin-pages-title", href: "/admin/pages", icon: FileText },
+      {
+        labelKey: "admin-social-title",
+        href: "/admin/social-links",
+        icon: Share2,
+      },
     ],
   },
   {

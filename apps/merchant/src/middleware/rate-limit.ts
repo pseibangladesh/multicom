@@ -23,7 +23,8 @@
  */
 
 import { Context, Next } from 'hono';
-import { rateLimits, getLimitForRequest, type RateLimitConfig } from '../config/rate-limits';
+import { rateLimits, getLimitForRequest, type RateLimitConfig, type RateLimitRole } from '../config/rate-limits';
+import { hasSessionCookie } from '../lib/session';
 import { ApiError, type Env } from '../types';
 
 // ============================================================
@@ -118,11 +119,24 @@ export function rateLimitMiddleware() {
       return next();
     }
 
-    // Get identifier - prefer API key, fall back to IP
+    // Who is counted:
+    // - secret key (sk_): the key itself, server-to-server
+    // - public key (pk_): the storefront ships ONE pk_ for every shopper, so it
+    //   is counted per IP, or all shoppers would share one 60/min bucket
+    // - session cookie (signed-in browser): per IP, with the higher session
+    //   limit. The cookie isn't verified here (that needs the DO); a forged one
+    //   only buys a client the session limit instead of the default.
+    // - anything else: per IP
     const authHeader = c.req.header('Authorization');
-    const apiKey = authHeader?.replace('Bearer ', '');
+    const apiKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
     const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
-    const identifier = apiKey || ip;
+    const isPublicKey = apiKey?.startsWith('pk_') ?? false;
+    const isSession = !apiKey && hasSessionCookie(c.req.header('cookie'));
+    const identifier = isPublicKey
+      ? `pk:${ip}`
+      : isSession
+        ? `session:${ip}`
+        : apiKey || ip;
 
     // Check whitelist
     if (apiKey && rateLimits.whitelist.some((w) => apiKey.startsWith(w))) {
@@ -130,11 +144,13 @@ export function rateLimitMiddleware() {
     }
 
     // Determine role from API key prefix
-    let role: 'admin' | 'public' | undefined;
+    let role: RateLimitRole | undefined;
     if (apiKey?.startsWith('sk_')) {
       role = 'admin';
-    } else if (apiKey?.startsWith('pk_')) {
+    } else if (isPublicKey) {
       role = 'public';
+    } else if (isSession) {
+      role = 'session';
     }
 
     // Get rate limit config for this request

@@ -173,52 +173,57 @@ export default function TaxRatesPage() {
         onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={(v) => setStatusFilter(v || "")}
       >
-        <Card>
+        <Card className="p-2 sm:p-4 lg:p-6">
           <Card.Content>
             <Table aria-label="Tax Rates Table">
-              <Table.Content>
-                <Table.Header>
-                  <Table.Column isRowHeader>
-                    {t("admin-common-name")}
-                  </Table.Column>
-                  <Table.Column>
-                    {t("admin-tax-rates-country-code")}
-                  </Table.Column>
-                  <Table.Column>{t("admin-tax-rates-tax-code")}</Table.Column>
-                  <Table.Column>{t("admin-tax-rates-rate")}</Table.Column>
-                  <Table.Column>{t("admin-common-status")}</Table.Column>
-                  <Table.Column width={100}>
-                    {t("admin-common-actions")}
-                  </Table.Column>
-                </Table.Header>
-                <Table.Body renderEmptyState={() => t("admin-common-empty")}>
-                  {displayed.map((item) => (
-                    <Table.Row key={item.id} className="odd:bg-default-50">
-                      <Table.Cell>
-                        {getTaxNameForLocale(item.display_name, i18n.language)}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {item.country_code || (
-                          <span className="text-gray-400 italic">
-                            {t("admin-tax-rates-fallback")}
-                          </span>
-                        )}
-                      </Table.Cell>
-                      <Table.Cell>{item.tax_code || "-"}</Table.Cell>
-                      <Table.Cell>{item.rate_percentage}%</Table.Cell>
-                      <Table.Cell>
-                        <StatusBadge status={item.status} />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <RowActions
-                          onDelete={() => handleDelete(item.id)}
-                          onEdit={() => handleOpenEdit(item)}
-                        />
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table.Content>
+              <Table.ScrollContainer>
+                <Table.Content>
+                  <Table.Header>
+                    <Table.Column isRowHeader>
+                      {t("admin-common-name")}
+                    </Table.Column>
+                    <Table.Column>
+                      {t("admin-tax-rates-country-code")}
+                    </Table.Column>
+                    <Table.Column>{t("admin-tax-rates-tax-code")}</Table.Column>
+                    <Table.Column>{t("admin-tax-rates-rate")}</Table.Column>
+                    <Table.Column>{t("admin-common-status")}</Table.Column>
+                    <Table.Column width={100}>
+                      {t("admin-common-actions")}
+                    </Table.Column>
+                  </Table.Header>
+                  <Table.Body renderEmptyState={() => t("admin-common-empty")}>
+                    {displayed.map((item) => (
+                      <Table.Row key={item.id} className="odd:bg-default-50">
+                        <Table.Cell>
+                          {getTaxNameForLocale(
+                            item.display_name,
+                            i18n.language,
+                          )}
+                        </Table.Cell>
+                        <Table.Cell>
+                          {item.country_code || (
+                            <span className="text-gray-400 italic">
+                              {t("admin-tax-rates-fallback")}
+                            </span>
+                          )}
+                        </Table.Cell>
+                        <Table.Cell>{item.tax_code || "-"}</Table.Cell>
+                        <Table.Cell>{item.rate_percentage}%</Table.Cell>
+                        <Table.Cell>
+                          <StatusBadge status={item.status} />
+                        </Table.Cell>
+                        <Table.Cell>
+                          <RowActions
+                            onDelete={() => handleDelete(item.id)}
+                            onEdit={() => handleOpenEdit(item)}
+                          />
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
           </Card.Content>
         </Card>
@@ -272,7 +277,7 @@ export default function TaxRatesPage() {
                         </div>
 
                         {/* Country and Tax code */}
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <TextField>
                             <Label>{t("admin-tax-rates-country-code")}</Label>
                             <Input

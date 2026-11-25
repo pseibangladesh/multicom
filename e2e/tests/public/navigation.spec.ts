@@ -10,7 +10,7 @@ const hasApiUrl = !!API_BASE_URL;
 test.describe("Public navigation", () => {
   test("Homepage loads successfully", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Bengal Exchange/i);
+    await expect(page).toHaveTitle(/Bengali Exchange/i);
     await expect(page.getByRole("navigation")).toBeVisible();
     await expect(page.getByRole("contentinfo")).toBeVisible();
   });

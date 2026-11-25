@@ -66,7 +66,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md border border-bx-line bg-bx-surface-raised shadow-none">
         <Card.Header className="flex flex-col justify-center gap-3">
           <div className="text-center">
-            <h1 className="font-display text-3xl text-bx-ink">
+            <h1 className="font-display text-2xl md:text-3xl text-bx-ink">
               {isSignUp ? t("login-signup-title") : t("login-title")}
             </h1>
             <p className="mt-2 text-bx-stone">

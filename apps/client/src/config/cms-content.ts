@@ -5,7 +5,8 @@
  * Static CMS page content for all storefront informational pages.
  * Content is defined here per locale to avoid polluting the main i18n JSON files
  * with large multi-paragraph text blocks.
- * Supported locales: en-US, fr-FR, es-ES, ar-SA, zh-CN, he-IL
+ * Supported locales: en-US, fr-FR, es-ES, ar-SA, zh-CN, he-IL (others fall back to en-US).
+ * Admins can replace any locale's text from Admin → Pages (lib/site-content.ts).
  */
 
 export type CmsSection = {
@@ -24,56 +25,56 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   // ─────────────────────────── ABOUT ──────────────────────────────────────
   about: {
     "en-US": {
-      title: "About Bengal Exchange",
-      lead: "Bengal Exchange is an open-source e-commerce platform built on Cloudflare's global edge network, designed to help merchants launch fast, scalable online stores without infrastructure headaches.",
+      title: "About Bengali Exchange",
+      lead: "Bengali Exchange is an open-source e-commerce platform built on Cloudflare's global edge network, designed to help merchants launch fast, scalable online stores without infrastructure headaches.",
       sections: [
         {
           heading: "Our Story",
-          body: "Bengal Exchange was born from a simple frustration: existing e-commerce solutions were either too expensive, too complex, or too slow. We set out to build something different — a platform that leverages Cloudflare Workers and Durable Objects to deliver sub-millisecond response times at the edge, anywhere in the world.",
+          body: "Bengali Exchange was born from a simple frustration: existing e-commerce solutions were either too expensive, too complex, or too slow. We set out to build something different — a platform that leverages Cloudflare Workers and Durable Objects to deliver sub-millisecond response times at the edge, anywhere in the world.",
         },
         {
           heading: "Our Mission",
-          body: "Our mission is to democratize e-commerce by providing enterprise-grade infrastructure to every merchant, regardless of size. From a solo artisan to a rapidly growing brand, Bengal Exchange scales with you — with no server management, no uptime worries, and no surprise bills.",
+          body: "Our mission is to democratize e-commerce by providing enterprise-grade infrastructure to every merchant, regardless of size. From a solo artisan to a rapidly growing brand, Bengali Exchange scales with you — with no server management, no uptime worries, and no surprise bills.",
         },
         {
           heading: "Our Values",
-          body: "We believe in open source, transparency, and developer empowerment. Every line of Bengal Exchange's code is available on GitHub, and we actively welcome contributions. Privacy and security are core to our design — not afterthoughts.",
+          body: "We believe in open source, transparency, and developer empowerment. Every line of Bengali Exchange's code is available on GitHub, and we actively welcome contributions. Privacy and security are core to our design — not afterthoughts.",
         },
       ],
     },
     "fr-FR": {
-      title: "À propos de Bengal Exchange",
-      lead: "Bengal Exchange est une plateforme e-commerce open source construite sur le réseau mondial de Cloudflare, conçue pour aider les marchands à lancer des boutiques en ligne rapides et évolutives sans se soucier de l'infrastructure.",
+      title: "À propos de Bengali Exchange",
+      lead: "Bengali Exchange est une plateforme e-commerce open source construite sur le réseau mondial de Cloudflare, conçue pour aider les marchands à lancer des boutiques en ligne rapides et évolutives sans se soucier de l'infrastructure.",
       sections: [
         {
           heading: "Notre histoire",
-          body: "Bengal Exchange est né d'une frustration simple : les solutions e-commerce existantes étaient soit trop coûteuses, soit trop complexes, soit trop lentes. Nous avons décidé de construire quelque chose de différent, une plateforme qui exploite la puissance des Cloudflare Workers et des Durable Objects.",
+          body: "Bengali Exchange est né d'une frustration simple : les solutions e-commerce existantes étaient soit trop coûteuses, soit trop complexes, soit trop lentes. Nous avons décidé de construire quelque chose de différent, une plateforme qui exploite la puissance des Cloudflare Workers et des Durable Objects.",
         },
         {
           heading: "Notre mission",
-          body: "Notre mission est de démocratiser le commerce en ligne en fournissant une infrastructure de niveau entreprise à chaque marchand, quelle que soit sa taille. De l'artisan indépendant à la marque en pleine croissance, Bengal Exchange évolue avec vous sans gestion de serveurs ni mauvaises surprises.",
+          body: "Notre mission est de démocratiser le commerce en ligne en fournissant une infrastructure de niveau entreprise à chaque marchand, quelle que soit sa taille. De l'artisan indépendant à la marque en pleine croissance, Bengali Exchange évolue avec vous sans gestion de serveurs ni mauvaises surprises.",
         },
         {
           heading: "Nos valeurs",
-          body: "Nous croyons en l'open source, la transparence et l'autonomisation des développeurs. Chaque ligne de code de Bengal Exchange est disponible sur GitHub. La confidentialité et la sécurité sont au cœur de notre conception, pas une réflexion après coup.",
+          body: "Nous croyons en l'open source, la transparence et l'autonomisation des développeurs. Chaque ligne de code de Bengali Exchange est disponible sur GitHub. La confidentialité et la sécurité sont au cœur de notre conception, pas une réflexion après coup.",
         },
       ],
     },
     "es-ES": {
-      title: "Acerca de Bengal Exchange",
-      lead: "Bengal Exchange es una plataforma de comercio electrónico de código abierto construida sobre la red global de Cloudflare, diseñada para ayudar a los comerciantes a lanzar tiendas en línea rápidas y escalables.",
+      title: "Acerca de Bengali Exchange",
+      lead: "Bengali Exchange es una plataforma de comercio electrónico de código abierto construida sobre la red global de Cloudflare, diseñada para ayudar a los comerciantes a lanzar tiendas en línea rápidas y escalables.",
       sections: [
         {
           heading: "Nuestra historia",
-          body: "Bengal Exchange nació de una frustración simple: las soluciones de e-commerce existentes eran demasiado costosas, complejas o lentas. Decidimos construir algo diferente aprovechando el poder de Cloudflare Workers y Durable Objects para ofrecer tiempos de respuesta ultrarrápidos.",
+          body: "Bengali Exchange nació de una frustración simple: las soluciones de e-commerce existentes eran demasiado costosas, complejas o lentas. Decidimos construir algo diferente aprovechando el poder de Cloudflare Workers y Durable Objects para ofrecer tiempos de respuesta ultrarrápidos.",
         },
         {
           heading: "Nuestra misión",
-          body: "Nuestra misión es democratizar el comercio electrónico proporcionando infraestructura de nivel empresarial a cada comerciante, independientemente de su tamaño. Bengal Exchange escala contigo sin gestión de servidores ni sorpresas en la factura.",
+          body: "Nuestra misión es democratizar el comercio electrónico proporcionando infraestructura de nivel empresarial a cada comerciante, independientemente de su tamaño. Bengali Exchange escala contigo sin gestión de servidores ni sorpresas en la factura.",
         },
         {
           heading: "Nuestros valores",
-          body: "Creemos en el código abierto, la transparencia y el empoderamiento de los desarrolladores. Todo el código de Bengal Exchange está disponible en GitHub. La privacidad y la seguridad son fundamentales en nuestro diseño.",
+          body: "Creemos en el código abierto, la transparencia y el empoderamiento de los desarrolladores. Todo el código de Bengali Exchange está disponible en GitHub. La privacidad y la seguridad son fundamentales en nuestro diseño.",
         },
       ],
     },
@@ -96,38 +97,38 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "zh-CN": {
-      title: "关于 Bengal Exchange",
-      lead: "Bengal Exchange 是一个基于 Cloudflare 全球边缘网络的开源电商平台，旨在帮助商家无需担心基础设施即可快速搭建高性能、可扩展的在线商店。",
+      title: "关于 Bengali Exchange",
+      lead: "Bengali Exchange 是一个基于 Cloudflare 全球边缘网络的开源电商平台，旨在帮助商家无需担心基础设施即可快速搭建高性能、可扩展的在线商店。",
       sections: [
         {
           heading: "我们的故事",
-          body: "Bengal Exchange 诞生于对现有电商解决方案的不满——它们要么太贵、要么太复杂、要么太慢。我们决定利用 Cloudflare Workers 和 Durable Objects 构建一个全新的解决方案，在全球任何地方实现毫秒级响应时间。",
+          body: "Bengali Exchange 诞生于对现有电商解决方案的不满——它们要么太贵、要么太复杂、要么太慢。我们决定利用 Cloudflare Workers 和 Durable Objects 构建一个全新的解决方案，在全球任何地方实现毫秒级响应时间。",
         },
         {
           heading: "我们的使命",
-          body: "我们的使命是让每一位商家都能享受企业级基础设施，无论规模大小。Bengal Exchange 与您共同成长，无需管理服务器，无需担心停机时间，无隐藏费用。",
+          body: "我们的使命是让每一位商家都能享受企业级基础设施，无论规模大小。Bengali Exchange 与您共同成长，无需管理服务器，无需担心停机时间，无隐藏费用。",
         },
         {
           heading: "我们的价值观",
-          body: "我们相信开源、透明和开发者赋能。Bengal Exchange 的每一行代码都在 GitHub 上公开。隐私和安全是我们设计的核心，而非事后的补充。",
+          body: "我们相信开源、透明和开发者赋能。Bengali Exchange 的每一行代码都在 GitHub 上公开。隐私和安全是我们设计的核心，而非事后的补充。",
         },
       ],
     },
     "he-IL": {
-      title: "אודות Bengal Exchange",
-      lead: "Bengal Exchange היא פלטפורמת מסחר אלקטרוני קוד פתוח הבנויה על רשת Cloudflare הגלובלית, המיועדת לסייע לסוחרים להשיק חנויות מקוונות מהירות וניתנות להתרחבות ללא כאב ראש תשתיתי.",
+      title: "אודות Bengali Exchange",
+      lead: "Bengali Exchange היא פלטפורמת מסחר אלקטרוני קוד פתוח הבנויה על רשת Cloudflare הגלובלית, המיועדת לסייע לסוחרים להשיק חנויות מקוונות מהירות וניתנות להתרחבות ללא כאב ראש תשתיתי.",
       sections: [
         {
           heading: "הסיפור שלנו",
-          body: "Bengal Exchange נולדה מתסכול פשוט: פתרונות המסחר האלקטרוני הקיימים היו יקרים, מורכבים או איטיים מדי. החלטנו לבנות משהו שונה תוך ניצול עוצמת Cloudflare Workers ו-Durable Objects למתן זמני תגובה מהירים מהאור.",
+          body: "Bengali Exchange נולדה מתסכול פשוט: פתרונות המסחר האלקטרוני הקיימים היו יקרים, מורכבים או איטיים מדי. החלטנו לבנות משהו שונה תוך ניצול עוצמת Cloudflare Workers ו-Durable Objects למתן זמני תגובה מהירים מהאור.",
         },
         {
           heading: "המשימה שלנו",
-          body: "המשימה שלנו היא לדמוקרטיזציה של המסחר האלקטרוני על ידי מתן תשתית ברמת ארגונים לכל סוחר, ללא קשר לגודלו. Bengal Exchange גדלה איתך ללא ניהול שרתים וללא הפתעות בחשבון.",
+          body: "המשימה שלנו היא לדמוקרטיזציה של המסחר האלקטרוני על ידי מתן תשתית ברמת ארגונים לכל סוחר, ללא קשר לגודלו. Bengali Exchange גדלה איתך ללא ניהול שרתים וללא הפתעות בחשבון.",
         },
         {
           heading: "הערכים שלנו",
-          body: "אנו מאמינים בקוד פתוח, שקיפות והעצמת מפתחים. כל שורת קוד של Bengal Exchange זמינה ב-GitHub. פרטיות ואבטחה הן ליבת העיצוב שלנו ולא מחשבה שנייה.",
+          body: "אנו מאמינים בקוד פתוח, שקיפות והעצמת מפתחים. כל שורת קוד של Bengali Exchange זמינה ב-GitHub. פרטיות ואבטחה הן ליבת העיצוב שלנו ולא מחשבה שנייה.",
         },
       ],
     },
@@ -136,8 +137,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   // ─────────────────────────── BLOG ───────────────────────────────────────
   blog: {
     "en-US": {
-      title: "Bengal Exchange Blog",
-      lead: "Discover insights on e-commerce, platform updates, merchant success stories, and technical deep-dives from the Bengal Exchange team.",
+      title: "Bengali Exchange Blog",
+      lead: "Discover insights on e-commerce, platform updates, merchant success stories, and technical deep-dives from the Bengali Exchange team.",
       sections: [
         {
           heading: "Coming Soon",
@@ -145,7 +146,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "What to Expect",
-          body: "From tutorials on Cloudflare Workers and Durable Objects, to case studies of merchants who scaled their business with Bengal Exchange — our blog will cover topics that matter to developers and shop owners alike.",
+          body: "From tutorials on Cloudflare Workers and Durable Objects, to case studies of merchants who scaled their business with Bengali Exchange — our blog will cover topics that matter to developers and shop owners alike.",
         },
         {
           heading: "Stay in the Loop",
@@ -154,8 +155,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "fr-FR": {
-      title: "Blog Bengal Exchange",
-      lead: "Découvrez des articles sur le e-commerce, les mises à jour de la plateforme, les success stories de marchands et les analyses techniques de l'équipe Bengal Exchange.",
+      title: "Blog Bengali Exchange",
+      lead: "Découvrez des articles sur le e-commerce, les mises à jour de la plateforme, les success stories de marchands et les analyses techniques de l'équipe Bengali Exchange.",
       sections: [
         {
           heading: "Bientôt disponible",
@@ -163,7 +164,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Ce qui vous attend",
-          body: "Des tutoriels sur Cloudflare Workers et Durable Objects aux études de cas de marchands ayant développé leur activité avec Bengal Exchange — notre blog abordera des sujets qui comptent pour les développeurs comme pour les propriétaires de boutiques.",
+          body: "Des tutoriels sur Cloudflare Workers et Durable Objects aux études de cas de marchands ayant développé leur activité avec Bengali Exchange — notre blog abordera des sujets qui comptent pour les développeurs comme pour les propriétaires de boutiques.",
         },
         {
           heading: "Restez informé",
@@ -172,8 +173,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "es-ES": {
-      title: "Blog de Bengal Exchange",
-      lead: "Descubre artículos sobre e-commerce, actualizaciones de la plataforma, historias de éxito de comerciantes y análisis técnicos del equipo de Bengal Exchange.",
+      title: "Blog de Bengali Exchange",
+      lead: "Descubre artículos sobre e-commerce, actualizaciones de la plataforma, historias de éxito de comerciantes y análisis técnicos del equipo de Bengali Exchange.",
       sections: [
         {
           heading: "Próximamente",
@@ -181,7 +182,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Qué esperar",
-          body: "Desde tutoriales sobre Cloudflare Workers hasta casos de estudio de comerciantes que escalaron su negocio con Bengal Exchange — nuestro blog cubrirá temas que importan tanto a desarrolladores como a propietarios de tiendas.",
+          body: "Desde tutoriales sobre Cloudflare Workers hasta casos de estudio de comerciantes que escalaron su negocio con Bengali Exchange — nuestro blog cubrirá temas que importan tanto a desarrolladores como a propietarios de tiendas.",
         },
         {
           heading: "Mantente informado",
@@ -208,8 +209,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "zh-CN": {
-      title: "Bengal Exchange 博客",
-      lead: "探索关于电商、平台更新、商家成功案例以及 Bengal Exchange 团队技术深度分析的精彩文章。",
+      title: "Bengali Exchange 博客",
+      lead: "探索关于电商、平台更新、商家成功案例以及 Bengali Exchange 团队技术深度分析的精彩文章。",
       sections: [
         {
           heading: "即将推出",
@@ -217,7 +218,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "博客内容预览",
-          body: "从 Cloudflare Workers 教程到使用 Bengal Exchange 扩展业务的商家案例研究——我们的博客将涵盖对开发者和店主都有价值的主题。",
+          body: "从 Cloudflare Workers 教程到使用 Bengali Exchange 扩展业务的商家案例研究——我们的博客将涵盖对开发者和店主都有价值的主题。",
         },
         {
           heading: "保持关注",
@@ -226,8 +227,8 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "he-IL": {
-      title: "הבלוג של Bengal Exchange",
-      lead: "גלה תובנות על מסחר אלקטרוני, עדכוני פלטפורמה, סיפורי הצלחה של סוחרים וניתוחים טכניים מצוות Bengal Exchange.",
+      title: "הבלוג של Bengali Exchange",
+      lead: "גלה תובנות על מסחר אלקטרוני, עדכוני פלטפורמה, סיפורי הצלחה של סוחרים וניתוחים טכניים מצוות Bengali Exchange.",
       sections: [
         {
           heading: "בקרוב",
@@ -235,7 +236,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "מה לצפות",
-          body: "ממדריכים על Cloudflare Workers ועד מחקרי מקרה של סוחרים שהצליחו עם Bengal Exchange — הבלוג שלנו יכסה נושאים שחשובים למפתחים ולבעלי חנויות כאחד.",
+          body: "ממדריכים על Cloudflare Workers ועד מחקרי מקרה של סוחרים שהצליחו עם Bengali Exchange — הבלוג שלנו יכסה נושאים שחשובים למפתחים ולבעלי חנויות כאחד.",
         },
         {
           heading: "הישארו מעודכנים",
@@ -248,7 +249,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   // ─────────────────────────── CAREERS ────────────────────────────────────
   careers: {
     "en-US": {
-      title: "Careers at Bengal Exchange",
+      title: "Careers at Bengali Exchange",
       lead: "Help us build the future of edge-native e-commerce. We're a small, focused team that values craftsmanship, autonomy, and impact.",
       sections: [
         {
@@ -266,7 +267,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "fr-FR": {
-      title: "Carrières chez Bengal Exchange",
+      title: "Carrières chez Bengali Exchange",
       lead: "Aidez-nous à construire l'avenir du e-commerce natif en bordure de réseau. Nous sommes une équipe restreinte et concentrée qui valorise l'artisanat, l'autonomie et l'impact.",
       sections: [
         {
@@ -284,7 +285,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "es-ES": {
-      title: "Carreras en Bengal Exchange",
+      title: "Carreras en Bengali Exchange",
       lead: "Ayúdanos a construir el futuro del e-commerce nativo en el edge. Somos un equipo pequeño y enfocado que valora el artesanado, la autonomía y el impacto.",
       sections: [
         {
@@ -320,7 +321,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       ],
     },
     "zh-CN": {
-      title: "加入 Bengal Exchange",
+      title: "加入 Bengali Exchange",
       lead: "帮助我们构建边缘原生电商的未来。我们是一个小而专注的团队，重视精工品质、自主性和影响力。",
       sections: [
         {
@@ -361,11 +362,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   press: {
     "en-US": {
       title: "Press & Media",
-      lead: "Find the information you need to write about Bengal Exchange — our story, brand assets, and press contacts all in one place.",
+      lead: "Find the information you need to write about Bengali Exchange — our story, brand assets, and press contacts all in one place.",
       sections: [
         {
-          heading: "About Bengal Exchange",
-          body: "Bengal Exchange is a next-generation open-source e-commerce platform based on Cloudflare Workers and Durable Objects. Founded in 2024, it enables merchants to deploy globally distributed stores with zero infrastructure management. The platform supports multi-language, multi-currency, and multi-region operations out of the box.",
+          heading: "About Bengali Exchange",
+          body: "Bengali Exchange is a next-generation open-source e-commerce platform based on Cloudflare Workers and Durable Objects. Founded in 2024, it enables merchants to deploy globally distributed stores with zero infrastructure management. The platform supports multi-language, multi-currency, and multi-region operations out of the box.",
         },
         {
           heading: "Press Kit",
@@ -379,11 +380,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "fr-FR": {
       title: "Presse & Médias",
-      lead: "Trouvez toutes les informations nécessaires pour écrire sur Bengal Exchange — notre histoire, nos ressources de marque et nos contacts presse en un seul endroit.",
+      lead: "Trouvez toutes les informations nécessaires pour écrire sur Bengali Exchange — notre histoire, nos ressources de marque et nos contacts presse en un seul endroit.",
       sections: [
         {
-          heading: "À propos de Bengal Exchange",
-          body: "Bengal Exchange est une plateforme e-commerce open source de nouvelle génération basée sur Cloudflare Workers et Durable Objects. Fondée en 2024, elle permet aux marchands de déployer des boutiques distribuées globalement sans aucune gestion d'infrastructure. La plateforme prend en charge les opérations multilingues, multi-devises et multirégions nativement.",
+          heading: "À propos de Bengali Exchange",
+          body: "Bengali Exchange est une plateforme e-commerce open source de nouvelle génération basée sur Cloudflare Workers et Durable Objects. Fondée en 2024, elle permet aux marchands de déployer des boutiques distribuées globalement sans aucune gestion d'infrastructure. La plateforme prend en charge les opérations multilingues, multi-devises et multirégions nativement.",
         },
         {
           heading: "Kit presse",
@@ -397,11 +398,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "es-ES": {
       title: "Prensa y Medios",
-      lead: "Encuentra toda la información que necesitas para escribir sobre Bengal Exchange — nuestra historia, recursos de marca y contactos de prensa en un solo lugar.",
+      lead: "Encuentra toda la información que necesitas para escribir sobre Bengali Exchange — nuestra historia, recursos de marca y contactos de prensa en un solo lugar.",
       sections: [
         {
-          heading: "Acerca de Bengal Exchange",
-          body: "Bengal Exchange es una plataforma de e-commerce open source de nueva generación basada en Cloudflare Workers y Durable Objects. Fundada en 2024, permite a los comerciantes desplegar tiendas distribuidas globalmente sin ninguna gestión de infraestructura.",
+          heading: "Acerca de Bengali Exchange",
+          body: "Bengali Exchange es una plataforma de e-commerce open source de nueva generación basada en Cloudflare Workers y Durable Objects. Fundada en 2024, permite a los comerciantes desplegar tiendas distribuidas globalmente sin ninguna gestión de infraestructura.",
         },
         {
           heading: "Kit de prensa",
@@ -433,11 +434,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "zh-CN": {
       title: "新闻与媒体",
-      lead: "在这里找到撰写 Bengal Exchange 报道所需的一切——我们的故事、品牌资产和新闻联系方式。",
+      lead: "在这里找到撰写 Bengali Exchange 报道所需的一切——我们的故事、品牌资产和新闻联系方式。",
       sections: [
         {
-          heading: "关于 Bengal Exchange",
-          body: "Bengal Exchange 是基于 Cloudflare Workers 和 Durable Objects 的新一代开源电商平台。成立于2024年，它使商家能够在无需任何基础设施管理的情况下部署全球分布式商店。平台原生支持多语言、多货币和多地区运营。",
+          heading: "关于 Bengali Exchange",
+          body: "Bengali Exchange 是基于 Cloudflare Workers 和 Durable Objects 的新一代开源电商平台。成立于2024年，它使商家能够在无需任何基础设施管理的情况下部署全球分布式商店。平台原生支持多语言、多货币和多地区运营。",
         },
         {
           heading: "新闻资料包",
@@ -451,11 +452,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "he-IL": {
       title: "עיתונות ומדיה",
-      lead: "מצאו את כל המידע שאתם צריכים לכתיבה על Bengal Exchange — הסיפור שלנו, נכסי המותג ואנשי קשר לעיתונות במקום אחד.",
+      lead: "מצאו את כל המידע שאתם צריכים לכתיבה על Bengali Exchange — הסיפור שלנו, נכסי המותג ואנשי קשר לעיתונות במקום אחד.",
       sections: [
         {
-          heading: "על Bengal Exchange",
-          body: "Bengal Exchange היא פלטפורמת מסחר אלקטרוני קוד פתוח מהדור הבא המבוססת על Cloudflare Workers ו-Durable Objects. נוסדה ב-2024, היא מאפשרת לסוחרים לפרוס חנויות מבוזרות גלובלית ללא ניהול תשתיות.",
+          heading: "על Bengali Exchange",
+          body: "Bengali Exchange היא פלטפורמת מסחר אלקטרוני קוד פתוח מהדור הבא המבוססת על Cloudflare Workers ו-Durable Objects. נוסדה ב-2024, היא מאפשרת לסוחרים לפרוס חנויות מבוזרות גלובלית ללא ניהול תשתיות.",
         },
         {
           heading: "ערכת עיתונות",
@@ -1033,11 +1034,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   "terms-of-service": {
     "en-US": {
       title: "Terms of Service",
-      lead: "By accessing or using Bengal Exchange, you agree to be bound by these Terms of Service. Please read them carefully. Last updated: January 1, 2026.",
+      lead: "By accessing or using Bengali Exchange, you agree to be bound by these Terms of Service. Please read them carefully. Last updated: January 1, 2026.",
       sections: [
         {
           heading: "Use of the Platform",
-          body: "You may use our platform for lawful purposes only. You agree not to use Bengal Exchange for any fraudulent activities, to transmit harmful or illegal content, or to violate any applicable laws. We reserve the right to terminate access for users who breach these terms.",
+          body: "You may use our platform for lawful purposes only. You agree not to use Bengali Exchange for any fraudulent activities, to transmit harmful or illegal content, or to violate any applicable laws. We reserve the right to terminate access for users who breach these terms.",
         },
         {
           heading: "Orders, Payments & Pricing",
@@ -1045,17 +1046,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Limitation of Liability",
-          body: "To the fullest extent permitted by law, Bengal Exchange shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the platform. Our total liability shall not exceed the amount paid by you for the specific order giving rise to the claim.",
+          body: "To the fullest extent permitted by law, Bengali Exchange shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the platform. Our total liability shall not exceed the amount paid by you for the specific order giving rise to the claim.",
         },
       ],
     },
     "fr-FR": {
       title: "Conditions Générales de Vente",
-      lead: "En accédant à Bengal Exchange ou en l'utilisant, vous acceptez d'être lié par ces Conditions générales. Veuillez les lire attentivement. Dernière mise à jour : 1er janvier 2026.",
+      lead: "En accédant à Bengali Exchange ou en l'utilisant, vous acceptez d'être lié par ces Conditions générales. Veuillez les lire attentivement. Dernière mise à jour : 1er janvier 2026.",
       sections: [
         {
           heading: "Utilisation de la plateforme",
-          body: "Vous pouvez utiliser notre plateforme à des fins légales uniquement. Vous vous engagez à ne pas utiliser Bengal Exchange pour des activités frauduleuses, transmettre du contenu nuisible ou illégal, ou violer les lois applicables. Nous nous réservons le droit de résilier l'accès des utilisateurs qui enfreignent ces conditions.",
+          body: "Vous pouvez utiliser notre plateforme à des fins légales uniquement. Vous vous engagez à ne pas utiliser Bengali Exchange pour des activités frauduleuses, transmettre du contenu nuisible ou illégal, ou violer les lois applicables. Nous nous réservons le droit de résilier l'accès des utilisateurs qui enfreignent ces conditions.",
         },
         {
           heading: "Commandes, paiements et tarification",
@@ -1063,17 +1064,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Limitation de responsabilité",
-          body: "Dans toute la mesure permise par la loi, Bengal Exchange ne sera pas responsable des dommages indirects, accessoires, spéciaux ou consécutifs découlant de votre utilisation de la plateforme. Notre responsabilité totale ne dépassera pas le montant que vous avez payé pour votre commande.",
+          body: "Dans toute la mesure permise par la loi, Bengali Exchange ne sera pas responsable des dommages indirects, accessoires, spéciaux ou consécutifs découlant de votre utilisation de la plateforme. Notre responsabilité totale ne dépassera pas le montant que vous avez payé pour votre commande.",
         },
       ],
     },
     "es-ES": {
       title: "Términos y Condiciones",
-      lead: "Al acceder o usar Bengal Exchange, aceptas estar sujeto a estos Términos de Servicio. Por favor léelos detenidamente. Última actualización: 1 de enero de 2026.",
+      lead: "Al acceder o usar Bengali Exchange, aceptas estar sujeto a estos Términos de Servicio. Por favor léelos detenidamente. Última actualización: 1 de enero de 2026.",
       sections: [
         {
           heading: "Uso de la plataforma",
-          body: "Solo puedes usar nuestra plataforma para fines legales. Aceptas no usar Bengal Exchange para actividades fraudulentas, transmitir contenido dañino o ilegal, ni violar ninguna ley aplicable. Nos reservamos el derecho de cancelar el acceso a usuarios que incumplan estos términos.",
+          body: "Solo puedes usar nuestra plataforma para fines legales. Aceptas no usar Bengali Exchange para actividades fraudulentas, transmitir contenido dañino o ilegal, ni violar ninguna ley aplicable. Nos reservamos el derecho de cancelar el acceso a usuarios que incumplan estos términos.",
         },
         {
           heading: "Pedidos, pagos y precios",
@@ -1081,7 +1082,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Limitación de responsabilidad",
-          body: "En la máxima medida permitida por la ley, Bengal Exchange no será responsable de ningún daño indirecto, incidental, especial o consecuente que surja del uso de la plataforma. Nuestra responsabilidad total no excederá el importe pagado por tu pedido.",
+          body: "En la máxima medida permitida por la ley, Bengali Exchange no será responsable de ningún daño indirecto, incidental, especial o consecuente que surja del uso de la plataforma. Nuestra responsabilidad total no excederá el importe pagado por tu pedido.",
         },
       ],
     },
@@ -1105,11 +1106,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "zh-CN": {
       title: "服务条款",
-      lead: "通过访问或使用 Bengal Exchange，您同意受这些服务条款的约束。请仔细阅读。最后更新：2026年1月1日。",
+      lead: "通过访问或使用 Bengali Exchange，您同意受这些服务条款的约束。请仔细阅读。最后更新：2026年1月1日。",
       sections: [
         {
           heading: "平台使用",
-          body: "您只能为合法目的使用我们的平台。您同意不将 Bengal Exchange 用于任何欺诈活动、传播有害或非法内容，或违反任何适用法律。我们保留对违反这些条款的用户终止访问权限的权利。",
+          body: "您只能为合法目的使用我们的平台。您同意不将 Bengali Exchange 用于任何欺诈活动、传播有害或非法内容，或违反任何适用法律。我们保留对违反这些条款的用户终止访问权限的权利。",
         },
         {
           heading: "订单、付款和定价",
@@ -1117,7 +1118,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "责任限制",
-          body: "在法律允许的最大范围内，Bengal Exchange 对因使用平台而产生的任何间接、附带、特殊或后果性损害不承担责任。我们的总责任不超过您为具体订单支付的金额。",
+          body: "在法律允许的最大范围内，Bengali Exchange 对因使用平台而产生的任何间接、附带、特殊或后果性损害不承担责任。我们的总责任不超过您为具体订单支付的金额。",
         },
       ],
     },
@@ -1135,7 +1136,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "הגבלת אחריות",
-          body: "במידה המרבית המותרת בחוק, Bengal Exchange לא תהיה אחראית לנזקים עקיפים, מקריים, מיוחדים או תוצאתיים הנובעים מהשימוש שלכם בפלטפורמה. האחריות הכוללת שלנו לא תעלה על הסכום ששילמתם עבור ההזמנה הספציפית.",
+          body: "במידה המרבית המותרת בחוק, Bengali Exchange לא תהיה אחראית לנזקים עקיפים, מקריים, מיוחדים או תוצאתיים הנובעים מהשימוש שלכם בפלטפורמה. האחריות הכוללת שלנו לא תעלה על הסכום ששילמתם עבור ההזמנה הספציפית.",
         },
       ],
     },
@@ -1145,7 +1146,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   "cookie-policy": {
     "en-US": {
       title: "Cookie Policy",
-      lead: "This Cookie Policy explains how Bengal Exchange uses cookies and similar tracking technologies on our website. Last updated: January 1, 2026.",
+      lead: "This Cookie Policy explains how Bengali Exchange uses cookies and similar tracking technologies on our website. Last updated: January 1, 2026.",
       sections: [
         {
           heading: "What Are Cookies?",
@@ -1163,7 +1164,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "fr-FR": {
       title: "Politique des Cookies",
-      lead: "Cette Politique des Cookies explique comment Bengal Exchange utilise les cookies et les technologies de suivi similaires sur notre site web. Dernière mise à jour : 1er janvier 2026.",
+      lead: "Cette Politique des Cookies explique comment Bengali Exchange utilise les cookies et les technologies de suivi similaires sur notre site web. Dernière mise à jour : 1er janvier 2026.",
       sections: [
         {
           heading: "Qu'est-ce qu'un cookie ?",
@@ -1181,7 +1182,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "es-ES": {
       title: "Política de Cookies",
-      lead: "Esta Política de Cookies explica cómo Bengal Exchange usa cookies y tecnologías de seguimiento similares en nuestro sitio web. Última actualización: 1 de enero de 2026.",
+      lead: "Esta Política de Cookies explica cómo Bengali Exchange usa cookies y tecnologías de seguimiento similares en nuestro sitio web. Última actualización: 1 de enero de 2026.",
       sections: [
         {
           heading: "¿Qué son las cookies?",
@@ -1217,7 +1218,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "zh-CN": {
       title: "Cookie 政策",
-      lead: "本 Cookie 政策解释了 Bengal Exchange 如何在我们的网站上使用 Cookie 和类似的跟踪技术。最后更新：2026年1月1日。",
+      lead: "本 Cookie 政策解释了 Bengali Exchange 如何在我们的网站上使用 Cookie 和类似的跟踪技术。最后更新：2026年1月1日。",
       sections: [
         {
           heading: "什么是 Cookie？",
@@ -1235,7 +1236,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "he-IL": {
       title: "מדיניות עוגיות",
-      lead: "מדיניות עוגיות זו מסבירה כיצד Bengal Exchange משתמשת בעוגיות ובטכנולוגיות מעקב דומות באתר שלנו. עדכון אחרון: 1 בינואר 2026.",
+      lead: "מדיניות עוגיות זו מסבירה כיצד Bengali Exchange משתמשת בעוגיות ובטכנולוגיות מעקב דומות באתר שלנו. עדכון אחרון: 1 בינואר 2026.",
       sections: [
         {
           heading: "מהן עוגיות?",
@@ -1257,11 +1258,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
   "legal-mentions": {
     "en-US": {
       title: "Legal Mentions",
-      lead: "The following legal information applies to the Bengal Exchange platform and its associated website. Last updated: January 1, 2026.",
+      lead: "The following legal information applies to the Bengali Exchange platform and its associated website. Last updated: January 1, 2026.",
       sections: [
         {
           heading: "Publisher Information",
-          body: "Bengal Exchange is operated by SCTG Development, a company registered under applicable law. Registered address: available upon request. VAT registration number: available upon request. For any legal queries, contact: legal@bengal-exchange.io.",
+          body: "Bengali Exchange is operated by SCTG Development, a company registered under applicable law. Registered address: available upon request. VAT registration number: available upon request. For any legal queries, contact: legal@bengal-exchange.io.",
         },
         {
           heading: "Hosting",
@@ -1269,17 +1270,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Intellectual Property",
-          body: "The Bengal Exchange platform source code is published under the AGPL-3.0 license and is available at github.com/pseibangladesh/multicom. All trademarks, logos, and brand assets remain the property of SCTG Development. Unauthorized reproduction of these assets is prohibited.",
+          body: "The Bengali Exchange platform source code is published under the AGPL-3.0 license and is available at github.com/pseibangladesh/multicom. All trademarks, logos, and brand assets remain the property of SCTG Development. Unauthorized reproduction of these assets is prohibited.",
         },
       ],
     },
     "fr-FR": {
       title: "Mentions Légales",
-      lead: "Les informations légales suivantes s'appliquent à la plateforme Bengal Exchange et à son site web associé. Dernière mise à jour : 1er janvier 2026.",
+      lead: "Les informations légales suivantes s'appliquent à la plateforme Bengali Exchange et à son site web associé. Dernière mise à jour : 1er janvier 2026.",
       sections: [
         {
           heading: "Informations sur l'éditeur",
-          body: "Bengal Exchange est exploitée par SCTG Development, société enregistrée conformément aux lois applicables. Adresse du siège social : disponible sur demande. Numéro de TVA intracommunautaire : disponible sur demande. Pour toute question juridique : legal@bengal-exchange.io.",
+          body: "Bengali Exchange est exploitée par SCTG Development, société enregistrée conformément aux lois applicables. Adresse du siège social : disponible sur demande. Numéro de TVA intracommunautaire : disponible sur demande. Pour toute question juridique : legal@bengal-exchange.io.",
         },
         {
           heading: "Hébergement",
@@ -1287,17 +1288,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Propriété intellectuelle",
-          body: "Le code source de la plateforme Bengal Exchange est publié sous licence AGPL-3.0 et disponible sur github.com/pseibangladesh/multicom. Toutes les marques, logos et ressources de marque restent la propriété de SCTG Development. Leur reproduction non autorisée est interdite.",
+          body: "Le code source de la plateforme Bengali Exchange est publié sous licence AGPL-3.0 et disponible sur github.com/pseibangladesh/multicom. Toutes les marques, logos et ressources de marque restent la propriété de SCTG Development. Leur reproduction non autorisée est interdite.",
         },
       ],
     },
     "es-ES": {
       title: "Aviso Legal",
-      lead: "La siguiente información legal se aplica a la plataforma Bengal Exchange y a su sitio web asociado. Última actualización: 1 de enero de 2026.",
+      lead: "La siguiente información legal se aplica a la plataforma Bengali Exchange y a su sitio web asociado. Última actualización: 1 de enero de 2026.",
       sections: [
         {
           heading: "Información del editor",
-          body: "Bengal Exchange es operada por SCTG Development, empresa registrada bajo la legislación aplicable. Dirección registrada: disponible bajo solicitud. Para consultas legales: legal@bengal-exchange.io.",
+          body: "Bengali Exchange es operada por SCTG Development, empresa registrada bajo la legislación aplicable. Dirección registrada: disponible bajo solicitud. Para consultas legales: legal@bengal-exchange.io.",
         },
         {
           heading: "Alojamiento",
@@ -1305,7 +1306,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "Propiedad intelectual",
-          body: "El código fuente de Bengal Exchange se publica bajo la licencia AGPL-3.0 y está disponible en github.com/pseibangladesh/multicom. Todas las marcas, logotipos y activos de marca siguen siendo propiedad de SCTG Development.",
+          body: "El código fuente de Bengali Exchange se publica bajo la licencia AGPL-3.0 y está disponible en github.com/pseibangladesh/multicom. Todas las marcas, logotipos y activos de marca siguen siendo propiedad de SCTG Development.",
         },
       ],
     },
@@ -1329,11 +1330,11 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
     },
     "zh-CN": {
       title: "法律声明",
-      lead: "以下法律信息适用于 Bengal Exchange 平台及其相关网站。最后更新：2026年1月1日。",
+      lead: "以下法律信息适用于 Bengali Exchange 平台及其相关网站。最后更新：2026年1月1日。",
       sections: [
         {
           heading: "发布者信息",
-          body: "Bengal Exchange 由 SCTG Development 运营，该公司依据适用法律注册。注册地址：可根据请求提供。增值税注册号：可根据请求提供。法律咨询请联系：legal@bengal-exchange.io。",
+          body: "Bengali Exchange 由 SCTG Development 运营，该公司依据适用法律注册。注册地址：可根据请求提供。增值税注册号：可根据请求提供。法律咨询请联系：legal@bengal-exchange.io。",
         },
         {
           heading: "托管",
@@ -1341,17 +1342,17 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "知识产权",
-          body: "Bengal Exchange 平台源代码根据 AGPL-3.0 许可证发布，可在 github.com/pseibangladesh/multicom 获取。所有商标、标志和品牌资产仍属于 SCTG Development 所有。未经授权复制这些资产是被禁止的。",
+          body: "Bengali Exchange 平台源代码根据 AGPL-3.0 许可证发布，可在 github.com/pseibangladesh/multicom 获取。所有商标、标志和品牌资产仍属于 SCTG Development 所有。未经授权复制这些资产是被禁止的。",
         },
       ],
     },
     "he-IL": {
       title: "הצהרות משפטיות",
-      lead: "המידע המשפטי הבא חל על פלטפורמת Bengal Exchange ואתר האינטרנט המשויך לה. עדכון אחרון: 1 בינואר 2026.",
+      lead: "המידע המשפטי הבא חל על פלטפורמת Bengali Exchange ואתר האינטרנט המשויך לה. עדכון אחרון: 1 בינואר 2026.",
       sections: [
         {
           heading: "מידע על המפרסם",
-          body: 'Bengal Exchange מנוהלת על ידי SCTG Development, חברה הרשומה לפי החוק החל. כתובת רשומה: זמינה על פי בקשה. מספר מע"מ: זמין על פי בקשה. לשאלות משפטיות: legal@bengal-exchange.io.',
+          body: 'Bengali Exchange מנוהלת על ידי SCTG Development, חברה הרשומה לפי החוק החל. כתובת רשומה: זמינה על פי בקשה. מספר מע"מ: זמין על פי בקשה. לשאלות משפטיות: legal@bengal-exchange.io.',
         },
         {
           heading: "אחסון",
@@ -1359,7 +1360,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
         },
         {
           heading: "קניין רוחני",
-          body: "קוד המקור של פלטפורמת Bengal Exchange מפורסם תחת רישיון AGPL-3.0 וזמין בכתובת github.com/pseibangladesh/multicom. כל הסימנים המסחריים, הלוגואים ונכסי המותג נשארים רכושה של SCTG Development.",
+          body: "קוד המקור של פלטפורמת Bengali Exchange מפורסם תחת רישיון AGPL-3.0 וזמין בכתובת github.com/pseibangladesh/multicom. כל הסימנים המסחריים, הלוגואים ונכסי המותג נשארים רכושה של SCTG Development.",
         },
       ],
     },
@@ -1367,8 +1368,27 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
 };
 
 /**
- * Returns the page content for a given handle and locale,
- * falling back to en-US if the locale is not found.
+ * Picks a locale from a page's content: exact match, then the same language
+ * ("fr" for "fr-CA"), then en-US.
+ */
+export function pickCmsLocale(
+  page: Record<string, CmsPageContent>,
+  locale: string,
+): CmsPageContent | null {
+  const lang = locale.split("-")[0];
+
+  return (
+    page[locale] ??
+    page[Object.keys(page).find((k) => k.split("-")[0] === lang) ?? ""] ??
+    page["en-US"] ??
+    null
+  );
+}
+
+/**
+ * Returns the built-in page content for a given handle and locale,
+ * falling back to en-US if the locale is not found. Admin edits are layered
+ * on top by lib/site-content.ts (useCmsPage).
  */
 export function getCmsPage(
   handle: string,
@@ -1376,15 +1396,5 @@ export function getCmsPage(
 ): CmsPageContent | null {
   const page = CMS_CONTENT[handle];
 
-  if (!page) return null;
-
-  // Try exact match, then language code only (e.g. "fr" from "fr-FR"), then en-US
-  return (
-    page[locale] ??
-    page[
-      Object.keys(page).find((k) => k.startsWith(locale.split("-")[0])) ?? ""
-    ] ??
-    page["en-US"] ??
-    null
-  );
+  return page ? pickCmsLocale(page, locale) : null;
 }

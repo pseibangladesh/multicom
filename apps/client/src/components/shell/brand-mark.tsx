@@ -6,7 +6,7 @@
 import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 
-/** Diamond mark + serif "Bengal Exchange" wordmark, linking home. */
+/** Diamond mark + serif "Bengali Exchange" wordmark, linking home. */
 export function BrandMark({ className = "" }: { className?: string }) {
   const { t } = useTranslation();
 
@@ -26,7 +26,7 @@ export function BrandMark({ className = "" }: { className?: string }) {
         />
         <path d="M12 7 17 12 12 17 7 12Z" fill="var(--bx-accent)" />
       </svg>
-      <span className="bx-wordmark-text">Bengal Exchange</span>
+      <span className="bx-wordmark-text">Bengali Exchange</span>
     </RouterLink>
   );
 }

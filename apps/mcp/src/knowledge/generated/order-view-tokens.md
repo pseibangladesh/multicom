@@ -82,5 +82,5 @@ const token = await generateOrderViewToken(
 );
 ```
 
-<!--mcp-description: Call this when documenting order view token generation, verification, or API endpoints in Bengal Exchange.-->
+<!--mcp-description: Call this when documenting order view token generation, verification, or API endpoints in Bengali Exchange.-->
 <!--mcp-tags: ["auth","api","orders","security","backend"]-->

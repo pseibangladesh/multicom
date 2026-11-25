@@ -2,7 +2,7 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * ⚠️  Architecture Stripe dans Bengal Exchange :
+ * ⚠️  Architecture Stripe dans Bengali Exchange :
  *
  * Le worker crée une `stripe.checkout.sessions.create()` et retourne une URL de
  * redirection vers `checkout.stripe.com` (Stripe Checkout hébergé).
@@ -70,7 +70,7 @@ test.describe("Checkout — utilisateur authentifié", () => {
     await page.getByRole("button", { name: /^(cart|panier)\b/i }).click();
     await page.getByRole("button", { name: /commander|checkout/i }).click();
 
-    // Bengal Exchange crée une session Stripe Checkout et redirige vers checkout.stripe.com.
+    // Bengali Exchange crée une session Stripe Checkout et redirige vers checkout.stripe.com.
     // Skip gracefully when Stripe is not configured in the local backend.
     const redirected = await page.waitForURL(/checkout\.stripe\.com|pay\.stripe\.com/, { timeout: 15_000 })
       .then(() => true)

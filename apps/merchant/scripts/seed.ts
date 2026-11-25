@@ -386,26 +386,73 @@ async function seedCategories() {
     });
   }
 
-  // Create parent category "merchandising"
-  const parentCategory = await createCat({
-    handle: 'merchandising',
+  // Niche parents (client brief: "target the first group of niches").
+  // Every subcategory and product below sits under one of these.
+  const ecoJuteGoods = await createCat({
+    handle: 'eco-jute-goods',
     name: JSON.stringify({
-      'en-US': 'Merchandising',
-      'fr-FR': 'Merchandising',
-      'es-ES': 'Merchandising',
-      'zh-CN': '商品',
-      'ar-SA': 'السلع',
-      'he-IL': 'סחורה',
+      'en-US': 'Eco-friendly Jute Goods',
+      'fr-FR': 'Articles en jute écologiques',
+      'es-ES': 'Artículos ecológicos de yute',
+      'zh-CN': '环保黄麻制品',
+      'ar-SA': 'منتجات الجوت الصديقة للبيئة',
+      'he-IL': 'מוצרי יוטה ידידותיים לסביבה',
+      'bn-BD': 'পরিবেশবান্ধব পাটপণ্য',
     }),
     description: JSON.stringify({
-      'en-US': 'SCTG Merchandising products',
-      'fr-FR': 'Produits de marchandisage SCTG',
-      'es-ES': 'Productos de mercancía SCTG',
-      'zh-CN': 'SCTG商品产品',
-      'ar-SA': 'منتجات البضائع SCTG',
-      'he-IL': 'מוצרי סחורה של SCTG',
+      'en-US': 'Bags, mats and homeware in jute and natural fibres: the golden fibre of Bengal, made to last and to compost.',
+      'fr-FR': 'Sacs, tapis et objets pour la maison en jute et fibres naturelles : la fibre dorée du Bengale, faite pour durer.',
+      'es-ES': 'Bolsas, alfombras y artículos para el hogar en yute y fibras naturales: la fibra dorada de Bengala, hecha para durar.',
+      'zh-CN': '黄麻与天然纤维制成的包袋、地垫和家居用品——孟加拉的“金色纤维”，经久耐用、可降解。',
+      'ar-SA': 'حقائب وسجاد ومستلزمات منزلية من الجوت والألياف الطبيعية: الألياف الذهبية للبنغال، مصنوعة لتدوم.',
+      'he-IL': 'תיקים, שטיחונים וכלי בית מיוטה וסיבים טבעיים: הסיב הזהוב של בנגל, עשוי להחזיק מעמד.',
+      'bn-BD': 'পাট ও প্রাকৃতিক আঁশে তৈরি ব্যাগ, পাপোশ ও ঘরের জিনিস: বাংলার সোনালি আঁশ, টেকসই ও পরিবেশবান্ধব।',
     }),
-  }, 'merchandising.png');
+  }, 'bags-carry.png');
+
+  const techWearables = await createCat({
+    handle: 'tech-wearables',
+    name: JSON.stringify({
+      'en-US': 'Modern Tech Wearables',
+      'fr-FR': 'Tech et streetwear',
+      'es-ES': 'Tecnología y ropa urbana',
+      'zh-CN': '潮流科技穿戴',
+      'ar-SA': 'ملابس وإكسسوارات تقنية عصرية',
+      'he-IL': 'טכנולוגיה ולבוש מודרני',
+      'bn-BD': 'আধুনিক টেক ও পোশাক',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Streetwear, phone cases and desk tech with Bengali street-art prints, for a generation that lives online.',
+      'fr-FR': 'Streetwear, coques de téléphone et accessoires de bureau aux motifs d’art de rue bengali.',
+      'es-ES': 'Ropa urbana, fundas de móvil y accesorios de escritorio con estampados de arte callejero bengalí.',
+      'zh-CN': '印有孟加拉街头艺术图案的潮服、手机壳和桌面科技配件。',
+      'ar-SA': 'ملابس شارع وأغطية هواتف وإكسسوارات مكتبية بنقوش فن الشارع البنغالي.',
+      'he-IL': 'בגדי רחוב, כיסויי טלפון ואביזרי שולחן עם הדפסי אמנות רחוב בנגלית.',
+      'bn-BD': 'বাংলার রিকশা-আর্ট ও আলপনার নকশায় স্ট্রিটওয়্যার, ফোন কভার ও ডেস্কের টেক অনুষঙ্গ।',
+    }),
+  }, 'accessories-tech.png');
+
+  const artisanCrafts = await createCat({
+    handle: 'artisan-crafts',
+    name: JSON.stringify({
+      'en-US': 'South Asian Artisan Crafts',
+      'fr-FR': 'Artisanat d’Asie du Sud',
+      'es-ES': 'Artesanía del sur de Asia',
+      'zh-CN': '南亚手工艺品',
+      'ar-SA': 'حرف يدوية من جنوب آسيا',
+      'he-IL': 'אומנות יד מדרום אסיה',
+      'bn-BD': 'দক্ষিণ এশিয়ার কারুশিল্প',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Nakshi kantha, terracotta and hand-finished pieces from makers across Bengal.',
+      'fr-FR': 'Nakshi kantha, terre cuite et pièces finies à la main par des artisans du Bengale.',
+      'es-ES': 'Nakshi kantha, terracota y piezas acabadas a mano por artesanos de Bengala.',
+      'zh-CN': '来自孟加拉各地匠人的纳克希坎塔刺绣、陶器和手工制品。',
+      'ar-SA': 'نكشي كانثا وفخار وقطع مشغولة يدويًا من حرفيي البنغال.',
+      'he-IL': 'נקשי קנתה, טרקוטה ופריטים בגימור יד מאומנים ברחבי בנגל.',
+      'bn-BD': 'বাংলার কারিগরদের হাতে তৈরি নকশিকাঁথা, পোড়ামাটি ও হস্তশিল্প।',
+    }),
+  }, 'home-living.png');
 
   // Create child categories
   const classicTeesCategory = await createCat({
@@ -426,7 +473,7 @@ async function seedCategories() {
       'ar-SA': 'تي شيرتات SCTG الكلاسيكية',
       'he-IL': 'טי שירטים קלאסיים של SCTG',
     }),
-    parent_id: parentCategory.id,
+    parent_id: techWearables.id,
   }, 'classic-tees.png');
 
   const capsCategory = await createCat({
@@ -447,7 +494,7 @@ async function seedCategories() {
       'ar-SA': 'قبعات SCTG',
       'he-IL': 'כובעים של SCTG',
     }),
-    parent_id: parentCategory.id,
+    parent_id: techWearables.id,
   }, 'caps.png');
 
   const hoodiesCategory = await createCat({
@@ -468,7 +515,7 @@ async function seedCategories() {
       'ar-SA': 'هوديز SCTG',
       'he-IL': 'סווטשירטים של SCTG',
     }),
-    parent_id: parentCategory.id,
+    parent_id: techWearables.id,
   }, 'hoodies.png');
 
   const stickersCategory = await createCat({
@@ -489,7 +536,7 @@ async function seedCategories() {
       'ar-SA': 'ملصقات SCTG',
       'he-IL': 'מדבקות של SCTG',
     }),
-    parent_id: parentCategory.id,
+    parent_id: techWearables.id,
   }, 'stickers-category.png');
 
   const bagsCarryCategory = await createCat({
@@ -510,7 +557,7 @@ async function seedCategories() {
       'zh-CN': '用于携带、收纳和日常运输的产品。',
       'he-IL': 'מוצרים המיועדים לנשיאה, אחסון והובלה יומיומית.',
     }),
-    parent_id: parentCategory.id,
+    parent_id: ecoJuteGoods.id,
   }, 'bags-carry.png');
 
   const drinkwareCategory = await createCat({
@@ -531,7 +578,7 @@ async function seedCategories() {
       'zh-CN': '适合日常使用或赠礼的可重复使用饮品容器及相关产品。',
       'he-IL': 'מכלי שתייה רב-פעמיים ומוצרים קשורים לשימוש יומיומי או כמתנה.',
     }),
-    parent_id: parentCategory.id,
+    parent_id: artisanCrafts.id,
   }, 'drinkware.png');
 
   const accessoriesTechCategory = await createCat({
@@ -552,7 +599,7 @@ async function seedCategories() {
       'zh-CN': '小型促销品、桌面配件及日常科技类产品。',
       'he-IL': 'פריטי קידום קטנים, אביזרי שולחן ומוצרים טכנולוגיים לשימוש יומיומי.',
     }),
-    parent_id: parentCategory.id,
+    parent_id: techWearables.id,
   }, 'accessories-tech.png');
 
   const homeLivingCategory = await createCat({
@@ -573,50 +620,8 @@ async function seedCategories() {
       'zh-CN': '适用于家居、休闲区或个人空间的舒适、装饰和实用产品。',
       'he-IL': 'מוצרי נוחות, עיצוב ושימוש פרקטי לבית, לאזורי ישיבה או למרחבים אישיים.',
     }),
-    parent_id: parentCategory.id,
+    parent_id: ecoJuteGoods.id,
   }, 'home-living.png');
-
-  const eventsSignageCategory = await createCat({
-    handle: 'events-signage',
-    name: JSON.stringify({
-      'en-US': 'Events & Signage',
-      'fr-FR': 'Événementiel et signalétique',
-      'es-ES': 'Eventos y señalética',
-      'ar-SA': 'الفعاليات واللافتات',
-      'zh-CN': '活动与展示标识',
-      'he-IL': 'אירועים ושילוט',
-    }),
-    description: JSON.stringify({
-      'en-US': 'Products intended for visibility, branding, trade shows, displays and promotional environments.',
-      'fr-FR': 'Produits destinés à la visibilité, au branding, aux salons, à l’affichage et aux environnements promotionnels.',
-      'es-ES': 'Productos destinados a visibilidad, branding, ferias, exhibición y entornos promocionales.',
-      'ar-SA': 'منتجات مخصصة للظهور البصري والعلامة التجارية والمعارض والعرض والبيئات الترويجية.',
-      'zh-CN': '用于提升可见性、品牌展示、展会、陈列和促销环境的产品。',
-      'he-IL': 'מוצרים המיועדים לנראות, מיתוג, תערוכות, תצוגה וסביבות קידום מכירות.',
-    }),
-    parent_id: parentCategory.id,
-  }, 'events-signage.png');
-
-  const sportsOutdoorCategory = await createCat({
-    handle: 'sports-outdoor',
-    name: JSON.stringify({
-      'en-US': 'Sports & Outdoor',
-      'fr-FR': 'Sport et plein air',
-      'es-ES': 'Deporte y aire libre',
-      'ar-SA': 'الرياضة والهواء الطلق',
-      'zh-CN': '运动与户外',
-      'he-IL': 'ספורט וחוץ',
-    }),
-    description: JSON.stringify({
-      'en-US': 'Products made for sport practice, outdoor activities, clubs and active lifestyles.',
-      'fr-FR': 'Produits destinés à la pratique sportive, aux activités extérieures, aux clubs et aux usages actifs.',
-      'es-ES': 'Productos destinados al deporte, las actividades al aire libre, los clubes y los estilos de vida activos.',
-      'ar-SA': 'منتجات مخصصة لممارسة الرياضة والأنشطة الخارجية والأندية وأنماط الحياة النشطة.',
-      'zh-CN': '适用于运动、户外活动、俱乐部和积极生活方式的产品。',
-      'he-IL': 'מוצרים המיועדים לספורט, לפעילויות חוץ, למועדונים ולאורח חיים פעיל.',
-    }),
-    parent_id: parentCategory.id,
-  }, 'sports-outdoor.png');
 
   const digitalProductsCategory = await createCat({
     handle: 'digital-products',
@@ -636,7 +641,7 @@ async function seedCategories() {
       'ar-SA': 'ملفات قابلة للتنزيل ومحتوى رقمي يُسلَّم فوراً بعد الشراء.',
       'he-IL': 'קבצים להורדה ותוכן דיגיטלי שמסופקים מיידית לאחר הרכישה.',
     }),
-    parent_id: parentCategory.id,
+    parent_id: techWearables.id,
   }, 'digitalproducts.png');
 
   const aiTokensCategory = await createCat({
@@ -657,11 +662,13 @@ async function seedCategories() {
       'ar-SA': 'حزم رموز الذكاء الاصطناعي — اشترِ الرصيد لاستخدام ميزات الذكاء الاصطناعي.',
       'he-IL': 'חבילות טוקנים של בינה מלאכותית — רכוש קרדיטים לשימוש בתכונות AI.',
     }),
-    parent_id: parentCategory.id,
+    parent_id: techWearables.id,
   }, 'aitokens.png');
 
   return {
-    merchandising: parentCategory.id,
+    ecoJuteGoods: ecoJuteGoods.id,
+    techWearables: techWearables.id,
+    artisanCrafts: artisanCrafts.id,
     classicTees: classicTeesCategory.id,
     caps: capsCategory.id,
     hoodies: hoodiesCategory.id,
@@ -670,8 +677,6 @@ async function seedCategories() {
     drinkware: drinkwareCategory.id,
     accessoriesTech: accessoriesTechCategory.id,
     homeLiving: homeLivingCategory.id,
-    eventsSignage: eventsSignageCategory.id,
-    sportsOutdoor: sportsOutdoorCategory.id,
     digitalProducts: digitalProductsCategory.id,
     aiTokens: aiTokensCategory.id,
   };
@@ -742,44 +747,37 @@ const PRODUCT_CATALOG = [
 
   // ── Bags & Carry ───────────────────────────────────────────────────────────
   {
-    key: 'backpack', file: 'backpack.png', handle: 'backpack', vendor: 'Bengal Exchange',
+    key: 'backpack', file: 'backpack.png', handle: 'backpack', vendor: 'Bengali Exchange',
     categories: ['bags-carry'],
     title:       { 'en-US': 'Backpack',           'fr-FR': 'Sac à dos',                'es-ES': 'Mochila',                  'zh-CN': '双肩背包',     'ar-SA': 'حقيبة ظهر',          'he-IL': 'תיק גב' },
     description: { 'en-US': 'Packaged backpack with front compartment and full-color logo print, suitable for everyday carry.', 'fr-FR': "Sac à dos emballé avec compartiment avant et marquage logo en couleur, adapté à un usage quotidien.", 'es-ES': 'Mochila empaquetada con compartimento frontal e impresión del logotipo a color, adecuada para uso diario.', 'ar-SA': 'حقيبة ظهر معبأة مع جيب أمامي وطباعة شعار بالألوان الكاملة، مناسبة للاستخدام اليومي.', 'zh-CN': '带前袋和彩色标志印刷的包装双肩背包，适合日常使用。', 'he-IL': 'תיק גב ארוז עם תא קדמי והדפסת לוגו צבעונית, מתאים לשימוש יומיומי。' },
     variants: [{ sku: 'BACKPACK', title: 'Standard', price_cents: 2990, weight_g: 700, stock: 40 }],
   },
   {
-    key: 'duffle-bag', file: 'large-bag.png', handle: 'duffle-bag', vendor: 'Bengal Exchange',
+    key: 'duffle-bag', file: 'large-bag.png', handle: 'duffle-bag', vendor: 'Bengali Exchange',
     categories: ['bags-carry'],
     title:       { 'en-US': 'Duffle Bag',         'fr-FR': 'Grand sac de voyage',      'es-ES': 'Bolsa de viaje grande',    'zh-CN': '大号旅行袋',   'ar-SA': 'حقيبة سفر كبيرة',    'he-IL': 'תיק נסיעות גדול' },
     description: { 'en-US': 'Packaged duffle bag with shoulder strap, zip pockets and side logo placement.', 'fr-FR': 'Grand sac de voyage emballé avec bandoulière, poches zippées et logo sur le côté.', 'es-ES': 'Bolsa de viaje grande empaquetada con correa de hombro, bolsillos con cremallera y logotipo lateral.', 'ar-SA': 'حقيبة سفر كبيرة معبأة مع حزام كتف وجيوب بسحاب وشعار جانبي.', 'zh-CN': '带肩带、拉链口袋和侧面标志位置的包装旅行袋。', 'he-IL': 'תיק נסיעות גדול ארוז עם רצועת כתף, כיסי רוכסן ומיקום לוגו בצד。' },
     variants: [{ sku: 'LARGE_BAG', title: 'Standard', price_cents: 3990, weight_g: 900, stock: 35 }],
   },
   {
-    key: 'tote-bag', file: 'tote-bag.png', handle: 'tote-bag', vendor: 'Bengal Exchange',
+    key: 'tote-bag', file: 'tote-bag.png', handle: 'tote-bag', vendor: 'Bengali Exchange',
     categories: ['bags-carry'],
     title:       { 'en-US': 'Tote Bag',           'fr-FR': 'Tote bag',                 'es-ES': 'Bolsa tote',               'zh-CN': '帆布手提袋',   'ar-SA': 'حقيبة قماش',         'he-IL': 'תיק טוט' },
     description: { 'en-US': 'Packaged fabric tote bag with long handles and large centered logo print.', 'fr-FR': 'Tote bag en tissu emballé avec longues anses et grand logo centré.', 'es-ES': 'Bolsa tote de tela empaquetada con asas largas y gran logotipo centrado.', 'ar-SA': 'حقيبة قماش معبأة بمقابض طويلة وشعار كبير في المنتصف.', 'zh-CN': '带长提手和中央大幅标志印刷的包装布质手提袋。', 'he-IL': 'תיק טוט מבד ארוז עם ידיות ארוכות ולוגו גדול במרכז。' },
     variants: [{ sku: 'TOTE_BAG', title: 'Standard', price_cents: 1290, weight_g: 140, stock: 50 }],
   },
-  {
-    key: 'golf-bag', file: 'golf-bag.png', handle: 'golf-bag', vendor: 'Bengal Exchange',
-    categories: ['bags-carry', 'sports-outdoor'],
-    title:       { 'en-US': 'Golf Bag',           'fr-FR': 'Sac de golf',              'es-ES': 'Bolsa de golf',            'zh-CN': '高尔夫球包',   'ar-SA': 'حقيبة غولف',         'he-IL': 'תיק גולף' },
-    description: { 'en-US': 'Packaged golf bag with club compartments and logo panel, intended for full-course transport.', 'fr-FR': 'Sac de golf emballé avec compartiments pour clubs et panneau logo, destiné au transport sur parcours.', 'es-ES': 'Bolsa de golf empaquetada con compartimentos para palos y panel con logotipo, destinada al transporte en el campo.', 'ar-SA': 'حقيبة غولف معبأة مع أقسام للمضارب ولوحة شعار، مخصصة للنقل في الملعب.', 'zh-CN': '带球杆分仓和标志面板的包装高尔夫球包，适合全场携带。', 'he-IL': 'תיק גולף ארוז עם תאים למקלות ופאנל לוגו, מיועד לנשיאה במגרש。' },
-    variants: [{ sku: 'GOLF_BAG', title: 'Standard', price_cents: 14900, weight_g: 3500, stock: 10 }],
-  },
 
   // ── Drinkware ──────────────────────────────────────────────────────────────
   {
-    key: 'aluminium-bottle', file: 'bottle-aluminium.png', handle: 'aluminium-bottle', vendor: 'Bengal Exchange',
-    categories: ['drinkware', 'sports-outdoor'],
+    key: 'aluminium-bottle', file: 'bottle-aluminium.png', handle: 'aluminium-bottle', vendor: 'Bengali Exchange',
+    categories: ['drinkware'],
     title:       { 'en-US': 'Aluminium Bottle',   'fr-FR': 'Gourde aluminium',         'es-ES': 'Botella de aluminio',      'zh-CN': '铝制水壶',     'ar-SA': 'قارورة ألمنيوم',      'he-IL': 'בקבוק אלומיניום' },
     description: { 'en-US': 'Packaged aluminium bottle with screw cap or sports top and front logo print.', 'fr-FR': 'Gourde aluminium emballée avec bouchon vissé ou sport et logo imprimé en face avant.', 'es-ES': 'Botella de aluminio empaquetada con tapón de rosca o deportivo y logotipo impreso en la parte frontal.', 'ar-SA': 'قارورة ألمنيوم معبأة بغطاء لولبي أو رياضي مع شعار مطبوع في الواجهة الأمامية.', 'zh-CN': '带螺旋盖或运动盖并正面印有标志的包装铝制水壶。', 'he-IL': 'בקבוק אלומיניום ארוז עם פקק הברגה או ספורט ולוגו מודפס בחזית。' },
     variants: [{ sku: 'BOTTLE_ALUMINIUM', title: 'Standard', price_cents: 1990, weight_g: 320, stock: 60 }],
   },
   {
-    key: 'ceramic-mug', file: 'mug.png', handle: 'ceramic-mug', vendor: 'Bengal Exchange',
+    key: 'ceramic-mug', file: 'mug.png', handle: 'ceramic-mug', vendor: 'Bengali Exchange',
     categories: ['drinkware', 'home-living'],
     title:       { 'en-US': 'Ceramic Mug',        'fr-FR': 'Mug en céramique',         'es-ES': 'Taza de cerámica',         'zh-CN': '陶瓷马克杯',   'ar-SA': 'كوب سيراميك',        'he-IL': 'ספל קרמי' },
     description: { 'en-US': 'Packaged ceramic mug with printed front logo, suitable for office or home beverage use.', 'fr-FR': "Mug en céramique emballé avec logo imprimé en face avant, adapté à un usage bureau ou maison.", 'es-ES': 'Taza de cerámica empaquetada con logotipo impreso en la parte frontal, adecuada para oficina o hogar.', 'ar-SA': 'كوب سيراميك معبأ مع شعار مطبوع في الواجهة الأمامية، مناسب للمكتب أو المنزل.', 'zh-CN': '带正面标志印刷的包装陶瓷马克杯，适合办公室或家用。', 'he-IL': 'ספל קרמי ארוז עם לוגו מודפס בחזית, מתאים למשרד או לבית。' },
@@ -788,49 +786,49 @@ const PRODUCT_CATALOG = [
 
   // ── Accessories & Tech ─────────────────────────────────────────────────────
   {
-    key: 'iphone-case', file: 'iphone-case.png', handle: 'iphone-17-case', vendor: 'Bengal Exchange',
+    key: 'iphone-case', file: 'iphone-case.png', handle: 'iphone-17-case', vendor: 'Bengali Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'iPhone 17 Case',     'fr-FR': 'Coque iPhone 17',          'es-ES': 'Funda para iPhone 17',     'zh-CN': 'iPhone 17 手机壳', 'ar-SA': 'غطاء iPhone 17',  'he-IL': 'כיסוי iPhone 17' },
     description: { 'en-US': 'Packaged protective case for iPhone 17 with centered logo print and slim everyday profile.', 'fr-FR': 'Coque de protection emballée pour iPhone 17 avec logo centré et profil fin pour un usage quotidien.', 'es-ES': 'Funda protectora empaquetada para iPhone 17 con logotipo centrado y perfil fino para uso diario.', 'ar-SA': 'غطاء حماية معبأ لهاتف iPhone 17 مع شعار في الوسط وتصميم نحيف للاستخدام اليومي.', 'zh-CN': '适用于 iPhone 17 的包装保护壳，中央带标志印刷，日常使用轻薄。', 'he-IL': 'כיסוי מגן ארוז ל‑iPhone 17 עם לוגו ממורכז ופרופיל דק לשימוש יומיומי。' },
     variants: [{ sku: 'IPHONE_CASE', title: 'Standard', price_cents: 2490, weight_g: 55, stock: 80 }],
   },
   {
-    key: 'acrylic-keychain', file: 'key-holder.png', handle: 'acrylic-keychain', vendor: 'Bengal Exchange',
+    key: 'acrylic-keychain', file: 'key-holder.png', handle: 'acrylic-keychain', vendor: 'Bengali Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'Acrylic Keychain',   'fr-FR': 'Porte-clés acrylique',     'es-ES': 'Llavero acrílico',         'zh-CN': '亚克力钥匙扣', 'ar-SA': 'سلسلة مفاتيح أكريليك', 'he-IL': 'מחזיק מפתחות אקרילי' },
     description: { 'en-US': 'Packaged acrylic keychain with metal ring and full-color insert featuring the product logo.', 'fr-FR': 'Porte-clés acrylique emballé avec anneau métallique et insert couleur au logo du produit.', 'es-ES': 'Llavero acrílico empaquetado con anilla metálica e inserto a color con el logotipo del producto.', 'ar-SA': 'سلسلة مفاتيح أكريليك معبأة مع حلقة معدنية وإدخال ملون يحمل شعار المنتج.', 'zh-CN': '带金属环和彩色内芯标志图案的包装亚克力钥匙扣。', 'he-IL': 'מחזיק מפתחות אקרילי ארוז עם טבעת מתכת והדפסה צבעונית של הלוגו。' },
     variants: [{ sku: 'KEY_HOLDER', title: 'Standard', price_cents: 690, weight_g: 35, stock: 120 }],
   },
   {
-    key: 'lux-pen', file: 'lux-pen.png', handle: 'luxury-metal-pen', vendor: 'Bengal Exchange',
+    key: 'lux-pen', file: 'lux-pen.png', handle: 'luxury-metal-pen', vendor: 'Bengali Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'Luxury Metal Pen',   'fr-FR': 'Stylo métal premium',      'es-ES': 'Bolígrafo metálico premium', 'zh-CN': '高端金属笔', 'ar-SA': 'قلم معدني فاخر',      'he-IL': 'עט מתכת יוקרתי' },
     description: { 'en-US': 'Packaged premium metal pen with glossy finish and discreet logo branding.', 'fr-FR': 'Stylo métal premium emballé avec finition brillante et marquage logo discret.', 'es-ES': 'Bolígrafo metálico premium empaquetado con acabado brillante y marcado de logotipo discreto.', 'ar-SA': 'قلم معدني فاخر معبأ بلمسة لامعة وعلامة شعار أنيقة.', 'zh-CN': '带亮面处理和低调标志的包装高端金属笔。', 'he-IL': 'עט מתכת יוקרתי ארוז עם גימור מבריק ומיתוג לוגו עדין。' },
     variants: [{ sku: 'LUX_PEN', title: 'Standard', price_cents: 1490, weight_g: 80, stock: 100 }],
   },
   {
-    key: 'mouse-pad', file: 'mouse-pad.png', handle: 'mouse-pad', vendor: 'Bengal Exchange',
+    key: 'mouse-pad', file: 'mouse-pad.png', handle: 'mouse-pad', vendor: 'Bengali Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'Mouse Pad',          'fr-FR': 'Tapis de souris',          'es-ES': 'Alfombrilla de ratón',     'zh-CN': '鼠标垫',       'ar-SA': 'لوحة فأرة',          'he-IL': 'משטח עכבר' },
     description: { 'en-US': 'Packaged mouse pad with smooth top surface and centered full-color logo print.', 'fr-FR': 'Tapis de souris emballé avec surface supérieure lisse et logo couleur centré.', 'es-ES': 'Alfombrilla de ratón empaquetada con superficie lisa y logotipo a color centrado.', 'ar-SA': 'لوحة فأرة معبأة بسطح علوي أملس وشعار ملون في المنتصف.', 'zh-CN': '带顺滑表面和中央彩色标志印刷的包装鼠标垫。', 'he-IL': 'משטח עכבר ארוז עם משטח עליון חלק ולוגו צבעוני במרכז。' },
     variants: [{ sku: 'MOUSE_PAD', title: 'Standard', price_cents: 1290, weight_g: 140, stock: 75 }],
   },
   {
-    key: 'pen-4-colors', file: 'pen-4-colors.png', handle: 'pen-4-colors', vendor: 'Bengal Exchange',
+    key: 'pen-4-colors', file: 'pen-4-colors.png', handle: 'pen-4-colors', vendor: 'Bengali Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': '4-Color Pen',        'fr-FR': 'Stylo 4 couleurs',         'es-ES': 'Bolígrafo de 4 colores',   'zh-CN': '四色圆珠笔',   'ar-SA': 'قلم بأربعة ألوان',    'he-IL': 'עט 4 צבעים' },
     description: { 'en-US': 'Packaged multi-ink pen with four writing colors and compact logo print area.', 'fr-FR': 'Stylo multi-encre emballé avec quatre couleurs d\'écriture et zone de logo compacte.', 'es-ES': 'Bolígrafo multitinta empaquetado con cuatro colores de escritura y zona compacta para logotipo.', 'ar-SA': 'قلم متعدد الأحبار معبأ بأربعة ألوان كتابة ومساحة مدمجة للشعار.', 'zh-CN': '带四种书写颜色和紧凑标志印刷区的包装多色圆珠笔。', 'he-IL': 'עט רב-דיו ארוז עם ארבעה צבעי כתיבה ואזור לוגו קומפקטי。' },
     variants: [{ sku: 'PEN_4_COLORS', title: 'Standard', price_cents: 490, weight_g: 35, stock: 150 }],
   },
   {
-    key: 'badge-pins', file: 'pins.png', handle: 'badge-pins-set', vendor: 'Bengal Exchange',
-    categories: ['accessories-tech', 'events-signage'],
+    key: 'badge-pins', file: 'pins.png', handle: 'badge-pins-set', vendor: 'Bengali Exchange',
+    categories: ['accessories-tech'],
     title:       { 'en-US': 'Badge Pins Set',     'fr-FR': 'Lot de badges',            'es-ES': 'Lote de badges',           'zh-CN': '徽章套装',     'ar-SA': 'مجموعة شارات',       'he-IL': 'סט סיכות תג' },
     description: { 'en-US': 'Packaged set of round badge pins with logo artwork for events, giveaways and accessories.', 'fr-FR': 'Lot emballé de badges ronds avec visuel logo pour événements, giveaways et accessoires.', 'es-ES': 'Lote empaquetado de chapas redondas con arte del logotipo para eventos, regalos y accesorios.', 'ar-SA': 'مجموعة معبأة من الشارات الدائرية برسومات الشعار للفعاليات والهدايا والإكسسوارات.', 'zh-CN': '带标志图案的圆形徽章套装包装，适用于活动、赠品和配饰。', 'he-IL': 'סט ארוז של סיכות תג עגולות עם גרפיקת לוגו לאירועים, מתנות ואביזרים。' },
     variants: [{ sku: 'PINS', title: 'Standard', price_cents: 990, weight_g: 40, stock: 100 }],
   },
   {
-    key: 'usb-key', file: 'usb-key.png', handle: 'usb-flash-drive', vendor: 'Bengal Exchange',
+    key: 'usb-key', file: 'usb-key.png', handle: 'usb-flash-drive', vendor: 'Bengali Exchange',
     categories: ['accessories-tech'],
     title:       { 'en-US': 'USB Flash Drive',    'fr-FR': 'Clé USB',                  'es-ES': 'Memoria USB',              'zh-CN': 'U盘',          'ar-SA': 'ذاكرة USB',           'he-IL': 'דיסק און קי' },
     description: { 'en-US': 'Packaged USB flash drive with logo print, suitable for data transfer or promotional bundles.', 'fr-FR': 'Clé USB emballée avec logo imprimé, adaptée au transfert de données ou aux bundles promotionnels.', 'es-ES': 'Memoria USB empaquetada con logotipo impreso, adecuada para transferencia de datos o packs promocionales.', 'ar-SA': 'ذاكرة USB معبأة مع شعار مطبوع، مناسبة لنقل البيانات أو الباقات الترويجية.', 'zh-CN': '带标志印刷的包装U盘，适合数据传输或促销套装。', 'he-IL': 'דיסק און קי ארוז עם לוגו מודפס, מתאים להעברת נתונים או למארזים שיווקיים。' },
@@ -839,113 +837,84 @@ const PRODUCT_CATALOG = [
 
   // ── Home & Living ──────────────────────────────────────────────────────────
   {
-    key: 'beach-towel', file: 'beach-towel.png', handle: 'beach-towel', vendor: 'Bengal Exchange',
-    categories: ['home-living', 'sports-outdoor'],
+    key: 'beach-towel', file: 'beach-towel.png', handle: 'beach-towel', vendor: 'Bengali Exchange',
+    categories: ['home-living'],
     title:       { 'en-US': 'Beach Towel',        'fr-FR': 'Serviette de plage',       'es-ES': 'Toalla de playa',          'zh-CN': '沙滩巾',       'ar-SA': 'منشفة شاطئ',         'he-IL': 'מגבת חוף' },
     description: { 'en-US': 'Folded beach towel in retail packaging with large central logo print for leisure and travel use.', 'fr-FR': "Serviette de plage pliée en emballage retail avec grand logo centré, idéale pour les loisirs et le voyage.", 'es-ES': 'Toalla de playa plegada en embalaje retail con gran logotipo centrado, ideal para ocio y viaje.', 'ar-SA': 'منشفة شاطئ مطوية في عبوة بيع مع شعار كبير في الوسط، مناسبة للترفيه والسفر.', 'zh-CN': '零售包装折叠沙滩巾，中央大幅标志印刷，适合休闲与旅行。', 'he-IL': 'מגבת חוף מקופלת באריזת קמעונאות עם לוגו גדול במרכז, מתאימה לפנאי ולטיולים。' },
     variants: [{ sku: 'BEACH_TOWEL', title: 'Standard', price_cents: 2490, weight_g: 650, stock: 50 }],
   },
   {
-    key: 'bean-bag', file: 'beanbag.png', handle: 'bean-bag', vendor: 'Bengal Exchange',
+    key: 'bean-bag', file: 'beanbag.png', handle: 'bean-bag', vendor: 'Bengali Exchange',
     categories: ['home-living'],
     title:       { 'en-US': 'Bean Bag',           'fr-FR': 'Pouf poire',               'es-ES': 'Puf tipo pera',            'zh-CN': '懒人沙发',     'ar-SA': 'بين باغ',             'he-IL': 'פוף' },
     description: { 'en-US': 'Packaged bean bag seat with printed upper panel, intended for indoor lounge and event spaces.', 'fr-FR': 'Pouf emballé avec panneau supérieur imprimé, destiné aux espaces lounge et événementiels.', 'es-ES': 'Puf empaquetado con panel superior impreso, destinado a zonas lounge y eventos.', 'ar-SA': 'مقعد بين باغ معبأ مع لوحة علوية مطبوعة، مناسب لمساحات الاستراحة والفعاليات.', 'zh-CN': '带印花上表面的包装懒人沙发，适用于室内休闲和活动空间。', 'he-IL': 'פוף ארוז עם חלק עליון מודפס, מיועד לחללי ישיבה ואירועים。' },
     variants: [{ sku: 'BEANBAG', title: 'Standard', price_cents: 7900, weight_g: 3500, stock: 10 }],
   },
   {
-    key: 'coir-doormat', file: 'entry-carpet-hard.png', handle: 'coir-doormat', vendor: 'Bengal Exchange',
-    categories: ['events-signage', 'home-living'],
+    key: 'coir-doormat', file: 'entry-carpet-hard.png', handle: 'coir-doormat', vendor: 'Bengali Exchange',
+    categories: ['home-living'],
     title:       { 'en-US': 'Coir Doormat',       'fr-FR': 'Paillasson coco',          'es-ES': 'Felpudo de coco',          'zh-CN': '椰棕门垫',     'ar-SA': 'ممسحة باب من ألياف جوز الهند', 'he-IL': 'שטיח כניסה קוקוס' },
     description: { 'en-US': 'Packaged coir doormat with printed center area, made for durable entryway use.', 'fr-FR': 'Paillasson coco emballé avec zone centrale imprimée, conçu pour un usage d\'entrée durable.', 'es-ES': 'Felpudo de coco empaquetado con zona central impresa, pensado para un uso duradero en la entrada.', 'ar-SA': 'ممسحة باب من ألياف جوز الهند معبأة مع منطقة مركزية مطبوعة، مصممة للاستخدام المتين عند المدخل.', 'zh-CN': '带中央印刷区域的包装椰棕门垫，适合耐用型入口使用。', 'he-IL': 'שטיח כניסה מקוקוס ארוז עם אזור מרכזי מודפס, מיועד לשימוש עמיד בפתח הבית。' },
     variants: [{ sku: 'ENTRY_CARPET_HARD', title: 'Standard', price_cents: 2490, weight_g: 2600, stock: 15 }],
   },
   {
-    key: 'entry-mat', file: 'entry-carpet.png', handle: 'entry-mat', vendor: 'Bengal Exchange',
-    categories: ['events-signage', 'home-living'],
+    key: 'entry-mat', file: 'entry-carpet.png', handle: 'entry-mat', vendor: 'Bengali Exchange',
+    categories: ['home-living'],
     title:       { 'en-US': 'Entry Mat',          'fr-FR': "Tapis d'entrée",           'es-ES': 'Alfombra de entrada',      'zh-CN': '入门地垫',     'ar-SA': 'سجادة مدخل',         'he-IL': 'שטיח כניסה' },
     description: { 'en-US': 'Packaged entry mat with printed logo area and non-slip backing for indoor or covered entry use.', 'fr-FR': 'Tapis d\'entrée emballé avec zone logo imprimée et sous-couche antidérapante pour usage intérieur ou abrité.', 'es-ES': 'Alfombra de entrada empaquetada con zona de logotipo impresa y base antideslizante para interior o zonas cubiertas.', 'ar-SA': 'سجادة مدخل معبأة مع مساحة شعار مطبوعة وظهر مانع للانزلاق للاستخدام الداخلي أو في الأماكن المغطاة.', 'zh-CN': '带印刷标志区域和防滑底面的包装入门地垫，适用于室内或遮蔽入口。', 'he-IL': 'שטיח כניסה ארוז עם אזור לוגו מודפס ותחתית מונעת החלקה לשימוש פנימי או בכניסה מקורה。' },
     variants: [{ sku: 'ENTRY_CARPET', title: 'Standard', price_cents: 2990, weight_g: 1900, stock: 15 }],
   },
 
-  // ── Events & Signage ───────────────────────────────────────────────────────
+  // ── Niche picks (client brief) ─────────────────────────────────────────────
+  // Placeholder photos: each reuses the closest existing image in ./img until
+  // real product shots are added (swap `file` / `imageFile`).
   {
-    key: 'beach-flag', file: 'beachflag.png', handle: 'beach-flag', vendor: 'Bengal Exchange',
-    categories: ['events-signage', 'sports-outdoor'],
-    title:       { 'en-US': 'Beach Flag',         'fr-FR': 'Drapeau publicitaire plume', 'es-ES': 'Bandera publicitaria tipo pluma', 'zh-CN': '沙滩旗', 'ar-SA': 'علم شاطئي إعلاني', 'he-IL': 'דגל חוף פרסומי' },
-    description: { 'en-US': 'Packaged feather beach flag with pole set and printed textile, designed for outdoor promotion.', 'fr-FR': 'Drapeau plume emballé avec mât et textile imprimé, conçu pour la communication extérieure.', 'es-ES': 'Bandera pluma empaquetada con mástil y textil impreso, diseñada para promoción exterior.', 'ar-SA': 'علم شاطئي من نوع الريشة معبأ مع عمود ونسيج مطبوع، مخصص للدعاية الخارجية.', 'zh-CN': '含旗杆组件和印花旗面的包装沙滩旗，适用于户外宣传。', 'he-IL': 'דגל חוף מסוג נוצה ארוז עם מוט ובד מודפס, מיועד לפרסום חוץ。' },
-    variants: [{ sku: 'BEACHFLAG', title: 'Standard', price_cents: 8900, weight_g: 3200, stock: 15 }],
+    key: 'jute-tote', file: 'tote-bag.png', handle: 'handwoven-jute-tote', vendor: 'Bengali Exchange',
+    categories: ['eco-jute-goods', 'bags-carry'],
+    title:       { 'en-US': 'Handwoven Jute Tote', 'fr-FR': 'Cabas en jute tissé main', 'es-ES': 'Bolso de yute tejido a mano', 'zh-CN': '手工编织黄麻托特包', 'ar-SA': 'حقيبة جوت منسوجة يدويًا', 'he-IL': 'תיק יוטה ארוג ביד', 'bn-BD': 'হাতে বোনা পাটের টোট ব্যাগ' },
+    description: { 'en-US': '<p>Sturdy tote woven from golden Bengal jute with cotton-lined handles. Plastic-free, compostable, and big enough for a laptop.</p>', 'fr-FR': '<p>Cabas robuste tissé en jute doré du Bengale, anses doublées de coton. Sans plastique, compostable, assez grand pour un ordinateur portable.</p>', 'es-ES': '<p>Bolso resistente tejido con yute dorado de Bengala y asas forradas de algodón. Sin plástico, compostable y con espacio para un portátil.</p>', 'zh-CN': '<p>以孟加拉金色黄麻编织的结实托特包，棉质内衬提手。无塑料、可降解，可放下笔记本电脑。</p>', 'ar-SA': '<p>حقيبة متينة منسوجة من جوت البنغال الذهبي بمقابض مبطنة بالقطن. خالية من البلاستيك وقابلة للتحلل وتتسع لحاسوب محمول.</p>', 'he-IL': '<p>תיק חזק ארוג מיוטה זהובה מבנגל עם ידיות מרופדות כותנה. ללא פלסטיק, מתכלה, ומתאים למחשב נייד.</p>', 'bn-BD': '<p>বাংলার সোনালি পাটে বোনা মজবুত টোট, সুতির হাতল। প্লাস্টিকমুক্ত, পরিবেশে মিশে যায়, ল্যাপটপও ধরে।</p>' },
+    variants: [{ sku: 'JUTE-TOTE-NAT', title: 'Natural', price_cents: 1890, weight_g: 320, stock: 60 }],
   },
   {
-    key: 'flag', file: 'flag.png', handle: 'flag', vendor: 'Bengal Exchange',
-    categories: ['events-signage'],
-    title:       { 'en-US': 'Flag',               'fr-FR': 'Drapeau',                  'es-ES': 'Bandera',                  'zh-CN': '旗帜',         'ar-SA': 'علم',                 'he-IL': 'דגל' },
-    description: { 'en-US': 'Packaged printed flag for indoor or outdoor display, folded for compact shipping.', 'fr-FR': 'Drapeau imprimé emballé pour affichage intérieur ou extérieur, plié pour un transport compact.', 'es-ES': 'Bandera impresa empaquetada para exhibición interior o exterior, plegada para un envío compacto.', 'ar-SA': 'علم مطبوع معبأ للعرض الداخلي أو الخارجي، مطوي لشحن مدمج.', 'zh-CN': '适用于室内或室外展示的包装印刷旗帜，折叠后便于运输。', 'he-IL': 'דגל מודפס ארוז לתצוגה פנימית או חיצונית, מקופל למשלוח קומפקטי。' },
-    variants: [{ sku: 'FLAG', title: 'Standard', price_cents: 1490, weight_g: 180, stock: 50 }],
+    key: 'nakshi-kantha', file: 'beach-towel.png', handle: 'nakshi-kantha-throw', vendor: 'Bengali Exchange',
+    categories: ['artisan-crafts'],
+    title:       { 'en-US': 'Nakshi Kantha Throw', 'fr-FR': 'Plaid Nakshi Kantha', 'es-ES': 'Manta Nakshi Kantha', 'zh-CN': '纳克希坎塔刺绣盖毯', 'ar-SA': 'غطاء نكشي كانثا', 'he-IL': 'שמיכת נקשי קנתה', 'bn-BD': 'নকশিকাঁথা' },
+    description: { 'en-US': '<p>Layered cotton throw hand-stitched in the nakshi kantha tradition of rural Bengal. Each piece takes weeks and no two are the same.</p>', 'fr-FR': '<p>Plaid en coton superposé, brodé à la main selon la tradition nakshi kantha du Bengale rural. Chaque pièce demande des semaines ; aucune n’est identique.</p>', 'es-ES': '<p>Manta de algodón en capas bordada a mano según la tradición nakshi kantha de la Bengala rural. Cada pieza lleva semanas y ninguna es igual.</p>', 'zh-CN': '<p>依照孟加拉乡村纳克希坎塔传统手工缝制的多层棉毯。每件需数周完成，件件不同。</p>', 'ar-SA': '<p>غطاء قطني متعدد الطبقات مطرز يدويًا على طريقة نكشي كانثا في ريف البنغال. تستغرق كل قطعة أسابيع ولا تتشابه قطعتان.</p>', 'he-IL': '<p>שמיכת כותנה רב-שכבתית רקומה ביד במסורת נקשי קנתה של בנגל הכפרית. כל פריט לוקח שבועות ואין שניים זהים.</p>', 'bn-BD': '<p>গ্রামবাংলার নকশিকাঁথার ঐতিহ্যে হাতে সেলাই করা কয়েক স্তরের সুতির কাঁথা। প্রতিটি তৈরিতে কয়েক সপ্তাহ লাগে, কোনো দুটি এক রকম নয়।</p>' },
+    variants: [{ sku: 'KANTHA-THROW', title: '150 × 220 cm', price_cents: 8900, weight_g: 1400, stock: 12 }],
   },
   {
-    key: 'totem', file: 'totem.png', handle: 'roll-up-banner', vendor: 'Bengal Exchange',
-    categories: ['events-signage'],
-    title:       { 'en-US': 'Roll-up Banner',     'fr-FR': 'Kakemono roll-up',         'es-ES': 'Roll-up publicitario',     'zh-CN': '易拉宝展架',   'ar-SA': 'حامل رول أب إعلاني', 'he-IL': 'רול-אפ פרסומי' },
-    description: { 'en-US': 'Packaged roll-up banner stand with printed graphic panel for trade shows and retail display.', 'fr-FR': 'Kakemono roll-up emballé avec visuel imprimé pour salons, événements et présentation retail.', 'es-ES': 'Roll-up publicitario empaquetado con panel gráfico impreso para ferias y exposición retail.', 'ar-SA': 'حامل رول أب إعلاني معبأ مع لوحة مطبوعة للمعارض والعرض داخل المتاجر.', 'zh-CN': '带印刷画面的包装易拉宝展架，适用于展会和零售展示。', 'he-IL': 'רול-אפ פרסומי ארוז עם גרפיקה מודפסת לתערוכות ולתצוגה בחנות。' },
-    variants: [{ sku: 'TOTEM', title: 'Standard', price_cents: 9900, weight_g: 3200, stock: 10 }],
+    key: 'terracotta-mug', file: 'mug.png', handle: 'terracotta-clay-mug', vendor: 'Bengali Exchange',
+    categories: ['artisan-crafts', 'drinkware'],
+    title:       { 'en-US': 'Terracotta Clay Mug', 'fr-FR': 'Mug en terre cuite', 'es-ES': 'Taza de terracota', 'zh-CN': '赤陶马克杯', 'ar-SA': 'كوب من الطين المحروق', 'he-IL': 'ספל טרקוטה', 'bn-BD': 'পোড়ামাটির মগ' },
+    description: { 'en-US': '<p>Wheel-thrown by potters in Bengal and glazed inside only, so the outside keeps its warm, raw clay finish.</p>', 'fr-FR': '<p>Tourné par des potiers du Bengale, émaillé à l’intérieur seulement pour garder l’aspect brut et chaleureux de l’argile.</p>', 'es-ES': '<p>Torneada por alfareros de Bengala y esmaltada solo por dentro, para conservar el acabado cálido del barro.</p>', 'zh-CN': '<p>由孟加拉陶匠拉坯制成，仅内壁上釉，外部保留温暖质朴的陶土质感。</p>', 'ar-SA': '<p>مصنوع على عجلة الفخار بأيدي خزافي البنغال ومزجج من الداخل فقط ليحتفظ الخارج بملمس الطين الدافئ.</p>', 'he-IL': '<p>עשוי על אובניים בידי קדרים בבנגל ומזוגג מבפנים בלבד, כך שהחוץ שומר על מראה החימר החם.</p>', 'bn-BD': '<p>বাংলার কুমোরদের চাকায় তৈরি, শুধু ভেতরে গ্লেজ করা, তাই বাইরে থাকে পোড়ামাটির উষ্ণ রং।</p>' },
+    variants: [{ sku: 'TERRA-MUG', title: '330 ml', price_cents: 1490, weight_g: 380, stock: 40 }],
   },
   {
-    key: 'paragliding-windsock', file: 'paragliding-windsock.png', handle: 'paragliding-windsock', vendor: 'Bengal Exchange',
-    categories: ['events-signage', 'sports-outdoor'],
-    title:       { 'en-US': 'Paragliding Windsock', 'fr-FR': 'Manche à air de parapente', 'es-ES': 'Manga de viento para parapente', 'zh-CN': '滑翔伞风向袋', 'ar-SA': 'كيس رياح للطيران الشراعي', 'he-IL': 'שרוול רוח לרחיפה' },
-    description: { 'en-US': 'Packaged paragliding windsock for wind direction indication on launch or landing areas.', 'fr-FR': "Manche à air de parapente emballée pour l'indication du vent sur zone de décollage ou d'atterrissage.", 'es-ES': 'Manga de viento para parapente empaquetada para indicar la dirección del viento en despegue o aterrizaje.', 'ar-SA': 'كيس رياح للطيران الشراعي معبأ لبيان اتجاه الرياح في مناطق الإقلاع أو الهبوط.', 'zh-CN': '用于起飞或降落区域风向指示的包装滑翔伞风向袋。', 'he-IL': 'שרוול רוח לרחיפה ארוז לציון כיוון הרוח באזורי המראה או נחיתה。' },
-    variants: [{ sku: 'PARAGLIDING_WINDSOCK', title: 'Standard', price_cents: 3990, weight_g: 250, stock: 20 }],
-  },
-
-  // ── Sports & Outdoor ───────────────────────────────────────────────────────
-  {
-    key: 'golf-ball-x1', file: 'golf-ball-x1.png', handle: 'golf-ball-x1', vendor: 'Bengal Exchange',
-    categories: ['sports-outdoor'],
-    title:       { 'en-US': 'Golf Ball',          'fr-FR': 'Balle de golf',            'es-ES': 'Pelota de golf',           'zh-CN': '高尔夫球',     'ar-SA': 'كرة غولف',            'he-IL': 'כדור גולף' },
-    description: { 'en-US': 'Single packaged golf ball with printed logo, suitable for play or promotional gifting.', 'fr-FR': 'Balle de golf emballée à l\'unité avec logo imprimé, adaptée au jeu ou au cadeau promotionnel.', 'es-ES': 'Pelota de golf empaquetada individualmente con logotipo impreso, apta para juego o regalo promocional.', 'ar-SA': 'كرة غولف معبأة بشكل فردي مع شعار مطبوع، مناسبة للعب أو للهدايا الترويجية.', 'zh-CN': '单颗包装高尔夫球，带印刷标志，适合打球或促销赠品。', 'he-IL': 'כדור גולף ארוז בנפרד עם לוגו מודפס, מתאים למשחק או כמתנה שיווקית。' },
-    variants: [{ sku: 'GOLF_BALL_X1', title: 'Standard', price_cents: 490, weight_g: 52, stock: 150 }],
+    key: 'rickshaw-case', file: 'iphone-case.png', handle: 'rickshaw-art-phone-case', vendor: 'Bengali Exchange',
+    categories: ['tech-wearables', 'accessories-tech'],
+    title:       { 'en-US': 'Rickshaw-Art Phone Case', 'fr-FR': 'Coque Rickshaw Art', 'es-ES': 'Funda Rickshaw Art', 'zh-CN': '人力车艺术手机壳', 'ar-SA': 'غطاء هاتف بفن الريكشا', 'he-IL': 'כיסוי טלפון באמנות ריקשה', 'bn-BD': 'রিকশা-আর্ট ফোন কভার' },
+    description: { 'en-US': '<p>Slim, shock-absorbing case printed with the bold colours of Dhaka rickshaw art. Wireless-charging friendly.</p>', 'fr-FR': '<p>Coque fine et antichoc imprimée aux couleurs vives de l’art des rickshaws de Dacca. Compatible recharge sans fil.</p>', 'es-ES': '<p>Funda fina y antigolpes con los colores intensos del arte de los rickshaws de Daca. Compatible con carga inalámbrica.</p>', 'zh-CN': '<p>轻薄防摔手机壳，印有达卡人力车艺术的鲜艳色彩，支持无线充电。</p>', 'ar-SA': '<p>غطاء نحيف ممتص للصدمات مطبوع بألوان فن ريكشا دكا الجريئة. متوافق مع الشحن اللاسلكي.</p>', 'he-IL': '<p>כיסוי דק ובולם זעזועים בצבעים העזים של אמנות הריקשה של דאקה. תומך בטעינה אלחוטית.</p>', 'bn-BD': '<p>ঢাকার রিকশা-আর্টের উজ্জ্বল রঙে ছাপা পাতলা, ঝাঁকুনি-সহনশীল কভার। ওয়্যারলেস চার্জিং চলে।</p>' },
+    variants: [{ sku: 'RICKSHAW-CASE', title: 'iPhone 17', price_cents: 1990, weight_g: 45, stock: 80 }],
   },
   {
-    key: 'golf-balls-x12-box', file: 'golf-balls-x12-box.png', handle: 'golf-balls-x12-box', vendor: 'Bengal Exchange',
-    categories: ['sports-outdoor'],
-    title:       { 'en-US': 'Box of 12 Golf Balls', 'fr-FR': 'Boîte de 12 balles de golf', 'es-ES': 'Caja de 12 pelotas de golf', 'zh-CN': '12只装高尔夫球盒', 'ar-SA': 'علبة 12 كرة غولف', 'he-IL': 'קופסת 12 כדורי גולף' },
-    description: { 'en-US': 'Retail box of twelve logo-printed golf balls, packaged for sale or premium events.', 'fr-FR': 'Boîte retail de douze balles de golf imprimées au logo, emballée pour la vente ou les événements premium.', 'es-ES': 'Caja retail de doce pelotas de golf con logotipo impreso, empaquetada para venta o eventos premium.', 'ar-SA': 'علبة بيع تحتوي على اثنتي عشرة كرة غولف مطبوعة بالشعار، مناسبة للبيع أو للفعاليات المميزة.', 'zh-CN': '零售盒装十二只印有标志的高尔夫球，适合销售或高端活动。', 'he-IL': 'קופסת קמעונאות עם שנים-עשר כדורי גולף מודפסי לוגו, מתאימה למכירה או לאירועי פרימיום。' },
-    variants: [{ sku: 'GOLF_BALLS_X12_BOX', title: 'Standard', price_cents: 3990, weight_g: 700, stock: 30 }],
+    key: 'alpona-hoodie', file: 'hoodie-black.png', handle: 'alpona-print-hoodie', vendor: 'Bengali Exchange',
+    categories: ['tech-wearables', 'hoodies'],
+    title:       { 'en-US': 'Alpona Print Hoodie', 'fr-FR': 'Sweat à capuche Alpona', 'es-ES': 'Sudadera Alpona', 'zh-CN': '阿尔波纳印花连帽衫', 'ar-SA': 'هودي بنقش ألبونا', 'he-IL': 'קפוצ׳ון בהדפס אלפונה', 'bn-BD': 'আলপনা প্রিন্ট হুডি' },
+    description: { 'en-US': '<p>Heavyweight organic-cotton hoodie with a gold alpona motif across the back, the floor art drawn for Pohela Boishakh.</p>', 'fr-FR': '<p>Sweat épais en coton bio avec un motif alpona doré dans le dos, l’art du sol dessiné pour Pohela Boishakh.</p>', 'es-ES': '<p>Sudadera gruesa de algodón orgánico con un motivo alpona dorado en la espalda, el arte de suelo de Pohela Boishakh.</p>', 'zh-CN': '<p>厚实有机棉连帽衫，背部印有金色阿尔波纳图案——孟加拉新年时绘制的地面艺术。</p>', 'ar-SA': '<p>هودي ثقيل من القطن العضوي بنقش ألبونا ذهبي على الظهر، فن الأرضيات المرسوم في بوهيلا بويشاخ.</p>', 'he-IL': '<p>קפוצ׳ון עבה מכותנה אורגנית עם מוטיב אלפונה זהוב בגב, אמנות הרצפה של פוהלה בוישאח.</p>', 'bn-BD': '<p>পিঠে সোনালি আলপনার নকশা সহ ভারী অর্গানিক সুতির হুডি — পহেলা বৈশাখের আলপনা থেকে অনুপ্রাণিত।</p>' },
+    variants: [
+      { sku: 'ALPONA-HOOD-M', title: 'Black / M', price_cents: 6490, weight_g: 560, stock: 30, imageFile: 'hoodie-black.png' },
+      { sku: 'ALPONA-HOOD-L', title: 'Black / L', price_cents: 6490, weight_g: 600, stock: 25, imageFile: 'hoodie-black.png' },
+    ],
   },
   {
-    key: 'golf-club-protectors', file: 'golf-club-protectors-3-set.png', handle: 'golf-club-protectors-3-set', vendor: 'Bengal Exchange',
-    categories: ['sports-outdoor'],
-    title:       { 'en-US': 'Set of 3 Golf Club Headcovers', 'fr-FR': 'Jeu de 3 protège-têtes de clubs de golf', 'es-ES': 'Set de 3 protectores para palos de golf', 'zh-CN': '3件套高尔夫球杆头套', 'ar-SA': 'مجموعة من 3 أغطية رؤوس مضارب الغولف', 'he-IL': 'סט 3 כיסויי ראש למקלות גולף' },
-    description: { 'en-US': 'Packaged set of three padded golf club headcovers with logo print for driver and woods protection.', 'fr-FR': 'Jeu emballé de trois protège-têtes rembourrés pour clubs de golf avec logo imprimé, pour driver et bois.', 'es-ES': 'Set empaquetado de tres fundas acolchadas para palos de golf con logotipo impreso, para driver y maderas.', 'ar-SA': 'مجموعة معبأة من ثلاثة أغطية مبطنة لرؤوس مضارب الغولف مع شعار مطبوع، لحماية الدرايفر والأخشاب.', 'zh-CN': '三件套包装高尔夫球杆头套，带标志印刷，用于一号木和球道木保护。', 'he-IL': 'סט ארוז של שלושה כיסויי ראש מרופדים למקלות גולף עם לוגו מודפס, להגנת דרייבר ועצים。' },
-    variants: [{ sku: 'GOLF_CLUB_PROTECTORS_3_SET', title: 'Standard', price_cents: 2490, weight_g: 450, stock: 25 }],
-  },
-  {
-    key: 'golf-tees', file: 'golf-tees.png', handle: 'golf-tees', vendor: 'Bengal Exchange',
-    categories: ['sports-outdoor'],
-    title:       { 'en-US': 'Pack of Golf Tees',  'fr-FR': 'Sachet de tees de golf',   'es-ES': 'Bolsa de tees de golf',    'zh-CN': '高尔夫球钉套装', 'ar-SA': 'عبوة تيز غولف',     'he-IL': 'חבילת טיז לגולף' },
-    description: { 'en-US': 'Packaged golf tees in a transparent bag, intended for promotional resale or course accessories.', 'fr-FR': 'Tees de golf emballés en sachet transparent, destinés à la revente promotionnelle ou aux accessoires de parcours.', 'es-ES': 'Tees de golf empaquetados en bolsa transparente, destinados a reventa promocional o accesorios de campo.', 'ar-SA': 'تيز غولف معبأة في كيس شفاف، مناسبة للبيع الترويجي أو كملحقات للملاعب.', 'zh-CN': '透明袋包装高尔夫球钉，适合促销零售或球场配件。', 'he-IL': 'טיז לגולף ארוזים בשקית שקופה, מתאימים למכירה שיווקית או כאביזרי מגרש。' },
-    variants: [{ sku: 'GOLF_TEES', title: 'Standard', price_cents: 890, weight_g: 120, stock: 150 }],
-  },
-  {
-    key: 'golf-umbrella', file: 'golf-umbrella.png', handle: 'golf-umbrella', vendor: 'Bengal Exchange',
-    categories: ['sports-outdoor'],
-    title:       { 'en-US': 'Golf Umbrella',      'fr-FR': 'Parapluie de golf',        'es-ES': 'Paraguas de golf',         'zh-CN': '高尔夫伞',     'ar-SA': 'مظلة غولف',          'he-IL': 'מטריית גולף' },
-    description: { 'en-US': 'Packaged oversized golf umbrella with alternating panels and large printed logo section.', 'fr-FR': 'Parapluie de golf oversize emballé avec panneaux alternés et grande zone logo imprimée.', 'es-ES': 'Paraguas de golf de gran tamaño empaquetado con paneles alternos y gran zona de logotipo impresa.', 'ar-SA': 'مظلة غولف كبيرة معبأة بألواح متناوبة ومساحة شعار مطبوعة كبيرة.', 'zh-CN': '超大号包装高尔夫伞，带拼色伞面和大面积标志印刷区域。', 'he-IL': 'מטריית גולף גדולה ארוזה עם פאנלים מתחלפים ואזור לוגו מודפס גדול。' },
-    variants: [{ sku: 'GOLF_UMBRELLA', title: 'Standard', price_cents: 3990, weight_g: 850, stock: 25 }],
-  },
-  {
-    key: 'tennis-protector', file: 'tennis-protector.png', handle: 'tennis-racket-cover', vendor: 'Bengal Exchange',
-    categories: ['sports-outdoor'],
-    title:       { 'en-US': 'Tennis Racket Cover', 'fr-FR': 'Housse de raquette de tennis', 'es-ES': 'Funda para raqueta de tenis', 'zh-CN': '网球拍套', 'ar-SA': 'غطاء مضرب تنس', 'he-IL': 'כיסוי למחבט טניס' },
-    description: { 'en-US': 'Packaged tennis racket cover with zipper closure and centered logo placement.', 'fr-FR': 'Housse de raquette de tennis emballée avec fermeture zippée et logo centré.', 'es-ES': 'Funda para raqueta de tenis empaquetada con cierre de cremallera y logotipo centrado.', 'ar-SA': 'غطاء مضرب تنس معبأ بسحاب وإظهار للشعار في الوسط.', 'zh-CN': '带拉链封口和中央标志位置的包装网球拍套。', 'he-IL': 'כיסוי למחבט טניס ארוז עם רוכסן ומיקום לוגו ממורכז。' },
-    variants: [{ sku: 'TENNIS_PROTECTOR', title: 'Standard', price_cents: 1490, weight_g: 220, stock: 30 }],
-  },
-  {
-    key: 'paraglider', file: 'paraglider.png', handle: 'paraglider-wing', vendor: 'Bengal Exchange',
-    categories: ['sports-outdoor'],
-    title:       { 'en-US': 'Paraglider Wing EN-D',    'fr-FR': 'Voile de parapente EN-D',       'es-ES': 'Ala de parapente EN-D',         'zh-CN': '滑翔伞翼 EN-D',     'ar-SA': 'EN-D جناح طيران شراعي',    'he-IL': 'כנף מצנח רחיפה EN-D' },
-    description: { 'en-US': 'Packed paraglider wing with branded canopy panel, delivered folded in transport configuration.', 'fr-FR': 'Voile de parapente emballée avec panneau de voile cousu, livrée pliée en configuration de transport.', 'es-ES': 'Ala de parapente embalada con panel de vela personalizado, entregada plegada para transporte.', 'ar-SA': 'جناح طيران شراعي معبأ مع جزء قماش يحمل العلامة، يُسلم مطوياً بوضعية النقل.', 'zh-CN': '带品牌伞翼面板的打包滑翔伞翼，折叠后按运输状态交付。', 'he-IL': 'כנף מצנח רחיפה ארוזה עם פאנל ממותג, מסופקת מקופלת לתצורת הובלה。' },
-    variants: [{ sku: 'PARAGLIDER-XS', title: 'PTV 40-60', price_cents: 329000, weight_g: 3200, stock: 1 },{ sku: 'PARAGLIDER-S', title: 'PTV 60-80', price_cents: 399000, weight_g: 3300, stock: 0 },{ sku: 'PARAGLIDER-M', title: 'PTV 80-100', price_cents: 499000, weight_g: 3400, stock: 2 },{ sku: 'PARAGLIDER-L', title: 'PTV 100-120', price_cents: 399000, weight_g: 3500, stock: 1 } ,{ sku: 'PARAGLIDER-BI', title: 'Tandem 90-220', price_cents: 699000, weight_g: 5500, stock: 5 }],
+    key: 'jamdani-tee', file: 'tee-white.png', handle: 'jamdani-pattern-tee', vendor: 'Bengali Exchange',
+    categories: ['tech-wearables', 'classic-tees'],
+    title:       { 'en-US': 'Jamdani Pattern Tee', 'fr-FR': 'T-shirt motif Jamdani', 'es-ES': 'Camiseta estampado Jamdani', 'zh-CN': '贾姆达尼图案T恤', 'ar-SA': 'تي شيرت بنقش جامداني', 'he-IL': 'חולצת טי בדוגמת ג׳מדאני', 'bn-BD': 'জামদানি নকশার টি-শার্ট' },
+    description: { 'en-US': '<p>Soft cotton tee with a woven-look print taken from Dhaka jamdani muslin, the UNESCO-listed weaving craft.</p>', 'fr-FR': '<p>T-shirt en coton doux avec un imprimé inspiré de la mousseline jamdani de Dacca, savoir-faire inscrit à l’UNESCO.</p>', 'es-ES': '<p>Camiseta de algodón suave con un estampado inspirado en la muselina jamdani de Daca, oficio reconocido por la UNESCO.</p>', 'zh-CN': '<p>柔软棉质T恤，图案取自达卡贾姆达尼细纱——联合国教科文组织认定的织造技艺。</p>', 'ar-SA': '<p>تي شيرت قطني ناعم بطبعة مستوحاة من موسلين جامداني دكا، حرفة النسيج المدرجة لدى اليونسكو.</p>', 'he-IL': '<p>חולצת כותנה רכה עם הדפס בהשראת מוסלין ג׳מדאני מדאקה, מלאכת אריגה המוכרת על ידי אונסק״ו.</p>', 'bn-BD': '<p>ইউনেস্কো-স্বীকৃত ঢাকাই জামদানির বুননের নকশায় ছাপা নরম সুতির টি-শার্ট।</p>' },
+    variants: [
+      { sku: 'JAMDANI-TEE-S', title: 'White / S', price_cents: 3290, weight_g: 180, stock: 40, imageFile: 'tee-white.png' },
+      { sku: 'JAMDANI-TEE-M', title: 'White / M', price_cents: 3290, weight_g: 200, stock: 50, imageFile: 'tee-white.png' },
+    ],
   },
 
   // ── Digital Products ───────────────────────────────────────────────────────
@@ -974,6 +943,52 @@ const PRODUCT_CATALOG = [
 ] as const;
 
 type Product = typeof PRODUCT_CATALOG[number];
+
+/**
+ * Niche tags per product key (client brief). Sent as the product's `tags`
+ * (comma-separated, stored per locale) on create, and patched onto products
+ * that already exist so a re-run tags an older seed too.
+ */
+const NICHE_TAGS: Record<string, string[]> = {
+  'tee':              ['streetwear', 'gen-z', 'cotton'],
+  'hoodie':           ['streetwear', 'gen-z', 'cotton'],
+  'cap':              ['streetwear', 'gen-z'],
+  'sticker':          ['gen-z', 'laptop', 'art'],
+  'backpack':         ['tech', 'everyday-carry', 'gen-z'],
+  'duffle-bag':       ['travel', 'everyday-carry'],
+  'tote-bag':         ['eco-friendly', 'reusable', 'cotton'],
+  'aluminium-bottle': ['eco-friendly', 'reusable', 'plastic-free'],
+  'ceramic-mug':      ['ceramic', 'gift'],
+  'iphone-case':      ['tech', 'gen-z', 'phone'],
+  'acrylic-keychain': ['gen-z', 'gift'],
+  'lux-pen':          ['desk', 'gift'],
+  'mouse-pad':        ['tech', 'desk', 'gen-z'],
+  'pen-4-colors':     ['desk', 'student'],
+  'badge-pins':       ['gen-z', 'art'],
+  'usb-key':          ['tech', 'desk'],
+  'beach-towel':      ['cotton', 'summer'],
+  'bean-bag':         ['home', 'gen-z'],
+  'coir-doormat':     ['eco-friendly', 'natural-fibre', 'home', 'handmade'],
+  'entry-mat':        ['home', 'natural-fibre'],
+  'jute-tote':        ['jute', 'eco-friendly', 'handmade', 'plastic-free', 'gen-z'],
+  'nakshi-kantha':    ['handmade', 'artisan', 'nakshi-kantha', 'heritage', 'cotton'],
+  'terracotta-mug':   ['handmade', 'artisan', 'terracotta', 'eco-friendly'],
+  'rickshaw-case':    ['tech', 'gen-z', 'rickshaw-art', 'artisan'],
+  'alpona-hoodie':    ['streetwear', 'gen-z', 'alpona', 'organic-cotton'],
+  'jamdani-tee':      ['streetwear', 'gen-z', 'jamdani', 'heritage'],
+  'design-template':  ['digital', 'design'],
+  'ai-tokens':        ['digital', 'ai'],
+};
+
+/** `tags` field value: the same English tags for every locale. */
+function tagsField(key: string): string | undefined {
+  const tags = NICHE_TAGS[key];
+  if (!tags?.length) return undefined;
+  const list = tags.join(', ');
+  return JSON.stringify(
+    Object.fromEntries(['en-US', 'fr-FR', 'es-ES', 'zh-CN', 'ar-SA', 'he-IL', 'bn-BD'].map((l) => [l, list])),
+  );
+}
 
 /**
  * Seed regions, warehouses, and shipping rates.
@@ -1180,7 +1195,6 @@ async function seedRegions() {
 
 interface SeedReview { customer_email: string; product_key: string; rating: number; title: string; body: string; status: 'approved' | 'pending'; }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Data: shipping addresses & orders for demo customers
 // To add a customer / order: add an entry to SEED_ADDRESSES then SEED_ORDERS.
@@ -1278,8 +1292,9 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
     'drinkware':        categoryData.drinkware,
     'accessories-tech': categoryData.accessoriesTech,
     'home-living':      categoryData.homeLiving,
-    'events-signage':   categoryData.eventsSignage,
-    'sports-outdoor':   categoryData.sportsOutdoor,
+    'eco-jute-goods':   categoryData.ecoJuteGoods,
+    'tech-wearables':   categoryData.techWearables,
+    'artisan-crafts':   categoryData.artisanCrafts,
     'digital-products': categoryData.digitalProducts,
     'ai-tokens':        categoryData.aiTokens,
   };
@@ -1329,12 +1344,15 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
 
     const found = existingProducts.get(prod.handle);
     console.log(found ? `📦 ${prod.title['en-US']} (already exists)` : `📦 Creating ${prod.title['en-US']}...`);
+    const tags = tagsField(prod.key);
     const product = found ?? await api('/v1/products', {
       handle: prod.handle,
       title: JSON.stringify(prod.title),
       description: JSON.stringify(prod.description),
       vendor: JSON.stringify(i18nVendor),
+      ...(tags ? { tags } : {}),
     });
+    if (found && tags) await apiPatch(`/v1/products/${product.id}`, { tags });
     const existingVariants: Map<string, any> = found?.variants ?? new Map();
 
     productIds[prod.key] = product.id;

@@ -30,8 +30,8 @@ export default function UsersAndPermissionsPage() {
               {t("admin-users-page-title")}
             </h1>
             <p className="text-default-500 text-sm mt-1">
-              User management is now handled by Better Auth sessions.
-              Roles and permissions are enforced server-side via the auth middleware.
+              User management is now handled by Better Auth sessions. Roles and
+              permissions are enforced server-side via the auth middleware.
             </p>
           </div>
         </div>

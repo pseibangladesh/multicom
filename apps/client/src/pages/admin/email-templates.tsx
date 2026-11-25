@@ -578,7 +578,7 @@ export default function EmailTemplatesPage() {
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <>
-      <div className="max-w-4xl mx-auto space-y-6 py-8 px-4">
+      <div className="mx-auto max-w-4xl space-y-6 py-4 md:px-4 md:py-8">
         {/* Header */}
         <div className="flex items-center gap-3">
           <Mail className="w-6 h-6 text-primary" />
@@ -707,7 +707,7 @@ export default function EmailTemplatesPage() {
                       {t("admin-email-templates-locale-label")}
                     </span>
                     <Select
-                      className="flex-1 max-w-[200px]"
+                      className="max-w-52 flex-1"
                       value={selectedLocale}
                       onChange={(value) =>
                         setSelectedLocale((value as string) || defaultLocale)
@@ -919,9 +919,9 @@ export default function EmailTemplatesPage() {
                       <p className="text-xs font-semibold text-default-500 uppercase tracking-wide">
                         {t("admin-email-templates-test-title")}
                       </p>
-                      <div className="flex items-end gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                         <TextField
-                          className="flex-1"
+                          className="min-w-0 flex-1"
                           type="email"
                           value={testEmailAddress}
                           onChange={setTestEmailAddress}

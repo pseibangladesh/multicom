@@ -1,6 +1,6 @@
-# Contributing to Bengal Exchange
+# Contributing to Bengali Exchange
 
-Thank you for your interest! Bengal Exchange is an open-source e-commerce framework
+Thank you for your interest! Bengali Exchange is an open-source e-commerce framework
 that runs entirely on free-tier cloud services.
 
 ## Quick Start

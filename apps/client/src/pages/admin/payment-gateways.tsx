@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Card, Input, Switch, Label, Tooltip } from "@heroui/react";
+
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 
@@ -62,11 +63,17 @@ export default function PaymentGatewaysPage() {
   const [stripeSecretKey, setStripeSecretKey] = useState("");
   const [stripeWebhookSecret, setStripeWebhookSecret] = useState("");
   const [isSavingStripe, setIsSavingStripe] = useState(false);
-  const [stripeMessage, setStripeMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [stripeMessage, setStripeMessage] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
   const loadData = async () => {
     try {
-      const resp = await getJson(`${apiBase}/v1/admin/settings/payment-gateways`);
+      const resp = await getJson(
+        `${apiBase}/v1/admin/settings/payment-gateways`,
+      );
+
       if (resp?.sslcommerz) {
         setConfig(resp.sslcommerz);
       }
@@ -82,21 +89,37 @@ export default function PaymentGatewaysPage() {
     setIsSavingStripe(true);
     setStripeMessage(null);
     try {
-      const resp = await putJson(`${apiBase}/v1/admin/settings/payment-gateways/stripe`, {
-        enabled: stripe.enabled,
-        publishable_key: stripe.publishable_key.trim(),
-        secret_key: stripeSecretKey.trim() || undefined,
-        webhook_secret: stripeWebhookSecret.trim() || undefined,
-      });
+      const resp = await putJson(
+        `${apiBase}/v1/admin/settings/payment-gateways/stripe`,
+        {
+          enabled: stripe.enabled,
+          publishable_key: stripe.publishable_key.trim(),
+          secret_key: stripeSecretKey.trim() || undefined,
+          webhook_secret: stripeWebhookSecret.trim() || undefined,
+        },
+      );
+
       if (resp?.stripe) setStripe({ ...EMPTY_STRIPE, ...resp.stripe });
       setStripeSecretKey("");
       setStripeWebhookSecret("");
-      setStripeMessage({ ok: true, text: t("admin-payment-gateways-save-success", "Settings saved successfully") });
+      setStripeMessage({
+        ok: true,
+        text: t(
+          "admin-payment-gateways-save-success",
+          "Settings saved successfully",
+        ),
+      });
     } catch (err) {
       console.error("Failed to save Stripe settings", err);
       setStripeMessage({
         ok: false,
-        text: err instanceof Error && err.message ? err.message.replace(/^HTTP \d+: /, "") : t("admin-payment-gateways-save-failed", "Failed to save settings"),
+        text:
+          err instanceof Error && err.message
+            ? err.message.replace(/^HTTP \d+: /, "")
+            : t(
+                "admin-payment-gateways-save-failed",
+                "Failed to save settings",
+              ),
       });
     } finally {
       setIsSavingStripe(false);
@@ -105,9 +128,18 @@ export default function PaymentGatewaysPage() {
 
   const sourceLabel = (source: KeySource) =>
     ({
-      dashboard: t("admin-payment-gateways-stripe-source-dashboard", "saved on this page"),
-      environment: t("admin-payment-gateways-stripe-source-env", "from the server environment (STRIPE_* variables)"),
-      legacy: t("admin-payment-gateways-stripe-source-legacy", "saved by the setup API"),
+      dashboard: t(
+        "admin-payment-gateways-stripe-source-dashboard",
+        "saved on this page",
+      ),
+      environment: t(
+        "admin-payment-gateways-stripe-source-env",
+        "from the server environment (STRIPE_* variables)",
+      ),
+      legacy: t(
+        "admin-payment-gateways-stripe-source-legacy",
+        "saved by the setup API",
+      ),
       none: t("admin-payment-gateways-stripe-source-none", "not set"),
     })[source];
 
@@ -125,7 +157,10 @@ export default function PaymentGatewaysPage() {
         store_password: storePassword || undefined,
         sandbox: config.sandbox,
       });
-      setSaveMessage(t("admin-payment-gateways-save-success") || "Settings saved successfully");
+      setSaveMessage(
+        t("admin-payment-gateways-save-success") ||
+          "Settings saved successfully",
+      );
       setStorePassword("");
     } catch (err) {
       console.error("Failed to save payment gateway settings", err);
@@ -138,7 +173,7 @@ export default function PaymentGatewaysPage() {
   return (
     <>
       <div className="max-w-3xl mx-auto py-12">
-        <h1 className="text-3xl font-bold mb-6">
+        <h1 className="text-2xl md:text-3xl font-bold mb-6">
           {t("admin-payment-gateways-title") || "Payment Gateways"}
         </h1>
 
@@ -149,7 +184,10 @@ export default function PaymentGatewaysPage() {
               <div>
                 <h2 className="text-xl font-semibold">Stripe</h2>
                 <p className="text-sm text-default-500">
-                  {t("admin-payment-gateways-stripe-desc", "Card payments worldwide through Stripe Checkout")}
+                  {t(
+                    "admin-payment-gateways-stripe-desc",
+                    "Card payments worldwide through Stripe Checkout",
+                  )}
                 </p>
               </div>
               <div className="flex gap-2 shrink-0">
@@ -166,8 +204,14 @@ export default function PaymentGatewaysPage() {
                   className={`text-xs px-2 py-1 rounded-full ${stripe.active ? "bg-success-100 text-success-700" : "bg-default-100 text-default-600"}`}
                 >
                   {stripe.active
-                    ? t("admin-payment-gateways-status-active", "Active at checkout")
-                    : t("admin-payment-gateways-status-inactive", "Not offered at checkout")}
+                    ? t(
+                        "admin-payment-gateways-status-active",
+                        "Active at checkout",
+                      )
+                    : t(
+                        "admin-payment-gateways-status-inactive",
+                        "Not offered at checkout",
+                      )}
                 </span>
               </div>
             </div>
@@ -178,7 +222,10 @@ export default function PaymentGatewaysPage() {
               <div>
                 <Label>{t("admin-payment-gateways-enabled", "Enabled")}</Label>
                 <p className="text-sm text-default-400">
-                  {t("admin-payment-gateways-stripe-enabled-desc", "Offer Stripe as a payment option at checkout")}
+                  {t(
+                    "admin-payment-gateways-stripe-enabled-desc",
+                    "Offer Stripe as a payment option at checkout",
+                  )}
                 </p>
               </div>
               <Switch
@@ -193,18 +240,27 @@ export default function PaymentGatewaysPage() {
 
             {/* Publishable key */}
             <div className="space-y-2">
-              <Label>{t("admin-payment-gateways-stripe-publishable-key", "Publishable Key")}</Label>
+              <Label>
+                {t(
+                  "admin-payment-gateways-stripe-publishable-key",
+                  "Publishable Key",
+                )}
+              </Label>
               <Input
                 placeholder="pk_test_..."
                 value={stripe.publishable_key}
-                onChange={(e) => setStripe({ ...stripe, publishable_key: e.target.value })}
+                onChange={(e) =>
+                  setStripe({ ...stripe, publishable_key: e.target.value })
+                }
                 className="max-w-md"
               />
             </div>
 
             {/* Secret key */}
             <div className="space-y-2">
-              <Label>{t("admin-payment-gateways-stripe-secret-key", "Secret Key")}</Label>
+              <Label>
+                {t("admin-payment-gateways-stripe-secret-key", "Secret Key")}
+              </Label>
               <Input
                 placeholder={
                   stripe.secret_key_set && stripe.secret_key_last4
@@ -218,16 +274,27 @@ export default function PaymentGatewaysPage() {
                 className="max-w-md"
               />
               <p className="text-sm text-default-400 max-w-md">
-                {t("admin-payment-gateways-stripe-current", "Current")}: {sourceLabel(stripe.secret_key_source)}.{" "}
-                {t("admin-payment-gateways-password-note", "Leave blank to keep the current value unchanged")}
+                {t("admin-payment-gateways-stripe-current", "Current")}:{" "}
+                {sourceLabel(stripe.secret_key_source)}.{" "}
+                {t(
+                  "admin-payment-gateways-password-note",
+                  "Leave blank to keep the current value unchanged",
+                )}
               </p>
             </div>
 
             {/* Webhook secret */}
             <div className="space-y-2">
-              <Label>{t("admin-payment-gateways-stripe-webhook-secret", "Webhook Signing Secret")}</Label>
+              <Label>
+                {t(
+                  "admin-payment-gateways-stripe-webhook-secret",
+                  "Webhook Signing Secret",
+                )}
+              </Label>
               <Input
-                placeholder={stripe.webhook_secret_set ? "••••••••" : "whsec_..."}
+                placeholder={
+                  stripe.webhook_secret_set ? "••••••••" : "whsec_..."
+                }
                 type="password"
                 autoComplete="off"
                 value={stripeWebhookSecret}
@@ -235,19 +302,27 @@ export default function PaymentGatewaysPage() {
                 className="max-w-md"
               />
               <p className="text-sm text-default-400 max-w-md">
-                {t("admin-payment-gateways-stripe-current", "Current")}: {sourceLabel(stripe.webhook_secret_source)}.
+                {t("admin-payment-gateways-stripe-current", "Current")}:{" "}
+                {sourceLabel(stripe.webhook_secret_source)}.
               </p>
               {stripe.webhook_url && (
                 <p className="text-sm text-default-500 max-w-md break-all">
-                  {t("admin-payment-gateways-stripe-webhook-url", "Webhook endpoint to add in the Stripe dashboard")}:{" "}
-                  <code className="text-xs">{stripe.webhook_url}</code>
+                  {t(
+                    "admin-payment-gateways-stripe-webhook-url",
+                    "Webhook endpoint to add in the Stripe dashboard",
+                  )}
+                  : <code className="text-xs">{stripe.webhook_url}</code>
                 </p>
               )}
             </div>
 
             {/* Save button */}
             <div className="flex gap-3 pt-4">
-              <Button variant="primary" onPress={handleSaveStripe} isDisabled={isSavingStripe}>
+              <Button
+                variant="primary"
+                onPress={handleSaveStripe}
+                isDisabled={isSavingStripe}
+              >
                 {isSavingStripe
                   ? t("admin-payment-gateways-saving", "Saving...")
                   : t("admin-payment-gateways-save", "Save Settings")}
@@ -267,7 +342,11 @@ export default function PaymentGatewaysPage() {
             </div>
 
             {stripeMessage && (
-              <p className={`text-sm ${stripeMessage.ok ? "text-success" : "text-danger"}`}>{stripeMessage.text}</p>
+              <p
+                className={`text-sm ${stripeMessage.ok ? "text-success" : "text-danger"}`}
+              >
+                {stripeMessage.text}
+              </p>
             )}
           </Card.Content>
         </Card>
@@ -287,7 +366,9 @@ export default function PaymentGatewaysPage() {
             {/* Enabled toggle */}
             <div className="flex items-center justify-between">
               <div>
-                <Label>{t("admin-payment-gateways-enabled") || "Enabled"}</Label>
+                <Label>
+                  {t("admin-payment-gateways-enabled") || "Enabled"}
+                </Label>
                 <p className="text-sm text-default-400">
                   {t("admin-payment-gateways-enabled-desc") ||
                     "Enable or disable SSLCommerz payment option"}
@@ -306,7 +387,9 @@ export default function PaymentGatewaysPage() {
             {/* Sandbox toggle */}
             <div className="flex items-center justify-between">
               <div>
-                <Label>{t("admin-payment-gateways-sandbox") || "Sandbox Mode"}</Label>
+                <Label>
+                  {t("admin-payment-gateways-sandbox") || "Sandbox Mode"}
+                </Label>
                 <p className="text-sm text-default-400">
                   {t("admin-payment-gateways-sandbox-desc") ||
                     "Use sandbox environment for testing"}
@@ -324,18 +407,24 @@ export default function PaymentGatewaysPage() {
 
             {/* Store ID */}
             <div className="space-y-2">
-              <Label>{t("admin-payment-gateways-store-id") || "Store ID"}</Label>
+              <Label>
+                {t("admin-payment-gateways-store-id") || "Store ID"}
+              </Label>
               <Input
                 placeholder="your-store-id"
                 value={config.store_id}
-                onChange={(e) => setConfig({ ...config, store_id: e.target.value })}
+                onChange={(e) =>
+                  setConfig({ ...config, store_id: e.target.value })
+                }
                 className="max-w-md"
               />
             </div>
 
             {/* Store Password */}
             <div className="space-y-2">
-              <Label>{t("admin-payment-gateways-store-password") || "Store Password"}</Label>
+              <Label>
+                {t("admin-payment-gateways-store-password") || "Store Password"}
+              </Label>
               <Input
                 placeholder="Enter new password to update"
                 type="password"
@@ -363,7 +452,9 @@ export default function PaymentGatewaysPage() {
                 onPress={handleSave}
                 isDisabled={isSaving || !config.store_id}
               >
-                {isSaving ? "Saving..." : (t("admin-payment-gateways-save") || "Save Settings")}
+                {isSaving
+                  ? "Saving..."
+                  : t("admin-payment-gateways-save") || "Save Settings"}
               </Button>
               <Button
                 variant="secondary"
@@ -376,7 +467,9 @@ export default function PaymentGatewaysPage() {
 
             {/* Save message */}
             {saveMessage && (
-              <p className={`text-sm ${saveMessage.includes("Failed") ? "text-danger" : "text-success"}`}>
+              <p
+                className={`text-sm ${saveMessage.includes("Failed") ? "text-danger" : "text-success"}`}
+              >
                 {saveMessage}
               </p>
             )}
@@ -396,11 +489,23 @@ export default function PaymentGatewaysPage() {
               cards, mobile banking, and internet banking.
             </p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Configure your Store ID and Password from the SSLCommerz dashboard</li>
+              <li>
+                Configure your Store ID and Password from the SSLCommerz
+                dashboard
+              </li>
               <li>Use Sandbox mode for testing before going live</li>
-              <li>Passwords and Stripe secrets are encrypted using AES-256-CBC before storage</li>
-              <li>Stripe keys saved here take precedence over the STRIPE_* environment variables</li>
-              <li>The IPN (Instant Payment Notification) endpoint is automatically registered</li>
+              <li>
+                Passwords and Stripe secrets are encrypted using AES-256-CBC
+                before storage
+              </li>
+              <li>
+                Stripe keys saved here take precedence over the STRIPE_*
+                environment variables
+              </li>
+              <li>
+                The IPN (Instant Payment Notification) endpoint is automatically
+                registered
+              </li>
             </ul>
           </Card.Content>
         </Card>

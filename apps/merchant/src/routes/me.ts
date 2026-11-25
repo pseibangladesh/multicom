@@ -29,6 +29,7 @@ import { getDb } from '../db';
 import { resolveCustomer } from '../lib/customers';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { calculateOrderTaxes } from '../lib/tax';
+import { AVATAR_KEY_PREFIX, AVATAR_MAX_BYTES, ownedAvatarKey, sniffImageType } from '../lib/avatar';
 
 const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', customerAuthMiddleware);
@@ -60,6 +61,8 @@ const getMyProfile = createRoute({
                         order_count: z.number(),
                         total_spent_cents: z.number(),
                         last_order_at: z.string().nullable(),
+                        /** Profile picture URL (Better Auth user.image). */
+                        image: z.string().nullable(),
                     }),
                 },
             },
@@ -85,18 +88,23 @@ adminApp.openapi(getMyProfile, async (c) => {
 
     const db = getDb(c.var.db);
     const customer = await resolveCustomer(db, userId);
+    const [account] = await db.query<{ image: string | null }>(
+        `SELECT image FROM "user" WHERE id = ?`,
+        [userId],
+    );
 
     return c.json(
         {
             id: customer.id,
             email: customer.email,
-            name: customer.name ?? name ?? null,
+            name: customer.name ?? auth?.name ?? null,
             phone: customer.phone ?? null,
             locale: customer.locale ?? null,
             accepts_marketing: customer.accepts_marketing ?? 0,
             order_count: customer.order_count ?? 0,
             total_spent_cents: customer.total_spent_cents ?? 0,
             last_order_at: customer.last_order_at ?? null,
+            image: account?.image ?? null,
         },
         200
     );
@@ -192,6 +200,116 @@ adminApp.openapi(updateMyProfile, async (c) => {
     ]);
 
     return c.json({ ok: true }, 200);
+});
+
+// ============================================================
+// POST /v1/me/avatar   ·   DELETE /v1/me/avatar
+// ============================================================
+
+const AvatarResponse = z.object({ image: z.string().nullable() });
+
+const imagesBase = (c: { env: HonoEnv['Bindings']; req: { url: string } }) =>
+    c.env.IMAGES_URL || `${new URL(c.req.url).origin}/v1/images`;
+
+/**
+ * Sets user.image and deletes the picture it replaces, if this endpoint
+ * stored it: from R2 and from the edge cache that GET /v1/images fills, so a
+ * removed photo stops being served at its old URL straight away.
+ */
+async function setAccountImage(
+    db: ReturnType<typeof getDb>,
+    images: R2Bucket | undefined,
+    baseUrl: string,
+    workerOrigin: string,
+    defer: (p: Promise<unknown>) => void,
+    userId: string,
+    image: string | null,
+) {
+    const [account] = await db.query<{ image: string | null }>(`SELECT image FROM "user" WHERE id = ?`, [userId]);
+    await db.run(`UPDATE "user" SET image = ?, updated_at = ? WHERE id = ?`, [
+        image,
+        Math.floor(Date.now() / 1000),
+        userId,
+    ]);
+    const oldKey = ownedAvatarKey(account?.image, baseUrl);
+    if (oldKey && images && account?.image !== image) {
+        const edge = (caches as CacheStorage & { default: Cache }).default;
+        defer(
+            Promise.allSettled([
+                images.delete(oldKey),
+                edge.delete(new Request(`${workerOrigin}/v1/images/${oldKey}`)),
+            ]),
+        );
+    }
+}
+
+const uploadMyAvatar = createRoute({
+    method: 'post',
+    path: '/avatar',
+    tags: ['Customer Portal'],
+    summary: 'Upload my profile picture',
+    description: 'JPEG, PNG or WebP, up to 2 MB. Replaces (and deletes) the previous picture.',
+    security: [{ bearerAuth: ["valid jwt"] }],
+    request: {
+        body: {
+            content: {
+                'multipart/form-data': {
+                    schema: z.object({ file: z.any().openapi({ type: 'string', format: 'binary' }) }),
+                },
+            },
+        },
+    },
+    responses: {
+        200: { description: 'Picture saved', content: { 'application/json': { schema: AvatarResponse } } },
+        400: { description: 'Not a JPEG/PNG/WebP image, or too large' },
+        401: { description: 'Unauthorized' },
+    },
+});
+
+adminApp.openapi(uploadMyAvatar, async (c) => {
+    const userId = (c.get('auth') as { userId?: string } | undefined)?.userId;
+    if (!userId) throw ApiError.unauthorized('Invalid token');
+    if (!c.env.IMAGES) throw ApiError.invalidRequest('R2 bucket not configured');
+
+    let form: FormData | null = null;
+    try {
+        form = await c.req.formData();
+    } catch {
+        form = null;
+    }
+    const file = form?.get('file');
+    if (!file || typeof file === 'string') throw ApiError.invalidRequest('file is required');
+    if (file.size > AVATAR_MAX_BYTES) throw ApiError.invalidRequest('Picture must be under 2 MB');
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const type = sniffImageType(bytes);
+    if (!type) throw ApiError.invalidRequest('Picture must be a JPEG, PNG or WebP image');
+
+    const key = `${AVATAR_KEY_PREFIX}${uuid()}.${type.ext}`;
+    await c.env.IMAGES.put(key, bytes, { httpMetadata: { contentType: type.mime } });
+    const image = `${imagesBase(c)}/${key}`;
+    await setAccountImage(getDb(c.var.db), c.env.IMAGES, imagesBase(c), new URL(c.req.url).origin, (p) => c.executionCtx.waitUntil(p), userId, image);
+
+    return c.json({ image }, 200);
+});
+
+const deleteMyAvatar = createRoute({
+    method: 'delete',
+    path: '/avatar',
+    tags: ['Customer Portal'],
+    summary: 'Remove my profile picture',
+    security: [{ bearerAuth: ["valid jwt"] }],
+    responses: {
+        200: { description: 'Picture removed', content: { 'application/json': { schema: AvatarResponse } } },
+        401: { description: 'Unauthorized' },
+    },
+});
+
+adminApp.openapi(deleteMyAvatar, async (c) => {
+    const userId = (c.get('auth') as { userId?: string } | undefined)?.userId;
+    if (!userId) throw ApiError.unauthorized('Invalid token');
+    await setAccountImage(getDb(c.var.db), c.env.IMAGES, imagesBase(c), new URL(c.req.url).origin, (p) => c.executionCtx.waitUntil(p), userId, null);
+    return c.json({ image: null }, 200);
 });
 
 // ============================================================

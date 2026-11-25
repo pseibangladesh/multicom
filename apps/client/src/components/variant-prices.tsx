@@ -22,10 +22,8 @@ import { Button } from "@heroui/react";
 import { Input } from "@heroui/react";
 import { Select, Label, ListBox } from "@heroui/react";
 import { Table } from "@heroui/react";
-import {
-  Modal,
-} from "@heroui/react";
-import { Card} from "@heroui/react";
+import { Modal } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { Trash2, Plus, Pencil, Save } from "lucide-react";
 
 import { useSecuredApi } from "@/authentication";
@@ -84,7 +82,9 @@ export function VariantPrices({
   const [submitting, setSubmitting] = useState(false);
 
   // Inline edit state: only one currency can be edited at a time.
-  const [editingCurrencyId, setEditingCurrencyId] = useState<string | null>(null);
+  const [editingCurrencyId, setEditingCurrencyId] = useState<string | null>(
+    null,
+  );
   const [editValue, setEditValue] = useState<string>("");
 
   // Load initial data
@@ -99,7 +99,7 @@ export function VariantPrices({
     try {
       const [pricesRes, currenciesRes] = await Promise.all([
         getJson(
-          `${apiBase}/v1/products/${productId}/variants/${variantId}/prices`
+          `${apiBase}/v1/products/${productId}/variants/${variantId}/prices`,
         ),
         getJson(`${apiBase}/v1/regions/currencies?limit=100&status=active`),
       ]);
@@ -121,7 +121,7 @@ export function VariantPrices({
    * Get list of currencies not yet configured for this variant.
    */
   const availableCurrencies = currencies.filter(
-    (c) => !isCurrencyAlreadySet(c.id)
+    (c) => !isCurrencyAlreadySet(c.id),
   );
 
   /**
@@ -138,7 +138,7 @@ export function VariantPrices({
         {
           currency_id: selectedCurrency,
           price_cents: priceCents,
-        }
+        },
       );
 
       if (response) {
@@ -173,14 +173,16 @@ export function VariantPrices({
     try {
       const response = await postJson(
         `${apiBase}/v1/products/${productId}/variants/${variantId}/prices`,
-        { currency_id: currencyId, price_cents: priceCents }
+        { currency_id: currencyId, price_cents: priceCents },
       );
 
       if (response) {
         setPrices(
           prices.map((p) =>
-            p.currency_id === currencyId ? { ...p, price_cents: priceCents } : p
-          )
+            p.currency_id === currencyId
+              ? { ...p, price_cents: priceCents }
+              : p,
+          ),
         );
       }
     } catch (err) {
@@ -201,7 +203,7 @@ export function VariantPrices({
 
     try {
       await deleteJson(
-        `${apiBase}/v1/products/${productId}/variants/${variantId}/prices/${currencyId}`
+        `${apiBase}/v1/products/${productId}/variants/${variantId}/prices/${currencyId}`,
       );
 
       setPrices(prices.filter((p) => p.currency_id !== currencyId));
@@ -310,111 +312,114 @@ export function VariantPrices({
         </Card>
       ) : (
         <Table>
-          <Table.Content>
-            <Table.Header>
-              <Table.Column isRowHeader>
-                {t("admin-variant-prices-currency")}
-              </Table.Column>
-              <Table.Column>
-                {t("admin-variant-prices-price")}
-              </Table.Column>
-              <Table.Column>
-                {t("admin-common-actions")}
-              </Table.Column>
-            </Table.Header>
-            <Table.Body items={prices} renderEmptyState={() => "No prices"}>
-            {(price) => {
-              const isEditing = editingCurrencyId === price.currency_id;
+          <Table.ScrollContainer>
+            <Table.Content>
+              <Table.Header>
+                <Table.Column isRowHeader>
+                  {t("admin-variant-prices-currency")}
+                </Table.Column>
+                <Table.Column>{t("admin-variant-prices-price")}</Table.Column>
+                <Table.Column>{t("admin-common-actions")}</Table.Column>
+              </Table.Header>
+              <Table.Body items={prices} renderEmptyState={() => "No prices"}>
+                {(price) => {
+                  const isEditing = editingCurrencyId === price.currency_id;
 
-              return (
-                <Table.Row key={price.currency_id} className="odd:bg-default-50">
-                  <Table.Cell>
-                    <div>
-                      <p className=" font-semibold text-sm">
-                        {price.currency_code}
-                      </p>
-                      <p className="text-xs text-default-500">
-                        {price.currency_symbol}
-                      </p>
-                    </div>
-                  </Table.Cell>
+                  return (
+                    <Table.Row
+                      key={price.currency_id}
+                      className="odd:bg-default-50"
+                    >
+                      <Table.Cell>
+                        <div>
+                          <p className=" font-semibold text-sm">
+                            {price.currency_code}
+                          </p>
+                          <p className="text-xs text-default-500">
+                            {price.currency_symbol}
+                          </p>
+                        </div>
+                      </Table.Cell>
 
-                  <Table.Cell>
-                    {isEditing ? (
-                      <div className="flex items-center justify-end gap-1">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="w-28"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          autoFocus
-                          aria-label={`Edit price for ${price.currency_code}`}
-                        />
-                        <span className="text-xs text-default-400 ">
-                          {price.currency_code}
-                        </span>
-                      </div>
-                    ) : (
-                      <p className=" font-semibold text-sm">
-                        {formatMoney(price.price_cents, price.currency_code)}
-                      </p>
-                    )}
-                  </Table.Cell>
+                      <Table.Cell>
+                        {isEditing ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-28"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              autoFocus
+                              aria-label={`Edit price for ${price.currency_code}`}
+                            />
+                            <span className="text-xs text-default-400 ">
+                              {price.currency_code}
+                            </span>
+                          </div>
+                        ) : (
+                          <p className=" font-semibold text-sm">
+                            {formatMoney(
+                              price.price_cents,
+                              price.currency_code,
+                            )}
+                          </p>
+                        )}
+                      </Table.Cell>
 
-                  <Table.Cell>
-                    <div className="flex items-center justify-end gap-1">
-                      {isEditing ? (
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="tertiary"
-                          aria-label="Save price"
-                          onPress={() => handleSaveEdit(price.currency_id)}
-                        >
-                          <Save className="w-4 h-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="tertiary"
-                          aria-label="Edit price"
-                          onPress={() => {
-                            setEditingCurrencyId(price.currency_id);
-                            setEditValue((price.price_cents / 100).toFixed(2));
-                          }}
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <Table.Cell>
+                        <div className="flex items-center justify-end gap-1">
+                          {isEditing ? (
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="tertiary"
+                              aria-label="Save price"
+                              onPress={() => handleSaveEdit(price.currency_id)}
+                            >
+                              <Save className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="tertiary"
+                              aria-label="Edit price"
+                              onPress={() => {
+                                setEditingCurrencyId(price.currency_id);
+                                setEditValue(
+                                  (price.price_cents / 100).toFixed(2),
+                                );
+                              }}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          )}
 
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="tertiary"
-                        aria-label="Delete price"
-                        isDisabled={isEditing}
-                        onPress={() => handleDeletePrice(price.currency_id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </Table.Cell>
-                </Table.Row>
-              );
-            }}
-          </Table.Body>
-          </Table.Content>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="tertiary"
+                            aria-label="Delete price"
+                            isDisabled={isEditing}
+                            onPress={() => handleDeletePrice(price.currency_id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                }}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
         </Table>
       )}
 
       {/* Add price modal */}
-      <Modal
-        isOpen={isAddPriceModalOpen}
-        onOpenChange={setIsAddPriceModalOpen}
-      >
+      <Modal isOpen={isAddPriceModalOpen} onOpenChange={setIsAddPriceModalOpen}>
         <Modal.Backdrop>
           <Modal.Container>
             <Modal.Dialog>
@@ -431,9 +436,13 @@ export function VariantPrices({
                       <Select
                         placeholder={t("admin-common-select")}
                         value={selectedCurrency || ""}
-                        onChange={(value) => setSelectedCurrency((value as string) || "")}
+                        onChange={(value) =>
+                          setSelectedCurrency((value as string) || "")
+                        }
                       >
-                        <Label>{t("admin-variant-prices-select-currency")}</Label>
+                        <Label>
+                          {t("admin-variant-prices-select-currency")}
+                        </Label>
                         <Select.Trigger>
                           <Select.Value />
                           <Select.Indicator />
@@ -441,8 +450,13 @@ export function VariantPrices({
                         <Select.Popover>
                           <ListBox>
                             {availableCurrencies.map((curr) => (
-                              <ListBox.Item key={curr.id} id={curr.id} textValue={curr.code}>
-                                {curr.code} - {curr.display_name} ({curr.symbol})
+                              <ListBox.Item
+                                key={curr.id}
+                                id={curr.id}
+                                textValue={curr.code}
+                              >
+                                {curr.code} - {curr.display_name} ({curr.symbol}
+                                )
                                 <ListBox.ItemIndicator />
                               </ListBox.Item>
                             ))}
@@ -466,14 +480,13 @@ export function VariantPrices({
                     </div>
                   </Modal.Body>
                   <Modal.Footer>
-                    <Button
-                      variant="tertiary"
-                      onPress={close}
-                    >
+                    <Button variant="tertiary" onPress={close}>
                       {t("admin-common-cancel")}
                     </Button>
                     <Button
-                      isDisabled={!selectedCurrency || !priceInput || submitting}
+                      isDisabled={
+                        !selectedCurrency || !priceInput || submitting
+                      }
                       isPending={submitting}
                       onPress={handleAddPrice}
                     >

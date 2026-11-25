@@ -8,7 +8,7 @@
     "dev": "wrangler dev",
     "dev:env": "bash ./dev-env.sh \"$@\"",
     "preview:env": "bash ./dev-env.sh \"$@\"",
-    "stripe:listen": "bash -c 'source ../../.env && stripe --api-key $STRIPE_SECRET_KEY listen --load-from-webhooks-api --forward-to http://localhost:8787'",
+    "stripe:listen": "bash -c 'if ! command -v stripe >/dev/null 2>&1; then echo \"⚠️  Stripe CLI not found. Skipping webhook forwarding (install: https://docs.stripe.com/stripe-cli).\"; exit 0; fi; set -a && . ../../.env && set +a; exec stripe --api-key \"$STRIPE_SECRET_KEY\" listen --load-from-webhooks-api --forward-to http://localhost:8787'",
     "deploy": "wrangler deploy",
     "gen:openapi": "bash -c 'source ../../.env && wrangler dev --port 8787 & PID=$! && for i in $(seq 1 30); do sleep 1 && curl -sf http://localhost:8787/openapi.json > ../../openapi.json && echo \"\\n✓ Generated openapi.json\" && kill $PID && exit 0; done; echo \"\\n✗ wrangler did not respond\" && kill $PID && exit 1'",
     "db:init": "source ../../.env && npx tsx scripts/init.ts",

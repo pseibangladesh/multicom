@@ -27,7 +27,7 @@ All client-specific configuration flows through **Cloudflare secrets** (set in W
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `STORE_URL` | Public storefront URL for order links | None (required) |
-| `STORE_NAME` | Store display name in emails | `"Bengal Exchange Store"` |
+| `STORE_NAME` | Store display name in emails | `"Bengali Exchange Store"` |
 | `BETTER_AUTH_SECRET` | Signs session cookies (≥32 chars) | Required |
 | `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` | Stripe payment processing | Optional |
 | `STRIPE_WEBHOOK_SECRET` | Verifies incoming Stripe webhooks | Optional |

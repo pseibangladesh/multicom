@@ -129,7 +129,9 @@ const _BASE_ORDER = {
     checkout_session_id: "cs_test_a1b2c3d4e5f6",
     payment_intent_id: "pi_test_a1b2c3d4e5f6",
   },
-  items: [{ sku: "1M", title: "AI Tokens — 1M", qty: 1, unit_price_cents: 4990 }],
+  items: [
+    { sku: "1M", title: "AI Tokens — 1M", qty: 1, unit_price_cents: 4990 },
+  ],
   created_at: "2026-05-16T10:30:00.000Z",
 };
 
@@ -460,18 +462,19 @@ export default function WebhooksPage() {
 
   return (
     <>
-      <div className="px-4 py-6">
+      <div className="py-4 md:px-4 md:py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 h-9">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h1
             className="text-lg font-semibold"
             style={{ color: "var(--text)" }}
           >
             {t("admin-webhooks-title")}
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              className="p-2 rounded hover:bg-(--bg-hover) transition-colors disabled:opacity-50"
+              aria-label={t("admin-webhooks-refresh")}
+              className="grid h-10 w-10 place-items-center rounded hover:bg-(--bg-hover) transition-colors disabled:opacity-50"
               disabled={isFetching}
               style={{ color: "var(--text-muted)" }}
               onClick={() => setRefreshIndex((i) => i + 1)}
@@ -530,57 +533,59 @@ export default function WebhooksPage() {
               </p>
             </div>
           ) : (
-            <table className="w-full table-fixed">
-              <thead>
-                <tr
-                  className="text-left text-xs font-medium uppercase tracking-wide"
-                  style={{
-                    color: "var(--text-muted)",
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  <th className="px-4 py-3">{t("admin-webhooks-col-url")}</th>
-                  <th className="px-4 py-3">
-                    {t("admin-webhooks-col-events")}
-                  </th>
-                  <th className="px-4 py-3">{t("status")}</th>
-                </tr>
-              </thead>
-              <tbody
-                className="divide-y"
-                style={{ borderColor: "var(--border-subtle)" }}
-              >
-                {webhooks.map((webhook) => (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-xl table-fixed">
+                <thead>
                   <tr
-                    key={webhook.id}
-                    className="cursor-pointer transition-colors hover:bg-(--bg-hover)"
-                    onClick={() => setSelectedWebhook(webhook.id)}
+                    className="text-left text-xs font-medium uppercase tracking-wide"
+                    style={{
+                      color: "var(--text-muted)",
+                      borderBottom: "1px solid var(--border)",
+                    }}
                   >
-                    <td className="px-4 py-4  text-sm break-all">
-                      {webhook.url}
-                    </td>
-                    <td
-                      className="px-4 py-4 text-xs"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      {webhook.events.join(", ")}
-                    </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={clsx(
-                          "text-xs px-2 py-0.5 rounded",
-                          webhook.status === "active"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-                        )}
-                      >
-                        {webhook.status}
-                      </span>
-                    </td>
+                    <th className="px-4 py-3">{t("admin-webhooks-col-url")}</th>
+                    <th className="px-4 py-3">
+                      {t("admin-webhooks-col-events")}
+                    </th>
+                    <th className="px-4 py-3">{t("status")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody
+                  className="divide-y"
+                  style={{ borderColor: "var(--border-subtle)" }}
+                >
+                  {webhooks.map((webhook) => (
+                    <tr
+                      key={webhook.id}
+                      className="cursor-pointer transition-colors hover:bg-(--bg-hover)"
+                      onClick={() => setSelectedWebhook(webhook.id)}
+                    >
+                      <td className="px-4 py-4  text-sm break-all">
+                        {webhook.url}
+                      </td>
+                      <td
+                        className="px-4 py-4 text-xs"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {webhook.events.join(", ")}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={clsx(
+                            "text-xs px-2 py-0.5 rounded",
+                            webhook.status === "active"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+                          )}
+                        >
+                          {webhook.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
@@ -1054,6 +1059,7 @@ export default function WebhooksPage() {
                           onClick={() => {
                             const payload =
                               WEBHOOK_PAYLOAD_EXAMPLES[examplesEventType];
+
                             if (payload) {
                               navigator.clipboard.writeText(
                                 JSON.stringify(payload, null, 2),

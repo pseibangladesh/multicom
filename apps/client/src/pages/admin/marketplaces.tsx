@@ -479,10 +479,10 @@ export default function MarketplacesPage() {
 
   return (
     <>
-      <div className="max-w-6xl mx-auto py-12 px-4 space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6 py-4 md:px-4 md:py-12">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">
+            <h1 className="text-2xl md:text-3xl font-bold">
               {t("admin-marketplaces-title")}
             </h1>
             <p className="text-sm text-default-500 mt-1">
@@ -513,168 +513,170 @@ export default function MarketplacesPage() {
         <Card>
           <Card.Content>
             <Table aria-label={t("admin-marketplaces-title")}>
-              <Table.Content>
-                <Table.Header>
-                  <Table.Column isRowHeader>
-                    {t("admin-marketplaces-col-platform")}
-                  </Table.Column>
-                  <Table.Column>
-                    {t("admin-marketplaces-col-shop")}
-                  </Table.Column>
-                  <Table.Column>{t("admin-common-status")}</Table.Column>
-                  <Table.Column>
-                    {t("admin-marketplaces-col-listing")}
-                  </Table.Column>
-                  <Table.Column>
-                    {t("admin-marketplaces-col-last-sync")}
-                  </Table.Column>
-                  <Table.Column>{t("admin-common-actions")}</Table.Column>
-                </Table.Header>
-                <Table.Body
-                  renderEmptyState={() =>
-                    isLoading
-                      ? t("admin-common-loading")
-                      : t("admin-marketplaces-empty")
-                  }
-                >
-                  {channels.map((ch) => {
-                    const supported = isConnectable(ch.platform);
-                    const active = ch.status === "active";
-                    const needsReconnect =
-                      supported && (!ch.connected || ch.status === "error");
+              <Table.ScrollContainer>
+                <Table.Content>
+                  <Table.Header>
+                    <Table.Column isRowHeader>
+                      {t("admin-marketplaces-col-platform")}
+                    </Table.Column>
+                    <Table.Column>
+                      {t("admin-marketplaces-col-shop")}
+                    </Table.Column>
+                    <Table.Column>{t("admin-common-status")}</Table.Column>
+                    <Table.Column>
+                      {t("admin-marketplaces-col-listing")}
+                    </Table.Column>
+                    <Table.Column>
+                      {t("admin-marketplaces-col-last-sync")}
+                    </Table.Column>
+                    <Table.Column>{t("admin-common-actions")}</Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() =>
+                      isLoading
+                        ? t("admin-common-loading")
+                        : t("admin-marketplaces-empty")
+                    }
+                  >
+                    {channels.map((ch) => {
+                      const supported = isConnectable(ch.platform);
+                      const active = ch.status === "active";
+                      const needsReconnect =
+                        supported && (!ch.connected || ch.status === "error");
 
-                    return (
-                      <Table.Row key={ch.id} className="odd:bg-default-50">
-                        <Table.Cell>
-                          <span className="font-medium">
-                            {PLATFORM_LABELS[ch.platform] ?? ch.platform}
-                          </span>
-                          {typeof ch.config.environment === "string" &&
-                            ch.config.environment !== "production" && (
-                              <span className="ml-2 text-xs text-default-500">
-                                ({ch.config.environment})
-                              </span>
-                            )}
-                        </Table.Cell>
-                        <Table.Cell>
-                          {ch.externalShopId ??
-                            (typeof ch.config.marketplace_id === "string"
-                              ? ch.config.marketplace_id
-                              : "—")}
-                        </Table.Cell>
-                        <Table.Cell>
-                          <div className="flex flex-col gap-1 items-start">
-                            <StatusBadge
-                              colorMap={CHANNEL_STATUS_COLORS}
-                              status={ch.status}
-                            />
-                            {!ch.connected && (
-                              <span className="text-xs text-danger">
-                                {t("admin-marketplaces-not-connected")}
-                              </span>
-                            )}
-                          </div>
-                        </Table.Cell>
-                        <Table.Cell>
-                          <Chip
-                            color={ch.listingReady ? "success" : "warning"}
-                            size="sm"
-                            variant="soft"
-                          >
-                            {ch.listingReady
-                              ? t("admin-marketplaces-listing-ready")
-                              : t("admin-marketplaces-listing-needs-setup")}
-                          </Chip>
-                        </Table.Cell>
-                        <Table.Cell>
-                          {ch.lastJob ? (
-                            <div className="flex flex-col gap-1 items-start text-xs">
-                              <span>
-                                {t(
-                                  `admin-marketplaces-job-${ch.lastJob.type.replace(/_/g, "-")}`,
-                                )}
-                              </span>
+                      return (
+                        <Table.Row key={ch.id} className="odd:bg-default-50">
+                          <Table.Cell>
+                            <span className="font-medium">
+                              {PLATFORM_LABELS[ch.platform] ?? ch.platform}
+                            </span>
+                            {typeof ch.config.environment === "string" &&
+                              ch.config.environment !== "production" && (
+                                <span className="ml-2 text-xs text-default-500">
+                                  ({ch.config.environment})
+                                </span>
+                              )}
+                          </Table.Cell>
+                          <Table.Cell>
+                            {ch.externalShopId ??
+                              (typeof ch.config.marketplace_id === "string"
+                                ? ch.config.marketplace_id
+                                : "—")}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <div className="flex flex-col gap-1 items-start">
                               <StatusBadge
-                                colorMap={JOB_STATUS_COLORS}
-                                status={ch.lastJob.status ?? "pending"}
+                                colorMap={CHANNEL_STATUS_COLORS}
+                                status={ch.status}
                               />
-                              <span className="text-default-500">
-                                {formatServerDate(ch.lastJob.updatedAt)}
-                              </span>
-                              {ch.lastJob.error && (
-                                <span
-                                  className="text-danger max-w-[16rem] truncate"
-                                  title={ch.lastJob.error}
-                                >
-                                  {ch.lastJob.error}
+                              {!ch.connected && (
+                                <span className="text-xs text-danger">
+                                  {t("admin-marketplaces-not-connected")}
                                 </span>
                               )}
                             </div>
-                          ) : (
-                            <span className="text-default-400 text-xs">
-                              {t("admin-marketplaces-never-synced")}
-                            </span>
-                          )}
-                        </Table.Cell>
-                        <Table.Cell>
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              isDisabled={!supported}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Chip
+                              color={ch.listingReady ? "success" : "warning"}
                               size="sm"
-                              variant="secondary"
-                              onPress={() => openEdit(ch)}
+                              variant="soft"
                             >
-                              {t("admin-marketplaces-edit-config")}
-                            </Button>
-                            <Button
-                              isDisabled={
-                                !supported ||
-                                !active ||
-                                !ch.connected ||
-                                busy !== null
-                              }
-                              size="sm"
-                              variant="secondary"
-                              onPress={() => pullOrders(ch)}
-                            >
-                              {busy === `${ch.id}:orders`
-                                ? t("admin-marketplaces-syncing")
-                                : t("admin-marketplaces-pull-orders")}
-                            </Button>
-                            <Button
-                              isDisabled={
-                                !supported || !active || busy !== null
-                              }
-                              size="sm"
-                              variant="tertiary"
-                              onPress={() => pushProducts(ch)}
-                            >
-                              {busy === `${ch.id}:products`
-                                ? t("admin-marketplaces-syncing")
-                                : t("admin-marketplaces-push-products")}
-                            </Button>
-                            {needsReconnect && (
-                              <Button
-                                isDisabled={connecting !== null}
-                                size="sm"
-                                variant="danger"
-                                onPress={() =>
-                                  startConnect(
-                                    ch.platform as ConnectablePlatform,
-                                    ch.id,
-                                  )
-                                }
-                              >
-                                {t("admin-marketplaces-reconnect")}
-                              </Button>
+                              {ch.listingReady
+                                ? t("admin-marketplaces-listing-ready")
+                                : t("admin-marketplaces-listing-needs-setup")}
+                            </Chip>
+                          </Table.Cell>
+                          <Table.Cell>
+                            {ch.lastJob ? (
+                              <div className="flex flex-col gap-1 items-start text-xs">
+                                <span>
+                                  {t(
+                                    `admin-marketplaces-job-${ch.lastJob.type.replace(/_/g, "-")}`,
+                                  )}
+                                </span>
+                                <StatusBadge
+                                  colorMap={JOB_STATUS_COLORS}
+                                  status={ch.lastJob.status ?? "pending"}
+                                />
+                                <span className="text-default-500">
+                                  {formatServerDate(ch.lastJob.updatedAt)}
+                                </span>
+                                {ch.lastJob.error && (
+                                  <span
+                                    className="max-w-64 truncate text-danger"
+                                    title={ch.lastJob.error}
+                                  >
+                                    {ch.lastJob.error}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-default-400 text-xs">
+                                {t("admin-marketplaces-never-synced")}
+                              </span>
                             )}
-                          </div>
-                        </Table.Cell>
-                      </Table.Row>
-                    );
-                  })}
-                </Table.Body>
-              </Table.Content>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                isDisabled={!supported}
+                                size="sm"
+                                variant="secondary"
+                                onPress={() => openEdit(ch)}
+                              >
+                                {t("admin-marketplaces-edit-config")}
+                              </Button>
+                              <Button
+                                isDisabled={
+                                  !supported ||
+                                  !active ||
+                                  !ch.connected ||
+                                  busy !== null
+                                }
+                                size="sm"
+                                variant="secondary"
+                                onPress={() => pullOrders(ch)}
+                              >
+                                {busy === `${ch.id}:orders`
+                                  ? t("admin-marketplaces-syncing")
+                                  : t("admin-marketplaces-pull-orders")}
+                              </Button>
+                              <Button
+                                isDisabled={
+                                  !supported || !active || busy !== null
+                                }
+                                size="sm"
+                                variant="tertiary"
+                                onPress={() => pushProducts(ch)}
+                              >
+                                {busy === `${ch.id}:products`
+                                  ? t("admin-marketplaces-syncing")
+                                  : t("admin-marketplaces-push-products")}
+                              </Button>
+                              {needsReconnect && (
+                                <Button
+                                  isDisabled={connecting !== null}
+                                  size="sm"
+                                  variant="danger"
+                                  onPress={() =>
+                                    startConnect(
+                                      ch.platform as ConnectablePlatform,
+                                      ch.id,
+                                    )
+                                  }
+                                >
+                                  {t("admin-marketplaces-reconnect")}
+                                </Button>
+                              )}
+                            </div>
+                          </Table.Cell>
+                        </Table.Row>
+                      );
+                    })}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
           </Card.Content>
         </Card>

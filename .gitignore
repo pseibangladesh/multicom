@@ -30,3 +30,6 @@ playwright-report/
 .wrangler/
 .continue/
 .vscode/mcp.json
+
+# Local environment (holds secrets)
+.env

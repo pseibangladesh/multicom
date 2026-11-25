@@ -1,8 +1,8 @@
-# Bengal Exchange — System Design
+# Bengali Exchange — System Design
 
 **Version:** 3.1 | **Updated:** 2026-11-23 | **Status:** Active
 
-Bengal Exchange (repository `multicom`, npm package `bengal-exchange`) is a headless e-commerce platform that runs entirely on Cloudflare. This document describes how it is built today. For setup see [run-instructions.md](./run-instructions.md); for a step-by-step walk through login and sessions see [authentication.md](./authentication.md).
+Bengali Exchange (repository `multicom`, npm package `bengal-exchange`) is a headless e-commerce platform that runs entirely on Cloudflare. This document describes how it is built today. For setup see [run-instructions.md](./run-instructions.md); for a step-by-step walk through login and sessions see [authentication.md](./authentication.md).
 
 ---
 

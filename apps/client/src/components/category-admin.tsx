@@ -870,83 +870,88 @@ export function CategoryAdmin() {
         </div>
       ) : (
         <Table>
-          <Table.Content>
-            <Table.Header>
-              <Table.Column isRowHeader>{t("name")}</Table.Column>
-              <Table.Column>{t("handle")}</Table.Column>
-              <Table.Column>{t("parent-category")}</Table.Column>
-              <Table.Column>{t("status")}</Table.Column>
-              <Table.Column className="text-center">
-                {t("actions")}
-              </Table.Column>
-            </Table.Header>
-            <Table.Body>
-              {categories.map((category) => {
-                const parent = categories.find(
-                  (c) => c.id === category.parent_id,
-                );
-                const displayName = resolveTitle(category.name, i18n.language);
-                const parentDisplayName = parent
-                  ? resolveTitle(parent.name, i18n.language)
-                  : "—";
+          <Table.ScrollContainer>
+            <Table.Content>
+              <Table.Header>
+                <Table.Column isRowHeader>{t("name")}</Table.Column>
+                <Table.Column>{t("handle")}</Table.Column>
+                <Table.Column>{t("parent-category")}</Table.Column>
+                <Table.Column>{t("status")}</Table.Column>
+                <Table.Column className="text-center">
+                  {t("actions")}
+                </Table.Column>
+              </Table.Header>
+              <Table.Body>
+                {categories.map((category) => {
+                  const parent = categories.find(
+                    (c) => c.id === category.parent_id,
+                  );
+                  const displayName = resolveTitle(
+                    category.name,
+                    i18n.language,
+                  );
+                  const parentDisplayName = parent
+                    ? resolveTitle(parent.name, i18n.language)
+                    : "—";
 
-                return (
-                  <Table.Row key={category.id}>
-                    <Table.Cell className="font-medium">
-                      {displayName}
-                      {category.visibility === "showcase" && (
-                        <span className="ms-2 rounded bg-bx-accent-soft px-1.5 py-0.5 text-xs font-normal text-bx-accent">
-                          {t("admin-category-showcase-tag")}
-                        </span>
-                      )}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <code className="text-xs bg-default-100 text-default-700 border border-default-200 px-2 py-1 rounded">
-                        {category.handle}
-                      </code>
-                    </Table.Cell>
-                    <Table.Cell>{parentDisplayName}</Table.Cell>
-                    <Table.Cell>
-                      <Chip
-                        size="sm"
-                        variant="soft"
-                        color={
-                          category.status === "active" ? "success" : "warning"
-                        }
-                      >
-                        {t(category.status)}
-                      </Chip>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex justify-center gap-2">
-                        <div title={t("edit")}>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="ghost"
-                            onPress={() => handleEdit(category)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
+                  return (
+                    <Table.Row key={category.id}>
+                      <Table.Cell className="font-medium">
+                        {displayName}
+                        {category.visibility === "showcase" && (
+                          <span className="ms-2 rounded bg-bx-accent-soft px-1.5 py-0.5 text-xs font-normal text-bx-accent">
+                            {t("admin-category-showcase-tag")}
+                          </span>
+                        )}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <code className="text-xs bg-default-100 text-default-700 border border-default-200 px-2 py-1 rounded">
+                          {category.handle}
+                        </code>
+                      </Table.Cell>
+                      <Table.Cell>{parentDisplayName}</Table.Cell>
+                      <Table.Cell>
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color={
+                            category.status === "active" ? "success" : "warning"
+                          }
+                        >
+                          {t(category.status)}
+                        </Chip>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex justify-center gap-2">
+                          <div title={t("edit")}>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="ghost"
+                              onPress={() => handleEdit(category)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div title={t("delete")}>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/30"
+                              onPress={() => handleDeleteClick(category)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div title={t("delete")}>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/30"
-                            onPress={() => handleDeleteClick(category)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
-                );
-              })}
-            </Table.Body>
-          </Table.Content>
+                      </Table.Cell>
+                    </Table.Row>
+                  );
+                })}
+              </Table.Body>
+            </Table.Content>
+          </Table.ScrollContainer>
         </Table>
       )}
 

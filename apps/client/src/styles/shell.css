@@ -419,8 +419,12 @@
   }
   .bx-social {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     align-items: center;
+    list-style: none;
+    margin: 0;
+    padding: 0;
   }
   .bx-social a {
     width: 2.3rem;

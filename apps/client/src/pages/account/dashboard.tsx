@@ -4,12 +4,12 @@
  */
 
 import { useEffect, useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   Card,
   Button,
   Tabs,
-  Avatar,
   Chip,
   Separator,
   Link as HeroUILink,
@@ -25,6 +25,7 @@ import { AiTokensWidget } from "@/components/ai-tokens-widget";
 import { formatMoney } from "@/utils/currency";
 import { getApiBase } from "@/lib/api-base";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
+import { UserAvatar } from "@/components/profile-picture";
 
 interface CustomerProfile {
   id: string;
@@ -38,12 +39,23 @@ interface CustomerProfile {
   last_order_at: string | null;
 }
 
+interface MyOrder {
+  number: string;
+  status: string;
+  currency: string;
+  total_cents: number;
+  created_at: string;
+}
+
+/** The API caps a page at 100; past that the count shows as "100+". */
+const ORDERS_PAGE = 100;
+
 /**
  * Modern e-commerce customer dashboard.
  * Features: Profile summary, saved carts, wishlist, recent orders, quick actions.
  */
 export default function Dashboard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const auth = useAuth() as any;
   const { wishlist } = useWishlist();
   const { savedCarts } = useSavedCarts();
@@ -53,6 +65,24 @@ export default function Dashboard() {
   const [selectedTab, setSelectedTab] = useState("overview");
 
   const apiBase = getApiBase();
+
+  // Every order (any status), newest first. profile.order_count only counts
+  // paid-or-later orders, so a customer with pending orders saw "0 orders".
+  const ordersQuery = useQuery<{
+    items: MyOrder[];
+    pagination?: { hasMore?: boolean };
+  }>({
+    queryKey: ["me", "orders", "dashboard"],
+    queryFn: () => auth.getJson(`${apiBase}/v1/me/orders?limit=${ORDERS_PAGE}`),
+    enabled: !!auth?.getJson && !!auth?.isAuthenticated,
+    staleTime: 30_000,
+  });
+  const orders = ordersQuery.data?.items ?? [];
+  const orderCount = orders.length;
+  const orderCountLabel = ordersQuery.data?.pagination?.hasMore
+    ? `${ORDERS_PAGE}+`
+    : String(orderCount);
+  const lastOrder = orders[0];
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -73,6 +103,13 @@ export default function Dashboard() {
       fetchProfile();
     }
   }, [auth, apiBase]);
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(i18n.language, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
 
   const displayName = useMemo(() => {
     if (!profile) return "";
@@ -104,15 +141,14 @@ export default function Dashboard() {
       <div className="rounded-md border border-bx-line bg-bx-surface-raised p-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Avatar
+            <UserAvatar
               className="border-2 border-bx-primary"
-              color="default"
-              size="lg"
-            >
-              {displayName.charAt(0).toUpperCase()}
-            </Avatar>
+              email={profile.email}
+              image={auth?.user?.image}
+              name={profile.name}
+            />
             <div>
-              <h1 className="font-display text-3xl text-bx-ink">
+              <h1 className="font-display text-2xl md:text-3xl text-bx-ink">
                 {t("account-welcome")}, {displayName}
               </h1>
               <p className="mt-1 break-all text-bx-stone">{profile.email}</p>
@@ -137,7 +173,7 @@ export default function Dashboard() {
                   {t("account-total-orders")}
                 </p>
                 <p className="mt-2 font-display text-4xl text-bx-primary">
-                  {profile.order_count}
+                  {ordersQuery.isLoading ? "…" : orderCountLabel}
                 </p>
                 <Chip
                   className="mt-3"
@@ -145,7 +181,7 @@ export default function Dashboard() {
                   size="sm"
                   variant="tertiary"
                 >
-                  {t("account-orders-count", { count: profile.order_count })}
+                  {t("account-orders-count", { count: orderCount })}
                 </Chip>
               </div>
             </div>
@@ -240,7 +276,7 @@ export default function Dashboard() {
             onSelectionChange={(key) => setSelectedTab(key as string)}
           >
             <Tabs.ListContainer>
-              <Tabs.List className="grid w-full grid-cols-1 md:grid-cols-5">
+              <Tabs.List className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
                 <Tabs.Tab className="text-center font-semibold" id="overview">
                   {t("account-overview")}
                   <Tabs.Indicator />
@@ -264,7 +300,7 @@ export default function Dashboard() {
                   id="recent-orders"
                 >
                   {t("account-recent-orders-tab", {
-                    count: profile.order_count,
+                    count: orderCount,
                   })}
                   <Tabs.Indicator />
                 </Tabs.Tab>
@@ -278,7 +314,7 @@ export default function Dashboard() {
 
             {/* Overview Panel */}
             <Tabs.Panel id="overview">
-              <div className="space-y-6 py-6 px-6">
+              <div className="space-y-6 p-3 sm:p-6">
                 {/* Last Order Card */}
                 <Card className="border border-default-100">
                   <Card.Header className="flex gap-3 items-center">
@@ -290,7 +326,7 @@ export default function Dashboard() {
                   </Card.Header>
                   <Separator />
                   <Card.Content>
-                    {profile.order_count === 0 ? (
+                    {!lastOrder ? (
                       <div className="text-center py-8">
                         <p className="text-default-500 text-lg">
                           {t("account-no-orders")}
@@ -303,18 +339,32 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="space-y-3">
+                        <div className="flex flex-wrap justify-between items-center gap-2">
+                          <Link
+                            className="font-mono font-semibold text-bx-primary hover:underline"
+                            to={`/account/orders/${encodeURIComponent(lastOrder.number)}`}
+                          >
+                            #{lastOrder.number}
+                          </Link>
+                          <Chip size="sm" variant="tertiary">
+                            {lastOrder.status}
+                          </Chip>
+                        </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-default-600">{t("date")}:</span>
-                          <span className="font-semibold text-default-900">
-                            {profile.last_order_at
-                              ? new Date(
-                                  profile.last_order_at,
-                                ).toLocaleDateString(undefined, {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                })
-                              : t("not-available")}
+                          <span className="text-bx-stone">{t("date")}:</span>
+                          <span className="font-semibold text-bx-ink">
+                            {formatDate(lastOrder.created_at)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-bx-stone">
+                            {t("admin-orders-total")}:
+                          </span>
+                          <span className="font-semibold tabular-nums text-bx-ink">
+                            {formatMoney(
+                              lastOrder.total_cents,
+                              lastOrder.currency,
+                            )}
                           </span>
                         </div>
                         <Link to="/account/orders">
@@ -365,22 +415,22 @@ export default function Dashboard() {
 
             {/* Saved Carts Panel */}
             <Tabs.Panel id="saved-carts">
-              <div className="py-6 px-6">
+              <div className="p-3 sm:p-6">
                 <SavedCartsManager />
               </div>
             </Tabs.Panel>
 
             {/* Wishlist Panel */}
             <Tabs.Panel id="wishlist">
-              <div className="py-6 px-6">
+              <div className="p-3 sm:p-6">
                 <WishlistManager />
               </div>
             </Tabs.Panel>
 
             {/* Recent Orders Panel */}
             <Tabs.Panel id="recent-orders">
-              <div className="py-6 px-6">
-                {profile.order_count === 0 ? (
+              <div className="p-3 sm:p-6">
+                {orderCount === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-default-500 text-lg mb-4">
                       {t("account-no-orders")}
@@ -391,9 +441,29 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <p className="text-sm text-default-500 mb-4">
-                      {t("account-orders-summary-info")}
-                    </p>
+                    <ul className="divide-y divide-bx-line">
+                      {orders.slice(0, 5).map((o) => (
+                        <li key={o.number}>
+                          <Link
+                            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3 hover:text-bx-primary"
+                            to={`/account/orders/${encodeURIComponent(o.number)}`}
+                          >
+                            <span className="font-mono font-semibold">
+                              #{o.number}
+                            </span>
+                            <span className="text-sm text-bx-stone">
+                              {formatDate(o.created_at)}
+                            </span>
+                            <Chip size="sm" variant="tertiary">
+                              {o.status}
+                            </Chip>
+                            <span className="ml-auto font-semibold tabular-nums">
+                              {formatMoney(o.total_cents, o.currency)}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
                     <Link to="/account/orders">
                       <Button className="w-full" variant="primary">
                         {t("account-view-all")}
@@ -406,7 +476,7 @@ export default function Dashboard() {
 
             {/* AI Tokens Panel */}
             <Tabs.Panel id="ai-tokens">
-              <div className="py-6 px-6">
+              <div className="p-3 sm:p-6">
                 <AiTokensWidget />
               </div>
             </Tabs.Panel>

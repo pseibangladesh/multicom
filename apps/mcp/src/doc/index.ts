@@ -48,7 +48,7 @@ function generateIndexHTML(env: Env): string {
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Bengal Exchange MCP Server - Knowledge Base</title>
+      <title>Bengali Exchange MCP Server - Knowledge Base</title>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha256-2FMn2Zx6PuH5tdBQDRNwrOo60ts5wWPC9R8jK67b3t4=" crossorigin="anonymous">
        <link href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css" rel="stylesheet">
       <link id="mainstyle" rel="stylesheet" type="text/css" href="${env.STORE_URL}/styles/github-updated.css">
@@ -133,7 +133,7 @@ function generateIndexHTML(env: Env): string {
     </head>
     <body>
       <div class="container">
-        <h1>Bengal Exchange MCP Server - Knowledge Base</h1>
+        <h1>Bengali Exchange MCP Server - Knowledge Base</h1>
         <p class="lead">Click on a topic to expand and load its content.</p>
         <div class="accordion" id="knowledgeAccordion">
           ${topicListItems}

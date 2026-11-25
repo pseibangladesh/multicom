@@ -22,6 +22,7 @@ import { useOfferedLanguages } from "@/lib/storefront-languages";
 import { getApiBase } from "@/lib/api-base";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
 import { useTheme } from "@/hooks/use-theme";
+import { ProfilePictureCard } from "@/components/profile-picture";
 
 interface Profile {
   id: string;
@@ -52,6 +53,8 @@ export default function Preferences() {
   const [touched, setTouched] = useState({ name: false, phone: false });
   const apiBase = getApiBase();
 
+  const userId: string | undefined = auth?.user?.id;
+
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true);
@@ -67,10 +70,13 @@ export default function Preferences() {
       }
     };
 
-    if (auth?.getJson) {
+    if (auth?.getJson && userId) {
       fetchProfile();
     }
-  }, [auth]);
+    // Once per signed-in user: the auth object also changes on every session
+    // refresh (e.g. after a new profile picture), and refetching then would
+    // wipe unsaved edits and remount the page.
+  }, [userId, apiBase]);
 
   const handleSave = async () => {
     setFormError(null);
@@ -135,6 +141,8 @@ export default function Preferences() {
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-2xl font-bold">{t("account-preferences")}</h1>
+
+      <ProfilePictureCard email={profile.email} name={profile.name} />
 
       {/* Profile Section */}
       <Card>

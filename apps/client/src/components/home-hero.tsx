@@ -14,7 +14,7 @@ const MARKETPLACES = "Amazon · Etsy · eBay";
 const HERO_CLASS =
   "mb-10 grid items-end gap-8 border-b border-bx-line pb-10 pt-4 md:mb-12 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] md:gap-16 md:pb-14 md:pt-10";
 const TITLE_CLASS =
-  "font-display text-[2.5rem] leading-[1.05] tracking-tight text-bx-ink text-balance md:text-6xl lg:text-7xl";
+  "bx-gradient-text font-display text-[2.5rem] leading-[1.05] tracking-tight text-balance md:text-6xl lg:text-7xl";
 
 /**
  * A banner button. In-site paths use the router; "/#id" on the home page is a
@@ -29,10 +29,10 @@ function CtaLink({
   primary: boolean;
   children: ReactNode;
 }) {
-  const className = buttonVariants({
+  const className = `${buttonVariants({
     variant: primary ? "primary" : "outline",
     size: "lg",
-  });
+  })}${primary ? " bx-cta-glow" : ""}`;
 
   if (href.startsWith("/#")) {
     return (

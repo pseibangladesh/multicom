@@ -222,7 +222,7 @@ export default function CustomersPage() {
 
   return (
     <>
-      <div className="px-4 py-6">
+      <div className="py-4 md:px-4 md:py-6">
         {/* header */}
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-semibold">
@@ -248,46 +248,48 @@ export default function CustomersPage() {
           <p>{t("admin-customers-empty")}</p>
         ) : (
           <Table aria-label="Customers">
-            <Table.Content
-              aria-label={t("admin-customers-title")}
-              selectionMode="none"
-            >
-              <Table.Header>
-                <Table.Column isRowHeader>
-                  {t("admin-customers-col-name")}
-                </Table.Column>
-                <Table.Column>{t("admin-customers-col-email")}</Table.Column>
-                <Table.Column>{t("admin-customers-col-orders")}</Table.Column>
-                <Table.Column>{t("admin-customers-col-spent")}</Table.Column>
-                <Table.Column>
-                  {t("admin-customers-col-first-order")}
-                </Table.Column>
-              </Table.Header>
-              <Table.Body renderEmptyState={() => ""}>
-                {customers.map((c) => (
-                  <Table.Row
-                    key={c.id}
-                    className="cursor-pointer hover:bg-default-100 transition-colors"
-                  >
-                    <Table.Cell onClick={() => openCustomer(c)}>
-                      {c.name || "-"}
-                    </Table.Cell>
-                    <Table.Cell onClick={() => openCustomer(c)}>
-                      {c.email}
-                    </Table.Cell>
-                    <Table.Cell onClick={() => openCustomer(c)}>
-                      {c.stats.order_count}
-                    </Table.Cell>
-                    <Table.Cell onClick={() => openCustomer(c)}>
-                      {formatMoney(c.stats.total_spent_cents, "EUR")}
-                    </Table.Cell>
-                    <Table.Cell onClick={() => openCustomer(c)}>
-                      {new Date(c.created_at).toLocaleDateString()}
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Content>
+            <Table.ScrollContainer>
+              <Table.Content
+                aria-label={t("admin-customers-title")}
+                selectionMode="none"
+              >
+                <Table.Header>
+                  <Table.Column isRowHeader>
+                    {t("admin-customers-col-name")}
+                  </Table.Column>
+                  <Table.Column>{t("admin-customers-col-email")}</Table.Column>
+                  <Table.Column>{t("admin-customers-col-orders")}</Table.Column>
+                  <Table.Column>{t("admin-customers-col-spent")}</Table.Column>
+                  <Table.Column>
+                    {t("admin-customers-col-first-order")}
+                  </Table.Column>
+                </Table.Header>
+                <Table.Body renderEmptyState={() => ""}>
+                  {customers.map((c) => (
+                    <Table.Row
+                      key={c.id}
+                      className="cursor-pointer hover:bg-default-100 transition-colors"
+                    >
+                      <Table.Cell onClick={() => openCustomer(c)}>
+                        {c.name || "-"}
+                      </Table.Cell>
+                      <Table.Cell onClick={() => openCustomer(c)}>
+                        {c.email}
+                      </Table.Cell>
+                      <Table.Cell onClick={() => openCustomer(c)}>
+                        {c.stats.order_count}
+                      </Table.Cell>
+                      <Table.Cell onClick={() => openCustomer(c)}>
+                        {formatMoney(c.stats.total_spent_cents, "EUR")}
+                      </Table.Cell>
+                      <Table.Cell onClick={() => openCustomer(c)}>
+                        {new Date(c.created_at).toLocaleDateString()}
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
+            </Table.ScrollContainer>
             <Table.Footer>
               <div className="w-full p-2">
                 <Pagination className="justify-between">
@@ -351,7 +353,7 @@ export default function CustomersPage() {
                   <Modal.Body>
                     {customerDetail && selectedCustomer ? (
                       <div className="space-y-5">
-                        <div className="grid grid-cols-2 gap-5">
+                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                           {/* Left column */}
                           <div className="space-y-4">
                             {/* Contact Info */}

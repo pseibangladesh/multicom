@@ -45,12 +45,7 @@ export default function Addresses() {
   const { t, i18n } = useTranslation();
   const auth = useAuth() as any;
   const localeKey = i18n.language.replace("-", "_") as
-    | "en_US"
-    | "fr_FR"
-    | "es_ES"
-    | "ar_SA"
-    | "zh_CN"
-    | "he_IL"; // Extend this union type based on the languages you support
+    "en_US" | "fr_FR" | "es_ES" | "ar_SA" | "zh_CN" | "he_IL"; // Extend this union type based on the languages you support
   const modalState = useOverlayState();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);

@@ -7,7 +7,7 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'ai-tokens-integration',
-  description: 'Selling AI token packages via Bengal Exchange: variant setup, auto-generated fufkey_ API keys, balance ledger, proxy auth, outbound webhooks, and frontend account widget.',
+  description: 'Selling AI token packages via Bengali Exchange: variant setup, auto-generated fufkey_ API keys, balance ledger, proxy auth, outbound webhooks, and frontend account widget.',
   tags: ['ai', 'payments', 'webhooks', 'backend', 'integration'],
   sources: [
     'apps/merchant/src/routes/ai-tokens.ts',
