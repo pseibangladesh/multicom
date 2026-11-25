@@ -24,7 +24,7 @@ cd dist
 touch .nojekyll   # serve files/dirs that start with "_"
 git init -q -b gh-pages
 git add -A
-git -c user.name="$(git -C "$ROOT" config user.name)" -c user.email="$(git -C "$ROOT" config user.email)" \
+git -c user.name="$(git -C "$ROOT" log -1 --format=%an)" -c user.email="$(git -C "$ROOT" log -1 --format=%ae)" \
   commit -q -m "Deploy client to GitHub Pages"
 git push -f "$REPO_URL" gh-pages
 rm -rf .git
