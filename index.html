@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+      <script type="text/javascript">
+        // Single Page Apps Helper for GitHub Pages
+        // MIT License
+        // https://github.com/rafgraph/spa-github-pages
+        (function(l) {
+          if (l.search[1] === '/' ) {
+            var decoded = l.search.slice(1).split('&').map(function(s) { 
+              return s.replace(/~and~/g, '&')
+            }).join('?');
+            window.history.replaceState(null, null,
+                l.pathname.slice(0, -1) + decoded + l.hash
+            );
+          }
+        }(window.location))
+      </script>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/multicom/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bengali Exchange</title>
+  <meta key="title" content="Bengali Exchange" property="og:title" />
+  <meta content="Bengali Exchange is a platform for managing your business." property="og:description" />
+  <meta content="Bengali Exchange is a platform for managing your business." name="description" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#0b0a08" />
+  <link href="/multicom/assets/client-favicon-DI5FVxIz.ico" rel="icon" />
+  <script>
+    // Before first paint: Bengal theme, light/dark mode and language direction,
+    // using the same rules as src/lib/theme.ts (resolveMode, migrateLegacyTheme)
+    // and src/lib/languages.ts (RTL list). Keep them in step.
+    (function () {
+      // Must match src/lib/languages.ts (checked by src/__tests__/i18n.test.ts).
+      var SUPPORTED = ["en-US", "fr-FR", "es-ES", "zh-CN", "ar-SA", "he-IL", "bn-BD"];
+      var RTL = ["ar-SA", "he-IL"];
+      var root = document.documentElement;
+      var mode = null, lang = null;
+      try {
+        // Retired luxury switcher: "luxury-dark" in ui-theme was a dark choice.
+        var legacy = localStorage.getItem("ui-theme");
+        if (legacy !== null) {
+          if (/-dark$/.test(legacy)) localStorage.setItem("theme", "dark");
+          localStorage.removeItem("ui-theme");
+        }
+        mode = localStorage.getItem("theme");
+        lang = localStorage.getItem("preferredLanguage");
+      } catch (e) {}
+      // Never chosen: dark, the brand default (DEFAULT_MODE in src/lib/theme.ts).
+      if (mode !== "light" && mode !== "dark") mode = "dark";
+      root.setAttribute("data-theme", "bengal");
+      root.classList.add(mode);
+      root.style.colorScheme = mode;
+      // Unsupported or missing saved language: English (same as resolveLanguage).
+      if (SUPPORTED.indexOf(lang) === -1) lang = "en-US";
+      root.lang = lang;
+      root.dir = RTL.indexOf(lang) !== -1 ? "rtl" : "ltr";
+    })();
+  </script>
+  <script type="module" crossorigin src="/multicom/js/client-BvYrajTd.js"></script>
+  <link rel="modulepreload" crossorigin href="/multicom/js/client-BWaJ3C7D.js">
+  <link rel="modulepreload" crossorigin href="/multicom/js/client-Bt_T5Iwy.js">
+  <link rel="modulepreload" crossorigin href="/multicom/js/client-DVfRMNbc.js">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>

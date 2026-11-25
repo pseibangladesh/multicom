@@ -1,0 +1,2 @@
+import{I as e,w as t}from"./client-Bt_T5Iwy.js";var n=e(),r={active:`success`,inactive:`default`,draft:`warning`,pending:`warning`,paid:`success`,processing:`warning`,shipped:`accent`,delivered:`success`,refunded:`danger`,canceled:`danger`};function i({status:e,colorMap:i,className:a}){let o=(i??r)[e]??`default`;return(0,n.jsx)(t,{className:a,color:o,size:`sm`,variant:`soft`,children:e})}export{i as t};
+//# sourceMappingURL=client-B4ppg70T.js.map

@@ -1,0 +1,2 @@
+import{t as e}from"./client-BAGeGX6k.js";var t={name:`loader-circle`,size:24,node:[[`path`,{d:`M21 12a9 9 0 1 1-6.219-8.56`,key:`13zald`}]],aliases:[`loader-2`]};t.node;var n=e(t);export{n as t};
+//# sourceMappingURL=client-BIT2GguU.js.map
